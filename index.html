@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minecraft Clone</title>
+    <style>
+      body { margin: 0; overflow: hidden; background: #87CEEB; font-family: monospace; }
+      canvas { display: block; }
+      #hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        color: white;
+        text-shadow: 1px 1px 2px black;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,276 @@
+import type * as THREE from 'three';
+
+// === Constants ===
+/** X/Z dimensions of a chunk in blocks. */
+export const CHUNK_SIZE = 16;
+/** Y dimension; world is bounded vertically [0, CHUNK_HEIGHT). */
+export const CHUNK_HEIGHT = 96;
+/** Render distance in chunks (radius around player). */
+export const RENDER_DISTANCE = 6;
+/** Master world seed; deterministic generation. */
+export const WORLD_SEED = 1337;
+/** Gravity acceleration in blocks/s^2 (negative = downward). */
+export const GRAVITY = -28;
+/** Total player height in blocks (feet to top of head). */
+export const PLAYER_HEIGHT = 1.8;
+/** Eye height above feet, used for camera placement. */
+export const PLAYER_EYE = 1.62;
+/** Half-extent on X/Z for AABB collision. */
+export const PLAYER_RADIUS = 0.3;
+/** Terminal velocity for falling (positive magnitude). */
+export const MAX_FALL_SPEED = 50;
+/** Walking speed in blocks/s. */
+export const WALK_SPEED = 4.3;
+/** Sprinting speed in blocks/s. */
+export const SPRINT_SPEED = 6.5;
+/** Initial vertical velocity on jump in blocks/s. */
+export const JUMP_VELOCITY = 9.2;
+/** Maximum raycast distance for break/place actions in blocks. */
+export const REACH = 5;
+
+// === Block IDs (numeric for TypedArray storage) ===
+export const BlockId = {
+  AIR: 0,
+  GRASS: 1,
+  DIRT: 2,
+  STONE: 3,
+  COBBLESTONE: 4,
+  WOOD: 5,
+  LEAVES: 6,
+  PLANKS: 7,
+  SAND: 8,
+  GLASS: 9,
+  BEDROCK: 10,
+  WATER: 11,
+} as const;
+export type BlockId = typeof BlockId[keyof typeof BlockId];
+
+// === Block definition (registry entry) ===
+export interface BlockDef {
+  id: BlockId;
+  name: string;
+  /** Collides with player; AIR and non-solid blocks (e.g. future water) are false. */
+  solid: boolean;
+  /** Mesher should still draw faces between this and air; e.g. leaves, glass. */
+  transparent: boolean;
+  /** Atlas tile indices for each face. Mesher picks based on face normal. */
+  textures: { top: number; bottom: number; side: number };
+}
+
+// === Vec3 (plain object for ergonomics; Three.js Vector3 used internally where needed) ===
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+// === Raycast result ===
+export interface BlockHit {
+  /** Integer coords of the block that was hit. */
+  block: { x: number; y: number; z: number };
+  /** Unit-length face normal of the side that was hit (one axis +/-1, others 0). Used to compute placement position = block + normal. */
+  normal: { x: number; y: number; z: number };
+  /** World-space hit point. */
+  point: Vec3;
+  /** Distance from ray origin. */
+  distance: number;
+}
+
+// === World interface (player & interaction depend on this; world implements it) ===
+export interface IWorld {
+  /** Returns BlockId.AIR for out-of-bounds (above CHUNK_HEIGHT or below 0) and unloaded chunks. */
+  getBlock(x: number, y: number, z: number): BlockId;
+  /** Sets the block. Triggers re-mesh of the chunk and any neighboring chunks if on a border. No-op if chunk not loaded. */
+  setBlock(x: number, y: number, z: number, id: BlockId): void;
+  /** True if the block at integer coords is solid (per BlockDef.solid). Out-of-bounds: false. */
+  isSolid(x: number, y: number, z: number): boolean;
+  /** DDA raycast through the voxel grid. Returns null if no solid block hit within maxDistance. */
+  raycast(origin: Vec3, direction: Vec3, maxDistance: number): BlockHit | null;
+  /** Stream chunks around playerPos: load missing within RENDER_DISTANCE, unload outside. */
+  update(playerPos: Vec3): void;
+  /** Three.js group containing all chunk meshes. Add this to the scene once. */
+  readonly group: THREE.Group;
+}
+
+// === Block registry helper (world implements; others read) ===
+export interface IBlockRegistry {
+  get(id: BlockId): BlockDef;
+  isSolid(id: BlockId): boolean;
+  isTransparent(id: BlockId): boolean;
+}
+
+// === Player input state (controls produce; physics consumes) ===
+export interface InputState {
+  forward: boolean;
+  back: boolean;
+  left: boolean;
+  right: boolean;
+  jump: boolean;
+  sprint: boolean;
+  /** Yaw in radians; mouse look. */
+  yaw: number;
+  /** Pitch in radians; clamped to [-PI/2+0.01, PI/2-0.01]. */
+  pitch: number;
+}
+
+// === Player state ===
+export interface PlayerState {
+  /** FEET position (not eyes). */
+  position: Vec3;
+  velocity: Vec3;
+  yaw: number;
+  pitch: number;
+  onGround: boolean;
+  /** Hotbar index in [0, 8]. */
+  selectedSlot: number;
+}
+
+// === Hotbar ===
+export interface HotbarSlot {
+  block: BlockId;
+}
+
+// === Texture atlas: returns UV rect for a given tile index ===
+export interface ITextureAtlas {
+  /** UV rect in atlas: [u0, v0, u1, v1]. Origin bottom-left, range [0,1]. */
+  getUV(tileIndex: number): [number, number, number, number];
+  /** The atlas Three.js texture, ready to assign to a material. */
+  readonly texture: THREE.Texture;
+  /** Tile dimensions for shader use. */
+  readonly tileCount: number;
+}
+
+// === App state machine ===
+export type AppState =
+  | 'main_menu'
+  | 'worlds'
+  | 'create_world'
+  | 'in_game'
+  | 'paused'
+  | 'settings';
+
+// === Game mode ===
+export const GameMode = {
+  SURVIVAL: 'survival',
+  CREATIVE: 'creative',
+} as const;
+export type GameMode = typeof GameMode[keyof typeof GameMode];
+
+// === Settings ===
+export interface Settings {
+  renderDistance: number;
+  fov: number;
+  mouseSensitivity: number;
+  masterVolume: number;
+  musicVolume: number;
+  sfxVolume: number;
+  invertY: boolean;
+  showFps: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  renderDistance: RENDER_DISTANCE,
+  fov: 75,
+  mouseSensitivity: 1.0,
+  masterVolume: 1.0,
+  musicVolume: 0.5,
+  sfxVolume: 1.0,
+  invertY: false,
+  showFps: true,
+};
+
+export const SETTINGS_RANGES = {
+  renderDistance: { min: 2, max: 16, step: 1 },
+  fov: { min: 60, max: 110, step: 1 },
+  mouseSensitivity: { min: 0.25, max: 3.0, step: 0.05 },
+  masterVolume: { min: 0, max: 1, step: 0.05 },
+  musicVolume: { min: 0, max: 1, step: 0.05 },
+  sfxVolume: { min: 0, max: 1, step: 0.05 },
+} as const;
+
+// === World save ===
+/** Stored per-world; serialized into IndexedDB. */
+export interface WorldMetadata {
+  /** Unique key — same as the user-typed name; collisions disallowed at create time. */
+  name: string;
+  /** Deterministic u32 seed derived from name (+ optional user-typed seed). */
+  seed: number;
+  /** Epoch ms. */
+  createdAt: number;
+  /** Epoch ms; updated on every save. */
+  lastPlayed: number;
+  gameMode: GameMode;
+  /** Where the player was when last saved (FEET position). */
+  playerPosition: Vec3;
+  playerYaw: number;
+  playerPitch: number;
+  selectedSlot: number;
+}
+
+/** Sparse map of player edits per chunk. Key format: `${cx},${cz}`; value is array of [linearIndex, BlockId] tuples. */
+export type ChunkOverrides = Record<string, [number, BlockId][]>;
+
+export interface WorldSave {
+  metadata: WorldMetadata;
+  overrides: ChunkOverrides;
+}
+
+// === Entity system ===
+export const EntityKind = {
+  LOCAL_PLAYER: 'local_player',
+  REMOTE_PLAYER: 'remote_player',
+  MOB: 'mob',
+} as const;
+export type EntityKind = typeof EntityKind[keyof typeof EntityKind];
+
+/** Minimal entity interface. Anything that lives in the world implements this. */
+export interface IEntity {
+  /** Assigned by EntityManager.spawn(); read-only by convention from outside the manager. */
+  id: number;
+  readonly kind: EntityKind;
+  position: Vec3;
+  velocity: Vec3;
+  yaw: number;
+  pitch: number;
+  /** Optional Three.js object that, if present, EntityManager adds to / removes from the world group. */
+  readonly object3D: import('three').Object3D | null;
+  /** Per-tick update. dt is in seconds. */
+  update(dt: number, world: IWorld): void;
+  /** Cleanup; called on despawn or world unload. Dispose meshes/materials here. */
+  dispose(): void;
+}
+
+export interface IEntityManager {
+  spawn(entity: IEntity): number;
+  despawn(id: number): void;
+  get(id: number): IEntity | undefined;
+  /** All entities (for read-only iteration). */
+  readonly all: ReadonlyArray<IEntity>;
+  /** Tick all entities. Called by World.update(). */
+  update(dt: number, world: IWorld): void;
+  /** Despawn and dispose everything. */
+  clear(): void;
+}
+
+// === Network foundation ===
+/** Wire-protocol messages. Only types — no behavior. */
+export type NetworkMessage =
+  | { type: 'hello'; protocolVersion: number; clientName: string }
+  | { type: 'welcome'; assignedId: number; tickRate: number }
+  | { type: 'entity_spawn'; entityId: number; kind: EntityKind; position: Vec3; yaw: number }
+  | { type: 'entity_despawn'; entityId: number }
+  | { type: 'entity_state'; entityId: number; position: Vec3; velocity: Vec3; yaw: number; pitch: number }
+  | { type: 'block_set'; x: number; y: number; z: number; block: BlockId }
+  | { type: 'chat'; from: string; text: string };
+
+export const PROTOCOL_VERSION = 1;
+
+export interface INetworkAdapter {
+  /** True if the adapter has an active connection (or is acting as a local stub). */
+  readonly connected: boolean;
+  connect(): Promise<void>;
+  disconnect(): void;
+  send(msg: NetworkMessage): void;
+  /** Subscribe to inbound messages. Returns an unsubscribe fn. */
+  onMessage(handler: (msg: NetworkMessage) => void): () => void;
+}
