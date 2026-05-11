@@ -6,6 +6,9 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ---
 
+<img width="1920" height="951" alt="image" src="https://github.com/user-attachments/assets/a3920093-cbee-4877-9690-0caf217ac5bf" />
+
+
 ## Current features
 
 ### World
