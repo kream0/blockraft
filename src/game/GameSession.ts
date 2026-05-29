@@ -30,6 +30,8 @@ import {
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
+  FALL_DAMAGE_SAFE_BLOCKS,
+  FALL_DAMAGE_PER_BLOCK,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -137,6 +139,8 @@ export class GameSession {
   private respawnInvuln: number = 0;
   /** True from the moment health hits 0 until the player clicks Respawn. Freezes hostile contact and de-dupes the death event. */
   private isDead: boolean = false;
+  /** Highest Y reached during the current fall arc; fall distance = peak − landing Y. Reset on land/spawn. */
+  private fallPeakY: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
@@ -312,7 +316,9 @@ export class GameSession {
       while (this.acc >= FIXED_DT) {
         // Freeze the player in place while dead so the death cam doesn't drift/fall.
         if (!this.isDead) {
+          const wasOnGround = this.player.state.onGround;
           this.physics.update(this.player.state, this.controls.input, FIXED_DT);
+          this.updateFallDamage(wasOnGround);
         }
         this.world.entityManager.update(FIXED_DT, this.world);
         this.applyHostileContact(FIXED_DT);
@@ -365,6 +371,7 @@ export class GameSession {
     // Start render loop.
     this.last = 0;
     this.acc = 0;
+    this.fallPeakY = this.player.state.position.y;
     this.rafId = requestAnimationFrame(this.frame);
   }
 
@@ -508,6 +515,36 @@ export class GameSession {
     }
   }
 
+  /** Central player-damage path shared by zombie bites and fall damage. Survival callers only. Triggers the death overlay at 0 HP. */
+  private damagePlayer(amount: number): void {
+    if (this.isDead) return;
+    this.player.state.health = Math.max(0, this.player.state.health - amount);
+    this.hud.flashDamage();
+    if (this.player.state.health <= 0) {
+      this.isDead = true;
+      this.controls.unlock();
+      this.onDeath();
+    }
+  }
+
+  /** Per-fixed-step (survival only): track the fall apex while airborne; on landing, damage for blocks fallen past the safe threshold. */
+  private updateFallDamage(wasOnGround: boolean): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.respawnInvuln > 0) return;
+    const st = this.player.state;
+    if (!st.onGround) {
+      if (st.position.y > this.fallPeakY) this.fallPeakY = st.position.y;
+      return;
+    }
+    if (!wasOnGround) {
+      const fallDist = this.fallPeakY - st.position.y;
+      const over = Math.floor(fallDist) - FALL_DAMAGE_SAFE_BLOCKS;
+      if (over > 0) this.damagePlayer(over * FALL_DAMAGE_PER_BLOCK);
+    }
+    // Grounded: keep the baseline pinned to the current height.
+    this.fallPeakY = st.position.y;
+  }
+
   /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
   private applyHostileContact(dt: number): void {
     if (this.isDead) return;
@@ -525,14 +562,8 @@ export class GameSession {
       if (Math.abs(dy) > 2) continue;
       if (dx * dx + dz * dz > ZOMBIE_ATTACK_RANGE * ZOMBIE_ATTACK_RANGE) continue;
       if (e.tryBite()) {
-        this.player.state.health = Math.max(0, this.player.state.health - ZOMBIE_ATTACK_DAMAGE);
-        this.hud.flashDamage();
-        if (this.player.state.health <= 0) {
-          this.isDead = true;
-          this.controls.unlock();
-          this.onDeath();
-          return;
-        }
+        this.damagePlayer(ZOMBIE_ATTACK_DAMAGE);
+        if (this.isDead) return;
       }
     }
   }
@@ -544,6 +575,7 @@ export class GameSession {
     p.x = spawn.x;
     p.y = spawn.y;
     p.z = spawn.z;
+    this.fallPeakY = spawn.y;
     const v = this.player.state.velocity;
     v.x = 0;
     v.y = 0;

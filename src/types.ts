@@ -33,6 +33,10 @@ export const DAY_LENGTH_SECONDS = 180;
 export const PLAYER_MAX_HEALTH = 20;
 /** Seconds of post-respawn invulnerability so the player isn't instantly re-killed. */
 export const PLAYER_RESPAWN_INVULN_S = 1.5;
+/** Fall distance (blocks) the player can drop without taking damage. */
+export const FALL_DAMAGE_SAFE_BLOCKS = 3;
+/** Damage (half-heart points) per block fallen beyond FALL_DAMAGE_SAFE_BLOCKS. */
+export const FALL_DAMAGE_PER_BLOCK = 1;
 /** Max simultaneous live hostile mobs (zombies) at night. */
 export const ZOMBIE_MAX_COUNT = 8;
 /** Horizontal distance (blocks) within which a zombie begins chasing the player. */
