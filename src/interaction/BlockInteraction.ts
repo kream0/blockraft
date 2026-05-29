@@ -14,8 +14,8 @@ export class BlockInteraction {
     private player: Player,
   ) {}
 
-  /** Raycast from camera in look direction; if hit, set that block to AIR. */
-  breakBlock(): void {
+  /** Raycast from camera in look direction; if a non-bedrock block is hit, set it to AIR and return the broken voxel + its prior id (for particle spawning). Returns null on miss or bedrock. */
+  breakBlock(): { x: number; y: number; z: number; block: BlockId } | null {
     const origin = this.player.camera.getWorldPosition(new THREE.Vector3());
     const direction = new THREE.Vector3(0, 0, -1)
       .applyQuaternion(this.player.camera.quaternion)
@@ -26,13 +26,14 @@ export class BlockInteraction {
       { x: direction.x, y: direction.y, z: direction.z },
       REACH,
     );
-    if (hit === null) return;
+    if (hit === null) return null;
 
     // Don't break bedrock.
     const current = this.world.getBlock(hit.block.x, hit.block.y, hit.block.z);
-    if (current === BlockId.BEDROCK) return;
+    if (current === BlockId.BEDROCK) return null;
 
     this.world.setBlock(hit.block.x, hit.block.y, hit.block.z, BlockId.AIR);
+    return { x: hit.block.x, y: hit.block.y, z: hit.block.z, block: current };
   }
 
   /** Raycast; if hit, place selected block at hit.block + hit.normal, but only if that target is currently AIR AND wouldn't overlap the player. */

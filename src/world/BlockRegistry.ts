@@ -7,6 +7,7 @@ const defs: Record<number, BlockDef> = {
     solid: false,
     transparent: true,
     textures: { top: 0, bottom: 0, side: 0 },
+    particleColor: 0x000000,
   },
   [BlockId.GRASS]: {
     id: BlockId.GRASS,
@@ -14,6 +15,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 0, bottom: 1, side: 2 },
+    particleColor: 0x5DAD3A,
   },
   [BlockId.DIRT]: {
     id: BlockId.DIRT,
@@ -21,6 +23,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 1, bottom: 1, side: 1 },
+    particleColor: 0x8B5A2B,
   },
   [BlockId.STONE]: {
     id: BlockId.STONE,
@@ -28,6 +31,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 3, bottom: 3, side: 3 },
+    particleColor: 0x888888,
   },
   [BlockId.COBBLESTONE]: {
     id: BlockId.COBBLESTONE,
@@ -35,6 +39,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 4, bottom: 4, side: 4 },
+    particleColor: 0x777777,
   },
   [BlockId.WOOD]: {
     id: BlockId.WOOD,
@@ -42,6 +47,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 5, bottom: 5, side: 6 },
+    particleColor: 0x6E4923,
   },
   [BlockId.LEAVES]: {
     id: BlockId.LEAVES,
@@ -49,6 +55,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: true,
     textures: { top: 7, bottom: 7, side: 7 },
+    particleColor: 0x3F7E2A,
   },
   [BlockId.PLANKS]: {
     id: BlockId.PLANKS,
@@ -56,6 +63,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 8, bottom: 8, side: 8 },
+    particleColor: 0xB6824A,
   },
   [BlockId.SAND]: {
     id: BlockId.SAND,
@@ -63,6 +71,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 9, bottom: 9, side: 9 },
+    particleColor: 0xE2D2A0,
   },
   [BlockId.GLASS]: {
     id: BlockId.GLASS,
@@ -70,6 +79,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: true,
     textures: { top: 10, bottom: 10, side: 10 },
+    particleColor: 0xC5DDED,
   },
   [BlockId.BEDROCK]: {
     id: BlockId.BEDROCK,
@@ -77,6 +87,7 @@ const defs: Record<number, BlockDef> = {
     solid: true,
     transparent: false,
     textures: { top: 11, bottom: 11, side: 11 },
+    particleColor: 0x4A4A4A,
   },
   [BlockId.WATER]: {
     id: BlockId.WATER,
@@ -84,6 +95,7 @@ const defs: Record<number, BlockDef> = {
     solid: false,
     transparent: true,
     textures: { top: 12, bottom: 12, side: 12 },
+    particleColor: 0x3B6FCB,
   },
 };
 

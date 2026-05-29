@@ -80,6 +80,20 @@ export const PASSIVE_FLEE_SPEED = 3.5;
 /** Seconds a passive mob keeps fleeing from the last hit source. */
 export const PASSIVE_FLEE_DURATION_S = 4;
 
+// === Block-break particles ===
+/** Particles spawned per block break. */
+export const PARTICLE_BURST_COUNT = 12;
+/** Seconds each particle lives before it is recycled. */
+export const PARTICLE_LIFETIME_S = 0.6;
+/** Downward acceleration on particles (blocks/s^2). */
+export const PARTICLE_GRAVITY = 16;
+/** Initial speed scale (blocks/s) for the random burst velocity. */
+export const PARTICLE_SPEED = 2.5;
+/** Particle point size in world units (PointsMaterial with sizeAttenuation). */
+export const PARTICLE_SIZE = 0.14;
+/** Max simultaneous live particles. The pool is preallocated to this size; bursts past it are dropped. */
+export const PARTICLE_POOL_MAX = 256;
+
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
   AIR: 0,
@@ -107,6 +121,8 @@ export interface BlockDef {
   transparent: boolean;
   /** Atlas tile indices for each face. Mesher picks based on face normal. */
   textures: { top: number; bottom: number; side: number };
+  /** sRGB hex tint used for the break-particle burst of this block. */
+  particleColor: number;
 }
 
 // === Day/night cycle ===

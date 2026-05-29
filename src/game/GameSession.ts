@@ -3,6 +3,7 @@ import { Renderer } from '../rendering/Renderer';
 import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
+import { ParticleSystem } from '../rendering/ParticleSystem';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
 import { Player } from '../player/Player';
@@ -113,6 +114,7 @@ export interface GameSessionOptions {
 
 export class GameSession {
   private renderer: Renderer;
+  private particles: ParticleSystem;
   private dayNight: DayNightCycle;
   private atlas: TextureAtlas;
   private chunkMaterial: THREE.Material;
@@ -267,6 +269,10 @@ export class GameSession {
     // Interaction.
     this.interaction = new BlockInteraction(this.world, this.player);
 
+    // Block-break particles.
+    this.particles = new ParticleSystem();
+    this.renderer.scene.add(this.particles.object3D);
+
     // Resize.
     this.resizeHandler = (): void => {
       const w = window.innerWidth;
@@ -292,7 +298,11 @@ export class GameSession {
       if (!this.controls.isLocked) return;
       if (e.button === 0) {
         if (!this.tryMeleeAttack()) {
-          this.interaction.breakBlock();
+          const broken = this.interaction.breakBlock();
+          if (broken !== null) {
+            const color = blockRegistry.get(broken.block).particleColor;
+            this.particles.spawnBurst(broken.x + 0.5, broken.y + 0.5, broken.z + 0.5, color);
+          }
         }
       } else if (e.button === 2) {
         this.interaction.placeBlock();
@@ -355,6 +365,7 @@ export class GameSession {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
         this.hud.setAir(this.air, PLAYER_MAX_AIR_S);
       }
+      this.particles.update(dt);
       this.renderer.render(this.player.camera);
 
       this.rafId = requestAnimationFrame(this.frame);
@@ -438,6 +449,8 @@ export class GameSession {
 
     this.renderer.scene.remove(this.world.group);
     this.renderer.scene.remove(this.player.camera);
+    this.renderer.scene.remove(this.particles.object3D);
+    this.particles.dispose();
     this.world.setTrackedTarget(null);
     this.world.dispose();
     this.renderer.dispose();
