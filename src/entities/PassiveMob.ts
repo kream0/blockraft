@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import { Mob } from './Mob';
+import { PASSIVE_FLEE_SPEED, PASSIVE_FLEE_DURATION_S } from '../types';
 import type { EntityKind, IWorld, Vec3 } from '../types';
 
 const WALK_MIN_S = 3;
@@ -17,6 +18,7 @@ export abstract class PassiveMob extends Mob {
   private wanderAngle: number = Math.random() * Math.PI * 2;
   private walking: boolean = Math.random() < 0.5;
   private stateTimer: number = Math.random() * WALK_MAX_S;
+  private fleeTimer: number = 0;
 
   constructor(
     kind: EntityKind,
@@ -24,13 +26,30 @@ export abstract class PassiveMob extends Mob {
     radius: number,
     height: number,
     walkSpeed: number,
+    maxHealth: number,
     object3D: THREE.Object3D,
   ) {
-    super(kind, position, radius, height, object3D);
+    super(kind, position, radius, height, maxHealth, object3D);
     this.walkSpeed = walkSpeed;
   }
 
+  protected override onHurt(): void {
+    this.fleeTimer = PASSIVE_FLEE_DURATION_S;
+  }
+
   protected override think(dt: number, _world: IWorld): void {
+    if (this.fleeTimer > 0) {
+      this.fleeTimer -= dt;
+      const dx = this.position.x - this.lastHitFromX;
+      const dz = this.position.z - this.lastHitFromZ;
+      const len = Math.hypot(dx, dz) || 1;
+      this.velocity.x = (dx / len) * PASSIVE_FLEE_SPEED;
+      this.velocity.z = (dz / len) * PASSIVE_FLEE_SPEED;
+      // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the run direction.
+      this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+      return;
+    }
+
     this.stateTimer -= dt;
     if (this.stateTimer <= 0) {
       this.walking = !this.walking;

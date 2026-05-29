@@ -5,6 +5,7 @@ import {
   ZOMBIE_DETECT_RADIUS,
   ZOMBIE_ATTACK_COOLDOWN_S,
   ZOMBIE_CHASE_SPEED,
+  ZOMBIE_MAX_HEALTH,
   type IWorld,
   type Vec3,
 } from '../types';
@@ -26,7 +27,7 @@ export class Zombie extends Mob {
 
   constructor(position: Vec3) {
     const mesh = Zombie.buildMesh();
-    super(EntityKind.ZOMBIE, position, ZOMBIE_RADIUS, ZOMBIE_HEIGHT, mesh);
+    super(EntityKind.ZOMBIE, position, ZOMBIE_RADIUS, ZOMBIE_HEIGHT, ZOMBIE_MAX_HEALTH, mesh);
   }
 
   protected override think(dt: number, world: IWorld): void {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
-import { GRAVITY, MAX_FALL_SPEED, EntityKind, type IWorld, type Vec3 } from '../types';
+import { GRAVITY, MAX_FALL_SPEED, EntityKind, MOB_KNOCKBACK_SPEED, MOB_KNOCKBACK_POP, MOB_KNOCKBACK_DURATION_S, type IWorld, type Vec3 } from '../types';
 
 const COLLISION_EPSILON = 1e-4;
 /** Vertical kick when a mob jumps. Slightly weaker than the player's jump. */
@@ -21,17 +21,53 @@ export abstract class Mob extends Entity {
   /** AI hook: set true to make the mob jump next tick if onGround. Reset by physics each tick. */
   protected jumpRequested: boolean = false;
 
+  /** Current hit points (half-heart units). Mob is dead at <= 0. */
+  health: number;
+  readonly maxHealth: number;
+  /** Stun window after a hit; while > 0, think() is suppressed so the knockback impulse isn't overwritten. */
+  private hurtTimer: number = 0;
+  /** World-space XZ the most recent hit came FROM. Subclasses may flee from it. */
+  protected lastHitFromX: number = 0;
+  protected lastHitFromZ: number = 0;
+
   constructor(
     kind: EntityKind,
     position: Vec3,
     radius: number,
     height: number,
+    maxHealth: number,
     object3D: THREE.Object3D | null,
   ) {
     super(kind, position, object3D);
     this.radius = radius;
     this.height = height;
+    this.maxHealth = maxHealth;
+    this.health = maxHealth;
   }
+
+  /**
+   * Apply `amount` damage from a source at world XZ (fromX, fromZ). Imparts knockback
+   * away from the source plus a brief stun, and records the hit direction. Returns true
+   * if this hit reduced health to 0 (caller should despawn).
+   */
+  takeDamage(amount: number, fromX: number, fromZ: number): boolean {
+    this.health = Math.max(0, this.health - amount);
+    const dx = this.position.x - fromX;
+    const dz = this.position.z - fromZ;
+    const len = Math.hypot(dx, dz) || 1;
+    this.velocity.x = (dx / len) * MOB_KNOCKBACK_SPEED;
+    this.velocity.z = (dz / len) * MOB_KNOCKBACK_SPEED;
+    // Only pop a grounded mob upward; re-launching an airborne one would juggle it.
+    if (this.onGround) this.velocity.y = MOB_KNOCKBACK_POP;
+    this.hurtTimer = MOB_KNOCKBACK_DURATION_S;
+    this.lastHitFromX = fromX;
+    this.lastHitFromZ = fromZ;
+    this.onHurt();
+    return this.health <= 0;
+  }
+
+  /** Hook fired at the end of takeDamage(). Default noop; PassiveMob overrides to flee. */
+  protected onHurt(): void {}
 
   /** Subclass: think/decide. Called before physics each tick. Default: noop. */
   protected think(_dt: number, _world: IWorld): void {
@@ -39,8 +75,13 @@ export abstract class Mob extends Entity {
   }
 
   override update(dt: number, world: IWorld): void {
-    // 1. AI decides desired velocity / jumpRequested.
-    this.think(dt, world);
+    // 1. AI decides desired velocity / jumpRequested — unless stunned by a recent hit,
+    //    in which case we let the knockback impulse ride out under physics.
+    if (this.hurtTimer > 0) {
+      this.hurtTimer -= dt;
+    } else {
+      this.think(dt, world);
+    }
 
     // 2. Vertical: apply gravity (or jump impulse).
     if (this.onGround && this.jumpRequested) {

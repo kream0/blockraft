@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PassiveMob } from './PassiveMob';
-import { EntityKind, type Vec3 } from '../types';
+import { EntityKind, PASSIVE_MOB_HEALTH, type Vec3 } from '../types';
 
 const PIG_RADIUS = 0.4;
 const PIG_HEIGHT = 0.9;
@@ -13,7 +13,7 @@ const PIG_WALK_SPEED = 1.0;
 export class Pig extends PassiveMob {
   constructor(position: Vec3) {
     const mesh = Pig.buildMesh();
-    super(EntityKind.PIG, position, PIG_RADIUS, PIG_HEIGHT, PIG_WALK_SPEED, mesh);
+    super(EntityKind.PIG, position, PIG_RADIUS, PIG_HEIGHT, PIG_WALK_SPEED, PASSIVE_MOB_HEALTH, mesh);
   }
 
   private static buildMesh(): THREE.Group {

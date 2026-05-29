@@ -45,6 +45,26 @@ export const ZOMBIE_ATTACK_DAMAGE = 3;
 export const ZOMBIE_ATTACK_COOLDOWN_S = 1.0;
 /** Zombie horizontal speed while chasing (blocks/s). Must keep speed*1/60 < radius(0.3) to avoid tunneling. */
 export const ZOMBIE_CHASE_SPEED = 2.4;
+/** Damage (half-heart points) the player deals per melee hit. */
+export const PLAYER_ATTACK_DAMAGE = 4;
+/** Max distance (blocks) from the eye at which a melee swing can reach a mob. Below REACH(5). */
+export const PLAYER_ATTACK_RANGE = 3.5;
+/** Minimum seconds between player melee swings. */
+export const PLAYER_ATTACK_COOLDOWN_S = 0.4;
+/** Horizontal speed (blocks/s) imparted to a mob when hit, directed away from the attacker. */
+export const MOB_KNOCKBACK_SPEED = 6;
+/** Vertical pop (blocks/s) added to a grounded mob when hit, for a small hop. */
+export const MOB_KNOCKBACK_POP = 4;
+/** Seconds a mob is stunned after a hit: its AI think() is suppressed so the knockback impulse isn't overwritten. */
+export const MOB_KNOCKBACK_DURATION_S = 0.3;
+/** Zombie health in half-heart points (dies in 2 player hits at PLAYER_ATTACK_DAMAGE=4). */
+export const ZOMBIE_MAX_HEALTH = 8;
+/** Passive animal (cow/pig/sheep) health in half-heart points. */
+export const PASSIVE_MOB_HEALTH = 10;
+/** Horizontal speed (blocks/s) a passive mob flees at after being hit. */
+export const PASSIVE_FLEE_SPEED = 3.5;
+/** Seconds a passive mob keeps fleeing from the last hit source. */
+export const PASSIVE_FLEE_DURATION_S = 4;
 
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {

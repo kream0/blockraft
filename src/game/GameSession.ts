@@ -15,6 +15,7 @@ import { Pig } from '../entities/Pig';
 import { Sheep } from '../entities/Sheep';
 import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
+import { Mob } from '../entities/Mob';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
   BlockId,
@@ -23,6 +24,9 @@ import {
   GameMode,
   PLAYER_MAX_HEALTH,
   PLAYER_RESPAWN_INVULN_S,
+  PLAYER_ATTACK_DAMAGE,
+  PLAYER_ATTACK_RANGE,
+  PLAYER_ATTACK_COOLDOWN_S,
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
@@ -128,6 +132,8 @@ export class GameSession {
   private readonly gameMode: GameMode;
   private hostileSpawnAcc: number = 0;
   private respawnInvuln: number = 0;
+  /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
+  private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
 
   private resizeHandler: () => void;
@@ -260,7 +266,9 @@ export class GameSession {
     this.mouseDownHandler = (e: MouseEvent): void => {
       if (!this.controls.isLocked) return;
       if (e.button === 0) {
-        this.interaction.breakBlock();
+        if (!this.tryMeleeAttack()) {
+          this.interaction.breakBlock();
+        }
       } else if (e.button === 2) {
         this.interaction.placeBlock();
       }
@@ -304,6 +312,7 @@ export class GameSession {
 
       this.world.update(this.player.state.position);
       this.updateHostiles(dt);
+      this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
       this.player.syncCamera();
       this.hud.update(this.player.state, dtMs);
       this.dayNight.update(dt);
@@ -564,5 +573,56 @@ export class GameSession {
       this.world.entityManager.spawn(new Zombie({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 }));
       return; // at most one spawn per interval
     }
+  }
+
+  /**
+   * Closest Mob whose center lies within PLAYER_ATTACK_RANGE of the eye AND inside a
+   * ~35° cone around the camera's forward direction. Null if nothing is in reach/sight.
+   */
+  private findMeleeTarget(): Mob | null {
+    const eye = this.player.camera.getWorldPosition(new THREE.Vector3());
+    const fwd = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(this.player.camera.quaternion)
+      .normalize();
+    const cosCone = Math.cos((35 * Math.PI) / 180);
+    let best: Mob | null = null;
+    let bestDist = Infinity;
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Mob)) continue;
+      const dx = e.position.x - eye.x;
+      const dy = e.position.y + e.height * 0.5 - eye.y; // aim at vertical center
+      const dz = e.position.z - eye.z;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > PLAYER_ATTACK_RANGE || dist < 1e-4) continue;
+      const alignment = (dx * fwd.x + dy * fwd.y + dz * fwd.z) / dist; // cos(angle to crosshair)
+      if (alignment < cosCone) continue;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * If a mob is in melee reach/sight, swing at it (cooldown-gated) and return true so the
+   * click is consumed (no block break). Returns false when no mob is targeted, letting the
+   * caller fall back to breaking a block. Works in both game modes.
+   */
+  private tryMeleeAttack(): boolean {
+    const target = this.findMeleeTarget();
+    if (target === null) return false;
+    if (this.playerAttackCooldown > 0) {
+      // Survival eats the click so you don't accidentally mine terrain mid-fight;
+      // Creative falls through to break the block behind the mob (building takes priority).
+      return this.gameMode === GameMode.SURVIVAL;
+    }
+    this.playerAttackCooldown = PLAYER_ATTACK_COOLDOWN_S;
+    const p = this.player.state.position;
+    const killed = target.takeDamage(PLAYER_ATTACK_DAMAGE, p.x, p.z);
+    if (killed) {
+      this.world.entityManager.despawn(target.id);
+    }
+    return true;
   }
 }

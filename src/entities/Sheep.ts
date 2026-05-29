@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PassiveMob } from './PassiveMob';
-import { EntityKind, type Vec3 } from '../types';
+import { EntityKind, PASSIVE_MOB_HEALTH, type Vec3 } from '../types';
 
 const SHEEP_RADIUS = 0.45;
 const SHEEP_HEIGHT = 1.2;
@@ -14,7 +14,7 @@ const SHEEP_WALK_SPEED = 0.9;
 export class Sheep extends PassiveMob {
   constructor(position: Vec3) {
     const mesh = Sheep.buildMesh();
-    super(EntityKind.SHEEP, position, SHEEP_RADIUS, SHEEP_HEIGHT, SHEEP_WALK_SPEED, mesh);
+    super(EntityKind.SHEEP, position, SHEEP_RADIUS, SHEEP_HEIGHT, SHEEP_WALK_SPEED, PASSIVE_MOB_HEALTH, mesh);
   }
 
   private static buildMesh(): THREE.Group {
