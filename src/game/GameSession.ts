@@ -32,6 +32,8 @@ import {
   ZOMBIE_ATTACK_DAMAGE,
   FALL_DAMAGE_SAFE_BLOCKS,
   FALL_DAMAGE_PER_BLOCK,
+  HEALTH_REGEN_DELAY_S,
+  HEALTH_REGEN_INTERVAL_S,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -141,6 +143,10 @@ export class GameSession {
   private isDead: boolean = false;
   /** Highest Y reached during the current fall arc; fall distance = peak − landing Y. Reset on land/spawn. */
   private fallPeakY: number = 0;
+  /** Seconds since the player last took damage; passive regen only begins after HEALTH_REGEN_DELAY_S. */
+  private timeSinceLastDamage: number = 0;
+  /** Accumulator (seconds) toward the next half-heart of passive regen. */
+  private healthRegenAcc: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
@@ -333,6 +339,7 @@ export class GameSession {
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.updateHealthRegen(dt);
       if (this.gameMode === GameMode.SURVIVAL) {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
       }
@@ -372,6 +379,8 @@ export class GameSession {
     this.last = 0;
     this.acc = 0;
     this.fallPeakY = this.player.state.position.y;
+    this.timeSinceLastDamage = 0;
+    this.healthRegenAcc = 0;
     this.rafId = requestAnimationFrame(this.frame);
   }
 
@@ -519,6 +528,8 @@ export class GameSession {
   private damagePlayer(amount: number): void {
     if (this.isDead) return;
     this.player.state.health = Math.max(0, this.player.state.health - amount);
+    this.timeSinceLastDamage = 0;
+    this.healthRegenAcc = 0;
     this.hud.flashDamage();
     if (this.player.state.health <= 0) {
       this.isDead = true;
@@ -543,6 +554,25 @@ export class GameSession {
     }
     // Grounded: keep the baseline pinned to the current height.
     this.fallPeakY = st.position.y;
+  }
+
+  /** Per-frame (survival only): after HEALTH_REGEN_DELAY_S without damage, restore one half-heart per HEALTH_REGEN_INTERVAL_S up to full. */
+  private updateHealthRegen(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.isDead) return;
+    this.timeSinceLastDamage += dt;
+    const st = this.player.state;
+    if (st.health >= PLAYER_MAX_HEALTH) {
+      this.healthRegenAcc = 0;
+      return;
+    }
+    if (this.timeSinceLastDamage < HEALTH_REGEN_DELAY_S) return;
+    this.healthRegenAcc += dt;
+    while (this.healthRegenAcc >= HEALTH_REGEN_INTERVAL_S && st.health < PLAYER_MAX_HEALTH) {
+      st.health += 1;
+      this.healthRegenAcc -= HEALTH_REGEN_INTERVAL_S;
+    }
+    if (st.health >= PLAYER_MAX_HEALTH) this.healthRegenAcc = 0;
   }
 
   /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
@@ -576,6 +606,8 @@ export class GameSession {
     p.y = spawn.y;
     p.z = spawn.z;
     this.fallPeakY = spawn.y;
+    this.timeSinceLastDamage = 0;
+    this.healthRegenAcc = 0;
     const v = this.player.state.velocity;
     v.x = 0;
     v.y = 0;

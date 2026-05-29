@@ -37,6 +37,10 @@ export const PLAYER_RESPAWN_INVULN_S = 1.5;
 export const FALL_DAMAGE_SAFE_BLOCKS = 3;
 /** Damage (half-heart points) per block fallen beyond FALL_DAMAGE_SAFE_BLOCKS. */
 export const FALL_DAMAGE_PER_BLOCK = 1;
+/** Seconds without taking damage before passive health regeneration begins (survival only). */
+export const HEALTH_REGEN_DELAY_S = 6;
+/** Seconds per half-heart restored once regeneration is active. */
+export const HEALTH_REGEN_INTERVAL_S = 1.5;
 /** Max simultaneous live hostile mobs (zombies) at night. */
 export const ZOMBIE_MAX_COUNT = 8;
 /** Horizontal distance (blocks) within which a zombie begins chasing the player. */
