@@ -14,9 +14,10 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### World
 - Chunked voxel world (16×96×16 chunks) with face-culled meshing
 - Procedural terrain via Perlin FBM heightmap
-- Trees placed deterministically per chunk
+- Trees placed deterministically per chunk (Plains only)
+- **Biomes**: a low-frequency biome map skins the surface into grassy **Plains**, sandy **Desert**, and snow-capped **Snowy** regions (deterministic per seed; heightmap unchanged)
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
-- 12 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Glass, Bedrock, Water, Air
+- 13 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Air
 - Procedurally generated 16×16 texture atlas (no external image assets)
 
 ### Gameplay
@@ -85,7 +86,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
-- **Biomes**: desert, snowy, forest variants by noise selection
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.

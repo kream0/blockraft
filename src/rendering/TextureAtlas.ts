@@ -186,6 +186,12 @@ function drawSand(ctx: CanvasRenderingContext2D, col: number, row: number, rng: 
   speckle(ctx, col, row, '#F0E2B5', 18, rng);
 }
 
+function drawSnow(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  fillTile(ctx, col, row, '#EAF2F8');
+  speckle(ctx, col, row, '#FFFFFF', 22, rng);
+  speckle(ctx, col, row, '#CFE0EC', 14, rng);
+}
+
 function drawGlass(ctx: CanvasRenderingContext2D, col: number, row: number, _rng: Rng): void {
   // Mostly transparent-looking pale tint
   ctx.fillStyle = '#C5DDED';
@@ -257,7 +263,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 4x4 grid: index = row * COLS + col
-    // Tile 0..12 are real; 13..15 blank.
+    // Tile 0..13 are real; 14..15 blank.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -272,6 +278,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawGlass,
       drawBedrock,
       drawWater,
+      drawSnow,
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

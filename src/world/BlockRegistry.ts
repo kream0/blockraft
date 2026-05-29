@@ -97,6 +97,14 @@ const defs: Record<number, BlockDef> = {
     textures: { top: 12, bottom: 12, side: 12 },
     particleColor: 0x3B6FCB,
   },
+  [BlockId.SNOW]: {
+    id: BlockId.SNOW,
+    name: 'Snow',
+    solid: true,
+    transparent: false,
+    textures: { top: 13, bottom: 13, side: 13 },
+    particleColor: 0xEAF2F8,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

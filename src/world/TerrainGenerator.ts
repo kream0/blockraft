@@ -7,6 +7,12 @@ const BASE_HEIGHT = Math.floor(CHUNK_HEIGHT / 2) - 4;
 const AMPLITUDE = 12;
 const SEA_LEVEL = BASE_HEIGHT - 2;
 
+const BIOME_SCALE = 0.004; // low frequency → large, smooth biome regions
+// Biome codes (local to terrain generation; no enum needed).
+const BIOME_PLAINS = 0;
+const BIOME_DESERT = 1;
+const BIOME_SNOWY = 2;
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -14,11 +20,22 @@ function hash3(a: number, b: number, c: number): number {
 
 export class TerrainGenerator {
   private noise: PerlinNoise;
+  private biomeNoise: PerlinNoise;
   private seed: number;
 
   constructor(seed: number) {
     this.seed = seed >>> 0;
     this.noise = new PerlinNoise(this.seed);
+    // Independent biome map: derive a distinct seed so it doesn't correlate with the heightmap.
+    this.biomeNoise = new PerlinNoise((this.seed ^ 0x9e3779b9) >>> 0);
+  }
+
+  /** Pick a biome for a world column. Smooth low-frequency noise → large regions. */
+  private biomeAt(wx: number, wz: number): number {
+    const b = this.biomeNoise.noise2D(wx * BIOME_SCALE, wz * BIOME_SCALE);
+    if (b < -0.25) return BIOME_DESERT;
+    if (b > 0.30) return BIOME_SNOWY;
+    return BIOME_PLAINS;
   }
 
   /** Fill the chunk array with blocks based on noise. Called once at chunk creation. */
@@ -37,6 +54,7 @@ export class TerrainGenerator {
         const raw = BASE_HEIGHT + Math.round(n * AMPLITUDE);
         const h = clamp(raw, 4, CHUNK_HEIGHT - 2);
         heights[lx + lz * CHUNK_SIZE] = h;
+        const biome = this.biomeAt(wx, wz);
 
         for (let y = 0; y <= h; y++) {
           let id: BlockId;
@@ -45,10 +63,18 @@ export class TerrainGenerator {
           } else if (y < h - 3) {
             id = BlockId.STONE;
           } else if (y < h) {
-            id = BlockId.DIRT;
+            id = biome === BIOME_DESERT ? BlockId.SAND : BlockId.DIRT;
           } else {
             // y === h (surface block)
-            id = h <= SEA_LEVEL ? BlockId.SAND : BlockId.GRASS;
+            if (h <= SEA_LEVEL) {
+              id = BlockId.SAND;            // beaches & lakebeds stay sand in every biome
+            } else if (biome === BIOME_DESERT) {
+              id = BlockId.SAND;
+            } else if (biome === BIOME_SNOWY) {
+              id = BlockId.SNOW;
+            } else {
+              id = BlockId.GRASS;
+            }
           }
           chunk.blocks[Chunk.idx(lx, y, lz)] = id;
         }
