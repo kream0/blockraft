@@ -180,7 +180,9 @@ Before marking any task done:
 
 ## Git conventions for this repo
 
-- Default branch: `main`
+> **This repo OVERRIDES the global `~/.claude/CLAUDE.md` branch/PR workflow.** This is a personal sandbox: **work directly on `main`.** Do NOT create `feature/`, `task/`, or `bugfix/` branches. Do NOT open pull requests. Commit straight to `main` and `git push` to `origin/main`. (The ADO ticket-to-PR flow in the global rules does not apply here.)
+
+- Default branch: `main` — commit and push directly to it; never branch, never PR.
 - Commit messages: short subject + bullet/paragraph body; end with `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` when AI was involved.
 - Don't `--amend` published commits. Don't `--no-verify` to skip hooks.
-- `node_modules/`, `dist/`, `.vite/`, `.env*`, `bun.lockb` are gitignored. `bun.lock` (text format) IS committed.
+- `node_modules/`, `dist/`, `.vite/`, `.env*`, `bun.lockb` are gitignored. `bun.lock` (text format) IS committed. Don't stage `.memorai/` (local memory store).

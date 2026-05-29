@@ -26,6 +26,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - 9-slot hotbar with number-key selection
 - Edits persist per-world; reload your world and your changes are still there
 
+### Mobs
+- Passive animals roam the world: **Cow**, **Pig**, **Sheep** — each a distinct procedural block mesh
+- Wander AI: alternate between strolling in a random heading and standing idle
+- A small herd spawns on dry ground around you when a world loads
+- Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
+
 ### Menus & UX
 - **Main menu**: Singleplayer, Multiplayer (coming soon), Settings, Quit
 - **World list**: load existing worlds with last-played time, mode, seed
@@ -46,9 +52,9 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Auto-save every 30s and on quit-to-menu
 
 ### Foundations (in place, not yet user-facing)
-- **Entity system**: `Entity` / `EntityManager` / `Mob` base classes; example wandering Zombie
 - **Network adapter**: `INetworkAdapter` interface + `LocalAdapter` no-op stub; typed message protocol (entity spawn/despawn/state, block set, chat, hello/welcome handshake)
 - **Remote player entity** (visual stub) ready for multiplayer rendering
+- **Hostile-mob reference**: a wandering `Zombie` class kept as the template for future hostile AI
 
 ---
 
@@ -56,7 +62,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Short term
 - **Survival mechanics**: health, hunger, day/night cycle, mob damage
-- **More mobs**: Cow, Pig, Sheep (passive); Skeleton (hostile, ranged)
+- **More mobs**: Skeleton (hostile, ranged); Chicken (passive)
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
