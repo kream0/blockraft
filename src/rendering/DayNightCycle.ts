@@ -51,6 +51,11 @@ export class DayNightCycle {
     return this.t;
   }
 
+  /** True during the dark hours (after dusk / before dawn) — when hostiles spawn. */
+  get isNight(): boolean {
+    return this.t < 0.23 || this.t > 0.77;
+  }
+
   /** Jump to a specific time (used for testing / future commands). */
   setNormalizedTime(t: number): void {
     this.t = ((t % 1) + 1) % 1;

@@ -14,11 +14,18 @@ import { Cow } from '../entities/Cow';
 import { Pig } from '../entities/Pig';
 import { Sheep } from '../entities/Sheep';
 import type { PassiveMob } from '../entities/PassiveMob';
+import { Zombie } from '../entities/Zombie';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
   BlockId,
   CHUNK_HEIGHT,
   CHUNK_SIZE,
+  GameMode,
+  PLAYER_MAX_HEALTH,
+  PLAYER_RESPAWN_INVULN_S,
+  ZOMBIE_MAX_COUNT,
+  ZOMBIE_ATTACK_RANGE,
+  ZOMBIE_ATTACK_DAMAGE,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -35,6 +42,10 @@ const PASSIVE_MOB_COUNT = 6;
 const PASSIVE_SPAWN_MIN_RADIUS = 4;
 const PASSIVE_SPAWN_MAX_RADIUS = 14;
 const PASSIVE_SPAWN_ATTEMPTS = 40;
+const HOSTILE_SPAWN_INTERVAL_S = 4;
+const HOSTILE_SPAWN_MIN_RADIUS = 12;
+const HOSTILE_SPAWN_MAX_RADIUS = 28;
+const HOSTILE_SPAWN_ATTEMPTS = 12;
 
 /**
  * Finds a dry-land surface to spawn the player on.
@@ -114,6 +125,10 @@ export class GameSession {
   private started = false;
   /** Flips true at the start of stop(). Guards save() and any in-flight ticks. */
   private _disposed: boolean = false;
+  private readonly gameMode: GameMode;
+  private hostileSpawnAcc: number = 0;
+  private respawnInvuln: number = 0;
+  private wasNight: boolean = false;
 
   private resizeHandler: () => void;
   private slotKeyHandler: (e: KeyboardEvent) => void;
@@ -134,6 +149,7 @@ export class GameSession {
 
     const settings = opts.settings;
     const meta = opts.initialSave.metadata;
+    this.gameMode = meta.gameMode;
 
     // Renderer (lets WebGLRenderer create its own canvas).
     this.renderer = new Renderer(undefined, settings.renderDistance * CHUNK_SIZE);
@@ -194,6 +210,9 @@ export class GameSession {
       }
     }
 
+    // Hostile mobs chase this live reference; Physics mutates it in place each tick.
+    this.world.setTrackedTarget(this.player.state.position);
+
     // Controls (pointer-lock target = canvas).
     this.controls = new Controls(this.renderer.renderer.domElement);
     // Initialize from save (yaw/pitch) so mouse-look starts where we left off.
@@ -210,6 +229,9 @@ export class GameSession {
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+    if (this.gameMode === GameMode.SURVIVAL) {
+      this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
+    }
 
     // Interaction.
     this.interaction = new BlockInteraction(this.world, this.player);
@@ -276,15 +298,20 @@ export class GameSession {
       while (this.acc >= FIXED_DT) {
         this.physics.update(this.player.state, this.controls.input, FIXED_DT);
         this.world.entityManager.update(FIXED_DT, this.world);
+        this.applyHostileContact(FIXED_DT);
         this.acc -= FIXED_DT;
       }
 
       this.world.update(this.player.state.position);
+      this.updateHostiles(dt);
       this.player.syncCamera();
       this.hud.update(this.player.state, dtMs);
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      if (this.gameMode === GameMode.SURVIVAL) {
+        this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
+      }
       this.renderer.render(this.player.camera);
 
       this.rafId = requestAnimationFrame(this.frame);
@@ -363,6 +390,7 @@ export class GameSession {
 
     this.renderer.scene.remove(this.world.group);
     this.renderer.scene.remove(this.player.camera);
+    this.world.setTrackedTarget(null);
     this.world.dispose();
     this.renderer.dispose();
     this.chunkMaterial.dispose();
@@ -454,6 +482,87 @@ export class GameSession {
       const mob = make({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 });
       this.world.entityManager.spawn(mob);
       spawned++;
+    }
+  }
+
+  /** Per-fixed-step (survival only): zombies in range bite the player; death triggers respawn. */
+  private applyHostileContact(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.respawnInvuln > 0) {
+      this.respawnInvuln = Math.max(0, this.respawnInvuln - dt);
+      return;
+    }
+    const p = this.player.state.position;
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Zombie)) continue;
+      const dx = e.position.x - p.x;
+      const dz = e.position.z - p.z;
+      const dy = e.position.y - p.y;
+      if (Math.abs(dy) > 2) continue;
+      if (dx * dx + dz * dz > ZOMBIE_ATTACK_RANGE * ZOMBIE_ATTACK_RANGE) continue;
+      if (e.tryBite()) {
+        this.player.state.health = Math.max(0, this.player.state.health - ZOMBIE_ATTACK_DAMAGE);
+        if (this.player.state.health <= 0) {
+          this.respawnPlayer();
+          return;
+        }
+      }
+    }
+  }
+
+  /** Reset to a fresh dry spawn at full health with brief invulnerability. MUTATES position/velocity in place (World holds a live ref). */
+  private respawnPlayer(): void {
+    const spawn = findDrySpawn(this.world);
+    const p = this.player.state.position;
+    p.x = spawn.x;
+    p.y = spawn.y;
+    p.z = spawn.z;
+    const v = this.player.state.velocity;
+    v.x = 0;
+    v.y = 0;
+    v.z = 0;
+    this.player.state.onGround = true;
+    this.player.state.health = PLAYER_MAX_HEALTH;
+    this.respawnInvuln = PLAYER_RESPAWN_INVULN_S;
+  }
+
+  /** Frame-rate, throttled: spawn zombies at night near the player up to the cap; despawn all at dawn. */
+  private updateHostiles(dt: number): void {
+    if (!this.dayNight.isNight) {
+      // Despawn once, on the night->day transition — not every daytime frame.
+      if (this.wasNight) {
+        for (const e of this.world.entityManager.all) {
+          if (e instanceof Zombie) this.world.entityManager.despawn(e.id);
+        }
+        this.hostileSpawnAcc = 0;
+      }
+      this.wasNight = false;
+      return;
+    }
+    this.wasNight = true;
+    this.hostileSpawnAcc += dt;
+    if (this.hostileSpawnAcc < HOSTILE_SPAWN_INTERVAL_S) return;
+    this.hostileSpawnAcc = 0;
+    let count = 0;
+    for (const e of this.world.entityManager.all) {
+      if (e instanceof Zombie) count++;
+    }
+    if (count >= ZOMBIE_MAX_COUNT) return;
+    const px = this.player.state.position.x;
+    const pz = this.player.state.position.z;
+    for (let attempt = 0; attempt < HOSTILE_SPAWN_ATTEMPTS; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist =
+        HOSTILE_SPAWN_MIN_RADIUS +
+        Math.random() * (HOSTILE_SPAWN_MAX_RADIUS - HOSTILE_SPAWN_MIN_RADIUS);
+      const sx = Math.floor(px + Math.cos(angle) * dist);
+      const sz = Math.floor(pz + Math.sin(angle) * dist);
+      const sy = topSolidY(this.world, sx, sz);
+      if (sy < 0) continue;
+      if (this.world.getBlock(sx, sy + 1, sz) !== BlockId.AIR) continue;
+      if (this.world.getBlock(sx, sy + 2, sz) !== BlockId.AIR) continue; // head clearance
+      this.world.entityManager.spawn(new Zombie({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 }));
+      return; // at most one spawn per interval
     }
   }
 }

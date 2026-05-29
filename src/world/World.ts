@@ -36,6 +36,7 @@ export class World implements IWorld {
   private renderDistance: number;
   /** chunkKey ("cx,cz") -> linearIndex -> blockId. Sparse map of player edits per chunk. */
   private overrides: Map<string, Map<number, BlockId>> = new Map();
+  private trackedTarget: Vec3 | null = null;
 
   constructor(
     atlas: ITextureAtlas,
@@ -180,6 +181,15 @@ export class World implements IWorld {
 
   isSolid(x: number, y: number, z: number): boolean {
     return this.registry.isSolid(this.getBlock(x, y, z));
+  }
+
+  getTrackedTarget(): Vec3 | null {
+    return this.trackedTarget;
+  }
+
+  /** Set the hostile-mob chase target. Pass the player's LIVE position object so mobs always read the current value. */
+  setTrackedTarget(target: Vec3 | null): void {
+    this.trackedTarget = target;
   }
 
   /**

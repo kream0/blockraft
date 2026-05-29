@@ -29,6 +29,22 @@ export const JUMP_VELOCITY = 9.2;
 export const REACH = 5;
 /** Real-time seconds for one full day→night→day cycle. Tunable. */
 export const DAY_LENGTH_SECONDS = 180;
+/** Player max health in half-heart points (20 = 10 hearts). */
+export const PLAYER_MAX_HEALTH = 20;
+/** Seconds of post-respawn invulnerability so the player isn't instantly re-killed. */
+export const PLAYER_RESPAWN_INVULN_S = 1.5;
+/** Max simultaneous live hostile mobs (zombies) at night. */
+export const ZOMBIE_MAX_COUNT = 8;
+/** Horizontal distance (blocks) within which a zombie begins chasing the player. */
+export const ZOMBIE_DETECT_RADIUS = 16;
+/** Horizontal distance (blocks) at which a zombie can bite the player. */
+export const ZOMBIE_ATTACK_RANGE = 1.2;
+/** Damage (half-heart points) per zombie bite. */
+export const ZOMBIE_ATTACK_DAMAGE = 3;
+/** Seconds between consecutive bites from the same zombie. */
+export const ZOMBIE_ATTACK_COOLDOWN_S = 1.0;
+/** Zombie horizontal speed while chasing (blocks/s). Must keep speed*1/60 < radius(0.3) to avoid tunneling. */
+export const ZOMBIE_CHASE_SPEED = 2.4;
 
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
@@ -110,6 +126,9 @@ export interface IWorld {
   isSolid(x: number, y: number, z: number): boolean;
   /** DDA raycast through the voxel grid. Returns null if no solid block hit within maxDistance. */
   raycast(origin: Vec3, direction: Vec3, maxDistance: number): BlockHit | null;
+  /** The current chase target for hostile mobs (the local player's FEET position), or null if none set. The returned object is a LIVE reference that mutates each tick — read it, do not retain across ticks expecting a snapshot. */
+  getTrackedTarget(): Vec3 | null;
+  setTrackedTarget(target: Vec3 | null): void;
   /** Stream chunks around playerPos: load missing within RENDER_DISTANCE, unload outside. */
   update(playerPos: Vec3): void;
   /** Three.js group containing all chunk meshes. Add this to the scene once. */
@@ -147,6 +166,8 @@ export interface PlayerState {
   onGround: boolean;
   /** Hotbar index in [0, 8]. */
   selectedSlot: number;
+  /** Current health in half-heart points, clamped to [0, PLAYER_MAX_HEALTH]. Not persisted; resets to full each load. */
+  health: number;
 }
 
 // === Hotbar ===
@@ -244,6 +265,7 @@ export const EntityKind = {
   LOCAL_PLAYER: 'local_player',
   REMOTE_PLAYER: 'remote_player',
   MOB: 'mob',
+  ZOMBIE: 'zombie',
   COW: 'cow',
   PIG: 'pig',
   SHEEP: 'sheep',

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PlayerState, BlockId, PLAYER_EYE } from '../types';
+import { PlayerState, BlockId, PLAYER_EYE, PLAYER_MAX_HEALTH } from '../types';
 
 export class Player {
   state: PlayerState;
@@ -16,6 +16,7 @@ export class Player {
       pitch: 0,
       onGround: false,
       selectedSlot: 0,
+      health: PLAYER_MAX_HEALTH,
     };
 
     this.hotbar = [

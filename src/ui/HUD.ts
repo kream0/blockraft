@@ -15,6 +15,12 @@ function ensureStyle(): void {
 .mc-readout { position: absolute; top: 8px; left: 8px; color: white; text-shadow: 1px 1px 2px black; font-family: monospace; font-size: 12px; line-height: 1.4; pointer-events: none; }
 .mc-clickhint { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); color: white; text-shadow: 1px 1px 2px black; font-family: monospace; font-size: 14px; padding: 6px 12px; background: rgba(0,0,0,0.4); border-radius: 4px; pointer-events: none; }
 .mc-clickhint[hidden] { display: none; }
+.mc-health { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
+.mc-health[hidden] { display: none; }
+.mc-heart { position: relative; width: 16px; height: 16px; }
+.mc-heart-bg, .mc-heart-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
+.mc-heart-bg { color: #444; text-shadow: 1px 1px 1px black; }
+.mc-heart-fg { color: #ff4d4d; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
 `;
   document.head.appendChild(style);
 }
@@ -26,6 +32,8 @@ export class HUD {
   private clickHintEl: HTMLElement;
   private crosshairEl: HTMLElement;
   private readoutEl: HTMLElement;
+  private healthEl: HTMLElement;
+  private heartFills: HTMLElement[] = [];
   hotbar: Hotbar;
 
   private fpsEma: number = 0;
@@ -62,6 +70,26 @@ export class HUD {
     container.appendChild(hint);
     this.clickHintEl = hint;
 
+    const health = document.createElement('div');
+    health.className = 'mc-health';
+    health.hidden = true;
+    for (let i = 0; i < 10; i++) {
+      const heart = document.createElement('div');
+      heart.className = 'mc-heart';
+      const bg = document.createElement('span');
+      bg.className = 'mc-heart-bg';
+      bg.textContent = '♥';
+      const fg = document.createElement('span');
+      fg.className = 'mc-heart-fg';
+      fg.textContent = '♥';
+      heart.appendChild(bg);
+      heart.appendChild(fg);
+      health.appendChild(heart);
+      this.heartFills.push(fg);
+    }
+    container.appendChild(health);
+    this.healthEl = health;
+
     this.hotbar = new Hotbar(container, hotbarBlocks);
   }
 
@@ -96,16 +124,27 @@ export class HUD {
       'Time: ' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
   }
 
+  setHealth(hp: number, max: number): void {
+    const clamped = Math.max(0, Math.min(max, hp));
+    this.healthEl.hidden = false;
+    this.heartFills.forEach((fg, i) => {
+      const heartValue = clamped - i * 2;          // points for THIS heart
+      const fraction = Math.max(0, Math.min(1, heartValue / 2)); // 0, 0.5, or 1
+      fg.style.width = (fraction * 16) + 'px';
+    });
+  }
+
   setLocked(locked: boolean): void {
     this.clickHintEl.hidden = locked;
   }
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl]) {
+    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
     }
+    this.heartFills = [];
   }
 }
