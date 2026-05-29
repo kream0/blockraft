@@ -348,6 +348,7 @@ export class GameSession {
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.hud.setUnderwater(this.isHeadSubmerged());
       this.updateBreath(dt);
       this.updateHealthRegen(dt);
       if (this.gameMode === GameMode.SURVIVAL) {
@@ -588,18 +589,22 @@ export class GameSession {
     if (st.health >= PLAYER_MAX_HEALTH) this.healthRegenAcc = 0;
   }
 
+  /** True when the player's eye/head voxel is water. Drives drowning (survival) and the underwater overlay (all modes). */
+  private isHeadSubmerged(): boolean {
+    const st = this.player.state;
+    return this.world.getBlock(
+      Math.floor(st.position.x),
+      Math.floor(st.position.y + PLAYER_EYE),
+      Math.floor(st.position.z),
+    ) === BlockId.WATER;
+  }
+
   /** Per-frame (survival only): deplete air while the head block is WATER; once empty, apply DROWN_DAMAGE every DROWN_INTERVAL_S. Air snaps back to full on surfacing. */
   private updateBreath(dt: number): void {
     if (this.gameMode !== GameMode.SURVIVAL) return;
     if (this.isDead) return;
     if (this.respawnInvuln > 0) return;
-    const st = this.player.state;
-    const submerged =
-      this.world.getBlock(
-        Math.floor(st.position.x),
-        Math.floor(st.position.y + PLAYER_EYE),
-        Math.floor(st.position.z),
-      ) === BlockId.WATER;
+    const submerged = this.isHeadSubmerged();
     if (submerged) {
       this.air = Math.max(0, this.air - dt);
       if (this.air <= 0) {

@@ -27,6 +27,7 @@ function ensureStyle(): void {
 .mc-bubble-bg, .mc-bubble-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
 .mc-bubble-bg { color: #444; text-shadow: 1px 1px 1px black; }
 .mc-bubble-fg { color: #7ec8ff; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
+.mc-underwater { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s ease-out; background: rgba(30,90,170,0.35); }
 .mc-damage-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out; box-shadow: inset 0 0 120px 50px rgba(170,0,0,0.65); }
 `;
   document.head.appendChild(style);
@@ -42,6 +43,7 @@ export class HUD {
   private healthEl: HTMLElement;
   private airEl: HTMLElement;
   private damageVignetteEl: HTMLElement;
+  private underwaterEl: HTMLElement;
   private heartFills: HTMLElement[] = [];
   private bubbleFills: HTMLElement[] = [];
   hotbar: Hotbar;
@@ -120,6 +122,11 @@ export class HUD {
     container.appendChild(air);
     this.airEl = air;
 
+    const underwater = document.createElement('div');
+    underwater.className = 'mc-underwater';
+    container.appendChild(underwater);
+    this.underwaterEl = underwater;
+
     const vignette = document.createElement('div');
     vignette.className = 'mc-damage-vignette';
     container.appendChild(vignette);
@@ -195,13 +202,18 @@ export class HUD {
     el.style.opacity = '0';
   }
 
+  /** Fade the blue underwater tint in (active) or out. The CSS transition handles the animation. */
+  setUnderwater(active: boolean): void {
+    this.underwaterEl.style.opacity = active ? '1' : '0';
+  }
+
   setLocked(locked: boolean): void {
     this.clickHintEl.hidden = locked;
   }
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.underwaterEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
