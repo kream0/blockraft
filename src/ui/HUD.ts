@@ -50,6 +50,7 @@ export class HUD {
 
   private fpsEma: number = 0;
   private fpsInitialized: boolean = false;
+  private showFps: boolean = true;
 
   constructor(container: HTMLElement, hotbarBlocks: BlockId[]) {
     ensureStyle();
@@ -147,7 +148,9 @@ export class HUD {
       const alpha = 1 - Math.exp(-dt / tau);
       this.fpsEma = this.fpsEma + (instFps - this.fpsEma) * alpha;
     }
-    this.fpsEl.textContent = 'FPS: ' + this.fpsEma.toFixed(0);
+    if (this.showFps) {
+      this.fpsEl.textContent = 'FPS: ' + this.fpsEma.toFixed(0);
+    }
     const p = player.position;
     this.posEl.textContent =
       'Pos: ' + p.x.toFixed(1) + ', ' + p.y.toFixed(1) + ', ' + p.z.toFixed(1);
@@ -155,6 +158,12 @@ export class HUD {
     if (this.hotbar.selectedSlot !== player.selectedSlot) {
       this.hotbar.setSelectedSlot(player.selectedSlot);
     }
+  }
+
+  /** Show or hide the FPS readout line (wired to the Show FPS setting). */
+  setShowFps(show: boolean): void {
+    this.showFps = show;
+    this.fpsEl.hidden = !show;
   }
 
   /** Update the clock readout from a normalized time of day t in [0, 1): 0=00:00, 0.5=12:00. */

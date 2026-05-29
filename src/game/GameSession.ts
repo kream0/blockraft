@@ -271,6 +271,7 @@ export class GameSession {
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+    this.hud.setShowFps(settings.showFps);
     if (this.gameMode === GameMode.SURVIVAL) {
       this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
       this.hud.setAir(PLAYER_MAX_AIR_S, PLAYER_MAX_AIR_S);
@@ -508,7 +509,7 @@ export class GameSession {
     await this.worldStorage.saveWorld(save);
   }
 
-  /** Apply settings live (FOV, mouse sensitivity, invertY, render distance). */
+  /** Apply settings live (FOV, mouse sensitivity, invertY, render distance, show FPS). */
   applySettings(settings: Settings): void {
     this.player.setFov(settings.fov);
     this.renderer.setFogFar(settings.renderDistance * CHUNK_SIZE);
@@ -516,6 +517,7 @@ export class GameSession {
     this.controls.setSensitivityScale(settings.mouseSensitivity);
     this.controls.setInvertY(settings.invertY);
     this.audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.sfxVolume);
+    this.hud.setShowFps(settings.showFps);
   }
 
   /** True iff pointer-locked (in active gameplay). */

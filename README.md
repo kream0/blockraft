@@ -85,7 +85,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
 - **Ambient music**: a procedural ambient track on the existing Music volume bus (sound effects are already implemented — see Audio above)
-- **Show FPS toggle**: wire the existing setting to actually hide/show the HUD readout
 - **Biomes**: desert, snowy, forest variants by noise selection
 
 ### Medium term
