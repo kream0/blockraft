@@ -17,6 +17,8 @@ import { Pig } from '../entities/Pig';
 import { Sheep } from '../entities/Sheep';
 import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
+import { Skeleton } from '../entities/Skeleton';
+import { Arrow } from '../entities/Arrow';
 import { Mob } from '../entities/Mob';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
@@ -36,6 +38,11 @@ import {
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
+  SKELETON_MAX_COUNT,
+  ARROW_DAMAGE,
+  ARROW_HIT_RADIUS,
+  PLAYER_RADIUS,
+  PLAYER_HEIGHT,
   FALL_DAMAGE_SAFE_BLOCKS,
   FALL_DAMAGE_PER_BLOCK,
   HEALTH_REGEN_DELAY_S,
@@ -359,6 +366,8 @@ export class GameSession {
         }
         this.world.entityManager.update(FIXED_DT, this.world);
         this.applyHostileContact(FIXED_DT);
+        this.updateSkeletonFire();
+        this.updateArrows();
         this.acc -= FIXED_DT;
       }
 
@@ -703,13 +712,59 @@ export class GameSession {
     this.isDead = false;
   }
 
-  /** Frame-rate, throttled: spawn zombies at night near the player up to the cap; despawn all at dawn. */
+  /** Per-fixed-step: turn each skeleton's queued shot (tryFire) into a live Arrow entity. */
+  private updateSkeletonFire(): void {
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Skeleton)) continue;
+      const shot = e.tryFire();
+      if (shot !== null) {
+        this.world.entityManager.spawn(new Arrow(shot.origin, shot.dir));
+      }
+    }
+  }
+
+  /**
+   * Per-fixed-step: arrows that overlap the player deal damage (survival only, respecting
+   * respawn invulnerability) and are consumed; any arrow flagged dead (block hit, expired
+   * lifetime, or player hit) is despawned. respawnInvuln is owned by applyHostileContact —
+   * we only read it here.
+   */
+  private updateArrows(): void {
+    const p = this.player.state.position;
+    const minX = p.x - PLAYER_RADIUS - ARROW_HIT_RADIUS;
+    const maxX = p.x + PLAYER_RADIUS + ARROW_HIT_RADIUS;
+    const minY = p.y - ARROW_HIT_RADIUS;
+    const maxY = p.y + PLAYER_HEIGHT + ARROW_HIT_RADIUS;
+    const minZ = p.z - PLAYER_RADIUS - ARROW_HIT_RADIUS;
+    const maxZ = p.z + PLAYER_RADIUS + ARROW_HIT_RADIUS;
+    const canHurt = this.gameMode === GameMode.SURVIVAL && !this.isDead && this.respawnInvuln <= 0;
+
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Arrow)) continue;
+      if (!e.dead) {
+        const a = e.position;
+        if (a.x >= minX && a.x <= maxX && a.y >= minY && a.y <= maxY && a.z >= minZ && a.z <= maxZ) {
+          e.dead = true; // arrow is consumed on impact regardless of game mode
+          if (canHurt) {
+            this.damagePlayer(ARROW_DAMAGE);
+          }
+        }
+      }
+      if (e.dead) {
+        this.world.entityManager.despawn(e.id);
+      }
+    }
+  }
+
+  /** Frame-rate, throttled: spawn zombies + skeletons at night near the player up to their caps; despawn all hostiles + arrows at dawn. */
   private updateHostiles(dt: number): void {
     if (!this.dayNight.isNight) {
       // Despawn once, on the night->day transition — not every daytime frame.
       if (this.wasNight) {
         for (const e of this.world.entityManager.all) {
-          if (e instanceof Zombie) this.world.entityManager.despawn(e.id);
+          if (e instanceof Zombie || e instanceof Skeleton || e instanceof Arrow) {
+            this.world.entityManager.despawn(e.id);
+          }
         }
         this.hostileSpawnAcc = 0;
       }
@@ -720,11 +775,26 @@ export class GameSession {
     this.hostileSpawnAcc += dt;
     if (this.hostileSpawnAcc < HOSTILE_SPAWN_INTERVAL_S) return;
     this.hostileSpawnAcc = 0;
-    let count = 0;
+
+    let zombies = 0;
+    let skeletons = 0;
     for (const e of this.world.entityManager.all) {
-      if (e instanceof Zombie) count++;
+      if (e instanceof Zombie) zombies++;
+      else if (e instanceof Skeleton) skeletons++;
     }
-    if (count >= ZOMBIE_MAX_COUNT) return;
+
+    if (zombies < ZOMBIE_MAX_COUNT) {
+      const s = this.findHostileSpawn();
+      if (s !== null) this.world.entityManager.spawn(new Zombie({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
+    }
+    if (skeletons < SKELETON_MAX_COUNT) {
+      const s = this.findHostileSpawn();
+      if (s !== null) this.world.entityManager.spawn(new Skeleton({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
+    }
+  }
+
+  /** Pick a valid hostile spawn cell on the ground in a ring around the player, or null if none found. Returns integer block coords (sx, topSolidY, sz). */
+  private findHostileSpawn(): { x: number; y: number; z: number } | null {
     const px = this.player.state.position.x;
     const pz = this.player.state.position.z;
     for (let attempt = 0; attempt < HOSTILE_SPAWN_ATTEMPTS; attempt++) {
@@ -738,9 +808,9 @@ export class GameSession {
       if (sy < 0) continue;
       if (this.world.getBlock(sx, sy + 1, sz) !== BlockId.AIR) continue;
       if (this.world.getBlock(sx, sy + 2, sz) !== BlockId.AIR) continue; // head clearance
-      this.world.entityManager.spawn(new Zombie({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 }));
-      return; // at most one spawn per interval
+      return { x: sx, y: sy, z: sz };
     }
+    return null;
   }
 
   /**

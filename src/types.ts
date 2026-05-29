@@ -80,6 +80,32 @@ export const PASSIVE_FLEE_SPEED = 3.5;
 /** Seconds a passive mob keeps fleeing from the last hit source. */
 export const PASSIVE_FLEE_DURATION_S = 4;
 
+// === Skeleton (ranged hostile) ===
+/** Max simultaneous live skeletons at night (separate cap from zombies). */
+export const SKELETON_MAX_COUNT = 4;
+/** Skeleton health in half-heart points (dies in 2 player hits at PLAYER_ATTACK_DAMAGE=4). */
+export const SKELETON_MAX_HEALTH = 8;
+/** Horizontal distance (blocks) within which a skeleton engages the player. */
+export const SKELETON_DETECT_RADIUS = 20;
+/** Below this horizontal distance (blocks) the skeleton backs away to keep range. */
+export const SKELETON_PREFERRED_MIN = 5;
+/** Above this horizontal distance (blocks, but within detect) the skeleton advances. */
+export const SKELETON_PREFERRED_MAX = 12;
+/** Skeleton horizontal move speed (blocks/s). Keep speed/60 < radius(0.3) to avoid tunneling. */
+export const SKELETON_MOVE_SPEED = 2.0;
+/** Seconds between consecutive arrow shots from the same skeleton. */
+export const SKELETON_SHOOT_COOLDOWN_S = 2.0;
+
+// === Arrow projectile ===
+/** Arrow flight speed (blocks/s). Straight-line, no gravity. Keep speed/60 < 2*(PLAYER_RADIUS+ARROW_HIT_RADIUS) (≈1.1) for reliable per-tick hit detection (at 22 b/s, per-tick travel ≈0.367 blocks). */
+export const ARROW_SPEED = 22;
+/** Damage (half-heart points) an arrow deals to the player on hit. */
+export const ARROW_DAMAGE = 4;
+/** Seconds an arrow lives before despawning if it hits nothing. */
+export const ARROW_LIFETIME_S = 3;
+/** Collision half-extent (blocks) added around the player AABB for the arrow point-hit test. */
+export const ARROW_HIT_RADIUS = 0.25;
+
 // === Block-break particles ===
 /** Particles spawned per block break. */
 export const PARTICLE_BURST_COUNT = 12;
@@ -320,8 +346,22 @@ export const EntityKind = {
   COW: 'cow',
   PIG: 'pig',
   SHEEP: 'sheep',
+  SKELETON: 'skeleton',
+  ARROW: 'arrow',
 } as const;
 export type EntityKind = typeof EntityKind[keyof typeof EntityKind];
+
+/**
+ * A pending arrow shot produced by a Skeleton's AI and consumed by GameSession to
+ * spawn an Arrow. `origin` is the launch point (the skeleton's bow height in world
+ * space); `dir` is the NORMALIZED flight direction. This shared type lets Skeleton
+ * and GameSession communicate without importing each other (mirrors the Zombie.tryBite
+ * delegation pattern).
+ */
+export interface ArrowShot {
+  origin: Vec3;
+  dir: Vec3;
+}
 
 /** Minimal entity interface. Anything that lives in the world implements this. */
 export interface IEntity {
