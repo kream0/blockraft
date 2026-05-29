@@ -9,7 +9,10 @@ import { Controls } from '../player/Controls';
 import { Physics } from '../player/Physics';
 import { HUD } from '../ui/HUD';
 import { BlockInteraction } from '../interaction/BlockInteraction';
-import { Zombie } from '../entities/Zombie';
+import { Cow } from '../entities/Cow';
+import { Pig } from '../entities/Pig';
+import { Sheep } from '../entities/Sheep';
+import type { PassiveMob } from '../entities/PassiveMob';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
   BlockId,
@@ -27,7 +30,10 @@ const FIXED_DT = 1 / 60;
 const MAX_FRAME_DT = 0.1;
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const PRELOAD_TICKS = 60;
-const ZOMBIE_SPAWN_AHEAD = 6;
+const PASSIVE_MOB_COUNT = 6;
+const PASSIVE_SPAWN_MIN_RADIUS = 4;
+const PASSIVE_SPAWN_MAX_RADIUS = 14;
+const PASSIVE_SPAWN_ATTEMPTS = 40;
 
 /**
  * Finds a dry-land surface to spawn the player on.
@@ -292,9 +298,9 @@ export class GameSession {
     // Initial HUD lock state.
     this.hud.setLocked(this.controls.isLocked);
 
-    // Spawn a demo zombie ~6 blocks ahead of the player on the surface so the
-    // entity system is visible. Use yaw=0 forward (which is -Z in this codebase).
-    this.spawnDemoZombie();
+    // Populate the world with a small herd of passive animals around the spawn so
+    // the world feels alive. They are ephemeral (not persisted) — respawned each load.
+    this.spawnPassiveMobs();
 
     // Auto-save loop.
     this.autoSaveTimer = setInterval(() => {
@@ -409,15 +415,35 @@ export class GameSession {
     return this.worldName;
   }
 
-  private spawnDemoZombie(): void {
-    const yaw = this.player.state.yaw;
-    const fx = -Math.sin(yaw);
-    const fz = -Math.cos(yaw);
-    const sx = Math.floor(this.player.state.position.x + fx * ZOMBIE_SPAWN_AHEAD);
-    const sz = Math.floor(this.player.state.position.z + fz * ZOMBIE_SPAWN_AHEAD);
-    const sy = topSolidY(this.world, sx, sz);
-    if (sy < 0) return;
-    const zombie = new Zombie({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 });
-    this.world.entityManager.spawn(zombie);
+  private spawnPassiveMobs(): void {
+    const px = this.player.state.position.x;
+    const pz = this.player.state.position.z;
+    const factories: ((p: Vec3) => PassiveMob)[] = [
+      (p) => new Cow(p),
+      (p) => new Pig(p),
+      (p) => new Sheep(p),
+    ];
+    let spawned = 0;
+    for (
+      let attempt = 0;
+      attempt < PASSIVE_SPAWN_ATTEMPTS && spawned < PASSIVE_MOB_COUNT;
+      attempt++
+    ) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist =
+        PASSIVE_SPAWN_MIN_RADIUS +
+        Math.random() * (PASSIVE_SPAWN_MAX_RADIUS - PASSIVE_SPAWN_MIN_RADIUS);
+      const sx = Math.floor(px + Math.cos(angle) * dist);
+      const sz = Math.floor(pz + Math.sin(angle) * dist);
+      const sy = topSolidY(this.world, sx, sz);
+      if (sy < 0) continue;
+      // Require open air directly above the top solid block. This naturally skips
+      // water columns (their top solid block is the lake bed, with WATER above).
+      if (this.world.getBlock(sx, sy + 1, sz) !== BlockId.AIR) continue;
+      const make = factories[spawned % factories.length]!;
+      const mob = make({ x: sx + 0.5, y: sy + 1, z: sz + 0.5 });
+      this.world.entityManager.spawn(mob);
+      spawned++;
+    }
   }
 }
