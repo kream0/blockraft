@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Mob } from './Mob';
-import type { IWorld, Vec3 } from '../types';
+import { EntityKind, type IWorld, type Vec3 } from '../types';
 
 const ZOMBIE_RADIUS = 0.3;
 const ZOMBIE_HEIGHT = 1.8;
@@ -17,7 +17,7 @@ export class Zombie extends Mob {
 
   constructor(position: Vec3) {
     const mesh = Zombie.buildMesh();
-    super(position, ZOMBIE_RADIUS, ZOMBIE_HEIGHT, mesh);
+    super(EntityKind.MOB, position, ZOMBIE_RADIUS, ZOMBIE_HEIGHT, mesh);
   }
 
   protected override think(dt: number, _world: IWorld): void {

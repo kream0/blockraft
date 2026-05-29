@@ -220,6 +220,9 @@ export const EntityKind = {
   LOCAL_PLAYER: 'local_player',
   REMOTE_PLAYER: 'remote_player',
   MOB: 'mob',
+  COW: 'cow',
+  PIG: 'pig',
+  SHEEP: 'sheep',
 } as const;
 export type EntityKind = typeof EntityKind[keyof typeof EntityKind];
 

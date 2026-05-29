@@ -22,12 +22,13 @@ export abstract class Mob extends Entity {
   protected jumpRequested: boolean = false;
 
   constructor(
+    kind: EntityKind,
     position: Vec3,
     radius: number,
     height: number,
     object3D: THREE.Object3D | null,
   ) {
-    super(EntityKind.MOB, position, object3D);
+    super(kind, position, object3D);
     this.radius = radius;
     this.height = height;
   }
