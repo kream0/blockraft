@@ -32,6 +32,11 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - A small herd spawns on dry ground around you when a world loads
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
 
+### Audio
+- Procedural sound effects synthesized at runtime with the Web Audio API — **no audio files**
+- Cues for block break / place, melee swing, and taking damage, each built from oscillators + filtered noise bursts
+- **Master** and **SFX** volume sliders are live; the **Music** bus is wired and reserved for a future ambient track
+
 ### Menus & UX
 - **Main menu**: Singleplayer, Multiplayer (coming soon), Settings, Quit
 - **World list**: load existing worlds with last-played time, mode, seed
@@ -66,7 +71,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
-- **Sound effects + ambient music**: hook the existing volume sliders to actual audio sources
+- **Ambient music**: a procedural ambient track on the existing Music volume bus (sound effects are already implemented — see Audio above)
 - **Show FPS toggle**: wire the existing setting to actually hide/show the HUD readout
 - **Biomes**: desert, snowy, forest variants by noise selection
 
