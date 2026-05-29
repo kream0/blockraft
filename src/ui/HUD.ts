@@ -21,6 +21,12 @@ function ensureStyle(): void {
 .mc-heart-bg, .mc-heart-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
 .mc-heart-bg { color: #444; text-shadow: 1px 1px 1px black; }
 .mc-heart-fg { color: #ff4d4d; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
+.mc-air { position: absolute; left: 50%; bottom: 116px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
+.mc-air[hidden] { display: none; }
+.mc-bubble { position: relative; width: 16px; height: 16px; }
+.mc-bubble-bg, .mc-bubble-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
+.mc-bubble-bg { color: #444; text-shadow: 1px 1px 1px black; }
+.mc-bubble-fg { color: #7ec8ff; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
 .mc-damage-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out; box-shadow: inset 0 0 120px 50px rgba(170,0,0,0.65); }
 `;
   document.head.appendChild(style);
@@ -34,8 +40,10 @@ export class HUD {
   private crosshairEl: HTMLElement;
   private readoutEl: HTMLElement;
   private healthEl: HTMLElement;
+  private airEl: HTMLElement;
   private damageVignetteEl: HTMLElement;
   private heartFills: HTMLElement[] = [];
+  private bubbleFills: HTMLElement[] = [];
   hotbar: Hotbar;
 
   private fpsEma: number = 0;
@@ -92,6 +100,26 @@ export class HUD {
     container.appendChild(health);
     this.healthEl = health;
 
+    const air = document.createElement('div');
+    air.className = 'mc-air';
+    air.hidden = true;
+    for (let i = 0; i < 10; i++) {
+      const bubble = document.createElement('div');
+      bubble.className = 'mc-bubble';
+      const bg = document.createElement('span');
+      bg.className = 'mc-bubble-bg';
+      bg.textContent = '●';
+      const fg = document.createElement('span');
+      fg.className = 'mc-bubble-fg';
+      fg.textContent = '●';
+      bubble.appendChild(bg);
+      bubble.appendChild(fg);
+      air.appendChild(bubble);
+      this.bubbleFills.push(fg);
+    }
+    container.appendChild(air);
+    this.airEl = air;
+
     const vignette = document.createElement('div');
     vignette.className = 'mc-damage-vignette';
     container.appendChild(vignette);
@@ -141,6 +169,20 @@ export class HUD {
     });
   }
 
+  setAir(air: number, max: number): void {
+    if (air >= max) {
+      this.airEl.hidden = true;
+      return;
+    }
+    this.airEl.hidden = false;
+    const perBubble = max / this.bubbleFills.length;
+    this.bubbleFills.forEach((fg, i) => {
+      const value = air - i * perBubble;
+      const fraction = Math.max(0, Math.min(1, value / perBubble));
+      fg.style.width = (fraction * 16) + 'px';
+    });
+  }
+
   /** Pulse the red damage vignette to full opacity, then fade it out over ~0.4s. Re-arms on every call. */
   flashDamage(): void {
     const el = this.damageVignetteEl;
@@ -159,11 +201,12 @@ export class HUD {
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
     }
     this.heartFills = [];
+    this.bubbleFills = [];
   }
 }

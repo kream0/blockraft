@@ -41,6 +41,12 @@ export const FALL_DAMAGE_PER_BLOCK = 1;
 export const HEALTH_REGEN_DELAY_S = 6;
 /** Seconds per half-heart restored once regeneration is active. */
 export const HEALTH_REGEN_INTERVAL_S = 1.5;
+/** Seconds the player can stay fully submerged before drowning damage begins (survival only). */
+export const PLAYER_MAX_AIR_S = 15;
+/** Damage (half-heart points) per drowning tick once air is depleted. */
+export const DROWN_DAMAGE = 2;
+/** Seconds between consecutive drowning damage ticks. */
+export const DROWN_INTERVAL_S = 1;
 /** Max simultaneous live hostile mobs (zombies) at night. */
 export const ZOMBIE_MAX_COUNT = 8;
 /** Horizontal distance (blocks) within which a zombie begins chasing the player. */

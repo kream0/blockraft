@@ -27,6 +27,10 @@ import {
   PLAYER_ATTACK_DAMAGE,
   PLAYER_ATTACK_RANGE,
   PLAYER_ATTACK_COOLDOWN_S,
+  PLAYER_EYE,
+  PLAYER_MAX_AIR_S,
+  DROWN_DAMAGE,
+  DROWN_INTERVAL_S,
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
@@ -147,6 +151,10 @@ export class GameSession {
   private timeSinceLastDamage: number = 0;
   /** Accumulator (seconds) toward the next half-heart of passive regen. */
   private healthRegenAcc: number = 0;
+  /** Seconds of breathable air remaining while the head is submerged; refills to PLAYER_MAX_AIR_S on surfacing. */
+  private air: number = PLAYER_MAX_AIR_S;
+  /** Accumulator (seconds) toward the next drowning damage tick once air is depleted. */
+  private drownAcc: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
@@ -253,6 +261,7 @@ export class GameSession {
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
     if (this.gameMode === GameMode.SURVIVAL) {
       this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
+      this.hud.setAir(PLAYER_MAX_AIR_S, PLAYER_MAX_AIR_S);
     }
 
     // Interaction.
@@ -339,9 +348,11 @@ export class GameSession {
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.updateBreath(dt);
       this.updateHealthRegen(dt);
       if (this.gameMode === GameMode.SURVIVAL) {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
+        this.hud.setAir(this.air, PLAYER_MAX_AIR_S);
       }
       this.renderer.render(this.player.camera);
 
@@ -381,6 +392,8 @@ export class GameSession {
     this.fallPeakY = this.player.state.position.y;
     this.timeSinceLastDamage = 0;
     this.healthRegenAcc = 0;
+    this.air = PLAYER_MAX_AIR_S;
+    this.drownAcc = 0;
     this.rafId = requestAnimationFrame(this.frame);
   }
 
@@ -575,6 +588,37 @@ export class GameSession {
     if (st.health >= PLAYER_MAX_HEALTH) this.healthRegenAcc = 0;
   }
 
+  /** Per-frame (survival only): deplete air while the head block is WATER; once empty, apply DROWN_DAMAGE every DROWN_INTERVAL_S. Air snaps back to full on surfacing. */
+  private updateBreath(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.isDead) return;
+    if (this.respawnInvuln > 0) return;
+    const st = this.player.state;
+    const submerged =
+      this.world.getBlock(
+        Math.floor(st.position.x),
+        Math.floor(st.position.y + PLAYER_EYE),
+        Math.floor(st.position.z),
+      ) === BlockId.WATER;
+    if (submerged) {
+      this.air = Math.max(0, this.air - dt);
+      if (this.air <= 0) {
+        this.drownAcc += dt;
+        while (this.drownAcc >= DROWN_INTERVAL_S) {
+          this.damagePlayer(DROWN_DAMAGE);
+          this.drownAcc -= DROWN_INTERVAL_S;
+          if (this.isDead) {
+            this.drownAcc = 0;
+            return;
+          }
+        }
+      }
+    } else {
+      this.air = PLAYER_MAX_AIR_S;
+      this.drownAcc = 0;
+    }
+  }
+
   /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
   private applyHostileContact(dt: number): void {
     if (this.isDead) return;
@@ -608,6 +652,8 @@ export class GameSession {
     this.fallPeakY = spawn.y;
     this.timeSinceLastDamage = 0;
     this.healthRegenAcc = 0;
+    this.air = PLAYER_MAX_AIR_S;
+    this.drownAcc = 0;
     const v = this.player.state.velocity;
     v.x = 0;
     v.y = 0;
