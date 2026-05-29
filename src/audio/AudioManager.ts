@@ -19,6 +19,11 @@ export class AudioManager {
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
 
+  private musicMix: GainNode | null = null;
+  private musicSources: OscillatorNode[] = []; // chord oscillators AND LFOs (all need .stop())
+  private musicGains: GainNode[] = [];         // musicMix + per-voice gains + LFO gains (all need .disconnect())
+  private musicStarted = false;
+
   // Pre-built mono white-noise buffer (~0.2 s). Created once on resume() and
   // shared across all noise-based shots. A BufferSourceNode can only be started
   // once, so each shot wraps the buffer in a *new* source node.
@@ -103,6 +108,7 @@ export class AudioManager {
     // Unblock playback: browsers may create the context in the 'suspended' state
     // even when created inside a gesture, so call resume() explicitly.
     void ctx.resume();
+    this.startMusic();
   }
 
   /**
@@ -238,6 +244,7 @@ export class AudioManager {
 
   /** Close the AudioContext and release all node references. */
   dispose(): void {
+    this.stopMusic();
     if (this.ctx !== null) {
       try {
         void this.ctx.close();
@@ -255,6 +262,65 @@ export class AudioManager {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private startMusic(): void {
+    const ctx = this.ctx;
+    const musicGain = this.musicGain;
+    if (ctx === null || musicGain === null || this.musicStarted) return;
+    this.musicStarted = true;
+
+    const now = ctx.currentTime;
+
+    const musicMix = ctx.createGain();
+    musicMix.gain.setValueAtTime(0, now);
+    musicMix.gain.linearRampToValueAtTime(MUSIC_MIX_GAIN, now + MUSIC_FADE_IN_S);
+    musicMix.connect(musicGain);
+    this.musicMix = musicMix;
+    this.musicGains.push(musicMix);
+
+    for (const v of MUSIC_VOICES) {
+      const osc = ctx.createOscillator();
+      osc.type = v.type;
+      osc.frequency.value = v.freq;
+      osc.detune.value = v.detune;
+
+      const voiceGain = ctx.createGain();
+      voiceGain.gain.value = MUSIC_VOICE_GAIN;
+
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = v.lfoRate;
+
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = MUSIC_SWELL_DEPTH;
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(voiceGain.gain);
+
+      osc.connect(voiceGain);
+      voiceGain.connect(musicMix);
+
+      osc.start(now);
+      lfo.start(now);
+
+      this.musicSources.push(osc, lfo);
+      this.musicGains.push(voiceGain, lfoGain);
+    }
+  }
+
+  private stopMusic(): void {
+    for (const osc of this.musicSources) {
+      try { osc.stop(); } catch { /* already stopped */ }
+      osc.disconnect();
+    }
+    for (const g of this.musicGains) {
+      g.disconnect();
+    }
+    this.musicSources = [];
+    this.musicGains = [];
+    this.musicMix = null;
+    this.musicStarted = false;
+  }
 
   /**
    * Build a one-shot envelope GainNode for click-free attack + decay.
@@ -292,3 +358,21 @@ export class AudioManager {
 function clamp01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
+
+// ---------------------------------------------------------------------------
+// Ambient music pad constants
+// ---------------------------------------------------------------------------
+
+const MUSIC_MIX_GAIN = 0.3;     // headroom: 4 voices × ~0.14 peak × 0.3 ≈ 0.17 into musicGain, no clipping
+const MUSIC_VOICE_GAIN = 0.09;  // base per-voice gain (LFO swells around this)
+const MUSIC_SWELL_DEPTH = 0.05; // LFO gain depth → each voice oscillates in [0.04, 0.14]
+const MUSIC_FADE_IN_S = 2;      // gentle fade-in to avoid a click on start
+
+type MusicVoice = { freq: number; type: OscillatorType; detune: number; lfoRate: number };
+// Open A+E stack (root + fifth, octave-doubled): very consonant, ambient. Low voices sine, upper voices triangle for a little shimmer.
+const MUSIC_VOICES: MusicVoice[] = [
+  { freq: 110.00, type: 'sine',     detune: -5, lfoRate: 0.033 }, // A2
+  { freq: 164.81, type: 'sine',     detune:  4, lfoRate: 0.041 }, // E3
+  { freq: 220.00, type: 'triangle', detune: -3, lfoRate: 0.027 }, // A3
+  { freq: 329.63, type: 'triangle', detune:  6, lfoRate: 0.037 }, // E4
+];

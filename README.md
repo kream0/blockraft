@@ -50,7 +50,8 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Audio
 - Procedural sound effects synthesized at runtime with the Web Audio API — **no audio files**
 - Cues for block break / place, melee swing, and taking damage, each built from oscillators + filtered noise bursts
-- **Master** and **SFX** volume sliders are live; the **Music** bus is wired and reserved for a future ambient track
+- **Ambient music**: a continuous, slowly-evolving drone pad — four detuned oscillators on an open A+E chord, each gently swelled by its own slow LFO, synthesized live (no audio files)
+- **Master**, **Music**, and **SFX** volume sliders are all live
 
 ### Menus & UX
 - **Main menu**: Singleplayer, Multiplayer (coming soon), Settings, Quit
@@ -84,7 +85,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
-- **Ambient music**: a procedural ambient track on the existing Music volume bus (sound effects are already implemented — see Audio above)
 - **Biomes**: desert, snowy, forest variants by noise selection
 
 ### Medium term
