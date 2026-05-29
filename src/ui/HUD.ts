@@ -21,6 +21,7 @@ function ensureStyle(): void {
 .mc-heart-bg, .mc-heart-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
 .mc-heart-bg { color: #444; text-shadow: 1px 1px 1px black; }
 .mc-heart-fg { color: #ff4d4d; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
+.mc-damage-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out; box-shadow: inset 0 0 120px 50px rgba(170,0,0,0.65); }
 `;
   document.head.appendChild(style);
 }
@@ -33,6 +34,7 @@ export class HUD {
   private crosshairEl: HTMLElement;
   private readoutEl: HTMLElement;
   private healthEl: HTMLElement;
+  private damageVignetteEl: HTMLElement;
   private heartFills: HTMLElement[] = [];
   hotbar: Hotbar;
 
@@ -90,6 +92,11 @@ export class HUD {
     container.appendChild(health);
     this.healthEl = health;
 
+    const vignette = document.createElement('div');
+    vignette.className = 'mc-damage-vignette';
+    container.appendChild(vignette);
+    this.damageVignetteEl = vignette;
+
     this.hotbar = new Hotbar(container, hotbarBlocks);
   }
 
@@ -134,13 +141,25 @@ export class HUD {
     });
   }
 
+  /** Pulse the red damage vignette to full opacity, then fade it out over ~0.4s. Re-arms on every call. */
+  flashDamage(): void {
+    const el = this.damageVignetteEl;
+    // Snap to full opacity with no transition, force a reflow, then fade out.
+    // The reflow restarts the fade even when bites land in quick succession.
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+    void el.offsetWidth;
+    el.style.transition = 'opacity 0.4s ease-out';
+    el.style.opacity = '0';
+  }
+
   setLocked(locked: boolean): void {
     this.clickHintEl.hidden = locked;
   }
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl]) {
+    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }

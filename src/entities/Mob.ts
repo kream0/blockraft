@@ -5,6 +5,18 @@ import { GRAVITY, MAX_FALL_SPEED, EntityKind, MOB_KNOCKBACK_SPEED, MOB_KNOCKBACK
 const COLLISION_EPSILON = 1e-4;
 /** Vertical kick when a mob jumps. Slightly weaker than the player's jump. */
 const MOB_JUMP_VELOCITY = 8;
+/** Emissive tint applied to a mob's meshes during its hurt-stun window. */
+const HURT_EMISSIVE_HEX = 0xff3030;
+
+function materialHasEmissive(
+  m: THREE.Material,
+): m is THREE.MeshLambertMaterial | THREE.MeshStandardMaterial | THREE.MeshPhongMaterial {
+  return (
+    m instanceof THREE.MeshLambertMaterial ||
+    m instanceof THREE.MeshStandardMaterial ||
+    m instanceof THREE.MeshPhongMaterial
+  );
+}
 
 /**
  * Abstract subclass of Entity that adds gravity-bound, AABB-collided movement.
@@ -26,6 +38,8 @@ export abstract class Mob extends Entity {
   readonly maxHealth: number;
   /** Stun window after a hit; while > 0, think() is suppressed so the knockback impulse isn't overwritten. */
   private hurtTimer: number = 0;
+  /** True while the red hurt tint is applied to the mesh, so we restore it exactly once. */
+  private hurtFlashActive: boolean = false;
   /** World-space XZ the most recent hit came FROM. Subclasses may flee from it. */
   protected lastHitFromX: number = 0;
   protected lastHitFromZ: number = 0;
@@ -60,6 +74,10 @@ export abstract class Mob extends Entity {
     // Only pop a grounded mob upward; re-launching an airborne one would juggle it.
     if (this.onGround) this.velocity.y = MOB_KNOCKBACK_POP;
     this.hurtTimer = MOB_KNOCKBACK_DURATION_S;
+    if (!this.hurtFlashActive) {
+      this.setHurtFlash(true);
+      this.hurtFlashActive = true;
+    }
     this.lastHitFromX = fromX;
     this.lastHitFromZ = fromZ;
     this.onHurt();
@@ -68,6 +86,23 @@ export abstract class Mob extends Entity {
 
   /** Hook fired at the end of takeDamage(). Default noop; PassiveMob overrides to flee. */
   protected onHurt(): void {}
+
+  /** Tint all of this mob's mesh materials red (on) or restore to no emission (off). */
+  private setHurtFlash(on: boolean): void {
+    if (this.object3D === null) return;
+    const hex = on ? HURT_EMISSIVE_HEX : 0x000000;
+    this.object3D.traverse((obj: THREE.Object3D) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mat = obj.material;
+      if (Array.isArray(mat)) {
+        for (const m of mat) {
+          if (materialHasEmissive(m)) m.emissive.setHex(hex);
+        }
+      } else if (materialHasEmissive(mat)) {
+        mat.emissive.setHex(hex);
+      }
+    });
+  }
 
   /** Subclass: think/decide. Called before physics each tick. Default: noop. */
   protected think(_dt: number, _world: IWorld): void {
@@ -79,6 +114,10 @@ export abstract class Mob extends Entity {
     //    in which case we let the knockback impulse ride out under physics.
     if (this.hurtTimer > 0) {
       this.hurtTimer -= dt;
+      if (this.hurtTimer <= 0 && this.hurtFlashActive) {
+        this.setHurtFlash(false);
+        this.hurtFlashActive = false;
+      }
     } else {
       this.think(dt, world);
     }

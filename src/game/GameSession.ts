@@ -511,6 +511,7 @@ export class GameSession {
       if (dx * dx + dz * dz > ZOMBIE_ATTACK_RANGE * ZOMBIE_ATTACK_RANGE) continue;
       if (e.tryBite()) {
         this.player.state.health = Math.max(0, this.player.state.health - ZOMBIE_ATTACK_DAMAGE);
+        this.hud.flashDamage();
         if (this.player.state.health <= 0) {
           this.respawnPlayer();
           return;
