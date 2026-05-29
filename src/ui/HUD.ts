@@ -22,6 +22,7 @@ function ensureStyle(): void {
 export class HUD {
   private fpsEl: HTMLElement;
   private posEl: HTMLElement;
+  private timeEl: HTMLElement;
   private clickHintEl: HTMLElement;
   private crosshairEl: HTMLElement;
   private readoutEl: HTMLElement;
@@ -46,10 +47,14 @@ export class HUD {
     pos.textContent = 'Pos: 0.0, 0.0, 0.0';
     readout.appendChild(fps);
     readout.appendChild(pos);
+    const time = document.createElement('div');
+    time.textContent = 'Time: --:--';
+    readout.appendChild(time);
     container.appendChild(readout);
     this.readoutEl = readout;
     this.fpsEl = fps;
     this.posEl = pos;
+    this.timeEl = time;
 
     const hint = document.createElement('div');
     hint.className = 'mc-clickhint';
@@ -80,6 +85,15 @@ export class HUD {
     if (this.hotbar.selectedSlot !== player.selectedSlot) {
       this.hotbar.setSelectedSlot(player.selectedSlot);
     }
+  }
+
+  /** Update the clock readout from a normalized time of day t in [0, 1): 0=00:00, 0.5=12:00. */
+  setTimeOfDay(t: number): void {
+    const minutesOfDay = Math.floor((((t % 1) + 1) % 1) * 24 * 60);
+    const hh = Math.floor(minutesOfDay / 60) % 24;
+    const mm = minutesOfDay % 60;
+    this.timeEl.textContent =
+      'Time: ' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
   }
 
   setLocked(locked: boolean): void {

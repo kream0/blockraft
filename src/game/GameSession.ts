@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Renderer } from '../rendering/Renderer';
+import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
 import { World } from '../world/World';
@@ -87,6 +88,7 @@ export interface GameSessionOptions {
 
 export class GameSession {
   private renderer: Renderer;
+  private dayNight: DayNightCycle;
   private atlas: TextureAtlas;
   private chunkMaterial: THREE.Material;
   private waterMaterial: THREE.Material;
@@ -137,6 +139,10 @@ export class GameSession {
     this.renderer = new Renderer(undefined, settings.renderDistance * CHUNK_SIZE);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.rendererTarget.appendChild(this.renderer.renderer.domElement);
+
+    // Day/night cycle — drives sky color + sun/ambient lighting. Not persisted (resets each load).
+    this.dayNight = new DayNightCycle();
+    this.renderer.applySky(this.dayNight.getSkyState());
 
     // Atlas + materials.
     this.atlas = new TextureAtlas();
@@ -203,6 +209,7 @@ export class GameSession {
     this.hud = new HUD(this.hudContainer, this.player.hotbar);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
+    this.hud.setTimeOfDay(this.dayNight.normalizedTime);
 
     // Interaction.
     this.interaction = new BlockInteraction(this.world, this.player);
@@ -275,6 +282,9 @@ export class GameSession {
       this.world.update(this.player.state.position);
       this.player.syncCamera();
       this.hud.update(this.player.state, dtMs);
+      this.dayNight.update(dt);
+      this.renderer.applySky(this.dayNight.getSkyState());
+      this.hud.setTimeOfDay(this.dayNight.normalizedTime);
       this.renderer.render(this.player.camera);
 
       this.rafId = requestAnimationFrame(this.frame);

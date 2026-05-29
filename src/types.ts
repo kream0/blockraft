@@ -27,6 +27,8 @@ export const SPRINT_SPEED = 6.5;
 export const JUMP_VELOCITY = 9.2;
 /** Maximum raycast distance for break/place actions in blocks. */
 export const REACH = 5;
+/** Real-time seconds for one full day→night→day cycle. Tunable. */
+export const DAY_LENGTH_SECONDS = 180;
 
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
@@ -55,6 +57,28 @@ export interface BlockDef {
   transparent: boolean;
   /** Atlas tile indices for each face. Mesher picks based on face normal. */
   textures: { top: number; bottom: number; side: number };
+}
+
+// === Day/night cycle ===
+/**
+ * Lighting + sky parameters for the current time of day. Produced by DayNightCycle
+ * and consumed by Renderer.applySky().
+ *
+ * IMPORTANT: the THREE objects below are REUSED across frames (the producer mutates
+ * the same instances every tick to avoid per-frame allocations). Consumers must copy
+ * the values out (e.g. `target.copy(state.skyColor)`) and must NOT retain the references.
+ */
+export interface SkyState {
+  /** Sky/background color; also applied to fog color and the renderer clear color. */
+  readonly skyColor: THREE.Color;
+  /** Directional ("sun") light color. */
+  readonly sunColor: THREE.Color;
+  /** Directional light intensity (≈0 at night). */
+  sunIntensity: number;
+  /** Ambient light intensity. Never 0 — keeps night navigable. */
+  ambientIntensity: number;
+  /** Unit vector: the direction sunlight TRAVELS (from the sun toward the scene). The directional light is positioned on the opposite side (at -sunDirection * distance). */
+  readonly sunDirection: THREE.Vector3;
 }
 
 // === Vec3 (plain object for ergonomics; Three.js Vector3 used internally where needed) ===

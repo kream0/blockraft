@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CHUNK_SIZE, RENDER_DISTANCE } from '../types';
+import { CHUNK_SIZE, RENDER_DISTANCE, type SkyState } from '../types';
 
 const SKY_COLOR = 0x87ceeb;
 const FOG_NEAR = 20;
@@ -48,6 +48,22 @@ export class Renderer {
     if (fog instanceof THREE.Fog) {
       fog.far = far;
     }
+  }
+
+  /** Apply a day/night sky snapshot to the clear color, background, fog, and lights. */
+  applySky(state: SkyState): void {
+    this.renderer.setClearColor(state.skyColor, 1);
+    if (this.scene.background instanceof THREE.Color) {
+      this.scene.background.copy(state.skyColor);
+    }
+    if (this.scene.fog instanceof THREE.Fog) {
+      this.scene.fog.color.copy(state.skyColor);
+    }
+    this.ambient.intensity = state.ambientIntensity;
+    this.dirLight.color.copy(state.sunColor);
+    this.dirLight.intensity = state.sunIntensity;
+    // Position the light opposite its travel direction; target stays at origin.
+    this.dirLight.position.copy(state.sunDirection).multiplyScalar(-100);
   }
 
   render(camera: THREE.Camera): void {
