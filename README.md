@@ -24,13 +24,27 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - AABB physics with per-axis swept collision (Y → X → Z) and gravity
 - DDA voxel raycasting for break/place actions
 - 9-slot hotbar with number-key selection
+- Block-break particle bursts tinted to the broken block's color
 - Edits persist per-world; reload your world and your changes are still there
 
-### Mobs
+### Mobs & combat
 - Passive animals roam the world: **Cow**, **Pig**, **Sheep** — each a distinct procedural block mesh
 - Wander AI: alternate between strolling in a random heading and standing idle
 - A small herd spawns on dry ground around you when a world loads
+- **Hostile Zombies** spawn at night near the player (capped), chase you, and despawn at dawn
+- Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated); zombies bite back for contact damage in Survival
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
+
+### Survival
+- Health bar with damage from zombie bites, fall damage, and drowning (Survival mode only)
+- Air/breath meter with an underwater screen overlay; drowning damage once air runs out
+- Passive health regeneration after a short no-damage delay
+- Death overlay with respawn at a fresh dry spawn (brief post-respawn invulnerability)
+- Creative mode is damage-free
+
+### Day & night
+- Continuous day/night cycle driving sky color, sun direction, ambient light, and fog (zero per-frame allocation)
+- HUD time-of-day indicator; nightfall brings out the hostiles (time of day is not persisted — each load starts in the morning)
 
 ### Audio
 - Procedural sound effects synthesized at runtime with the Web Audio API — **no audio files**
@@ -59,14 +73,13 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Foundations (in place, not yet user-facing)
 - **Network adapter**: `INetworkAdapter` interface + `LocalAdapter` no-op stub; typed message protocol (entity spawn/despawn/state, block set, chat, hello/welcome handshake)
 - **Remote player entity** (visual stub) ready for multiplayer rendering
-- **Hostile-mob reference**: a wandering `Zombie` class kept as the template for future hostile AI
 
 ---
 
 ## Upcoming features
 
 ### Short term
-- **Survival mechanics**: health, hunger, day/night cycle, mob damage
+- **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
 - **More mobs**: Skeleton (hostile, ranged); Chicken (passive)
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
