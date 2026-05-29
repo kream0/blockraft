@@ -109,6 +109,22 @@ export abstract class Mob extends Entity {
     // default: do nothing
   }
 
+  /**
+   * Step-climb assist. If grounded and a solid block sits directly ahead at foot
+   * level with a clear block above it, request a jump so the mob hops a 1-block
+   * ledge. `dirX`/`dirZ` is the unit horizontal heading the mob is moving along.
+   * No-op when airborne or when there is no climbable ledge ahead.
+   */
+  protected tryStepUp(world: IWorld, dirX: number, dirZ: number): void {
+    if (!this.onGround) return;
+    const aheadX = Math.floor(this.position.x + dirX * (this.radius + 0.3));
+    const aheadZ = Math.floor(this.position.z + dirZ * (this.radius + 0.3));
+    const feetY = Math.floor(this.position.y);
+    if (world.isSolid(aheadX, feetY, aheadZ) && !world.isSolid(aheadX, feetY + 1, aheadZ)) {
+      this.jumpRequested = true;
+    }
+  }
+
   override update(dt: number, world: IWorld): void {
     // 1. AI decides desired velocity / jumpRequested — unless stunned by a recent hit,
     //    in which case we let the knockback impulse ride out under physics.

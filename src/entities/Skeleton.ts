@@ -80,21 +80,11 @@ export class Skeleton extends Mob {
           this.velocity.z = 0;
         }
 
-        // Step-climb a 1-block ledge directly ahead (same approach as Zombie).
-        // Only while ADVANCING (dist > SKELETON_PREFERRED_MAX) — that's the only
-        // state where velocity points toward the player along +nx/+nz. Probing
-        // forward while holding or retreating would cause spurious hops.
+        // Step-climb a 1-block ledge — only while ADVANCING, the only state whose
+        // velocity points toward the player. Probing while holding/retreating
+        // would cause spurious hops.
         if (dist > SKELETON_PREFERRED_MAX) {
-          const aheadX = Math.floor(this.position.x + nx * (this.radius + 0.3));
-          const aheadZ = Math.floor(this.position.z + nz * (this.radius + 0.3));
-          const feetY = Math.floor(this.position.y);
-          if (
-            this.onGround &&
-            world.isSolid(aheadX, feetY, aheadZ) &&
-            !world.isSolid(aheadX, feetY + 1, aheadZ)
-          ) {
-            this.jumpRequested = true;
-          }
+          this.tryStepUp(world, nx, nz);
         }
 
         // Fire when off cooldown AND line-of-sight to the player's eye is clear.

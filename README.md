@@ -36,6 +36,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Hostile Skeletons** also spawn at night: a ranged mob that range-band kites the player (keeps its distance) and fires **arrows** on cooldown when line-of-sight is clear; arrows fly straight and deal contact damage in Survival
 - Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated); zombies bite back for contact damage in Survival
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
+- **Terrain step-climbing**: every mob — animals and hostiles alike — hops a 1-block ledge in its path via a shared step-up, so herds and pursuers walk up slopes instead of getting stuck
 
 ### Survival
 - Health bar with damage from zombie bites, fall damage, and drowning (Survival mode only)
@@ -83,7 +84,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
-- **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
+- **Mob AI improvements**: pathfinding, smarter target tracking, cliff/edge avoidance (1-block step-climbing already ships — see Mobs & combat above)
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
 

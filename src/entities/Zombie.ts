@@ -55,18 +55,8 @@ export class Zombie extends Mob {
           // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the direction of travel.
           this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
 
-          // Step-climb: if a solid block is directly ahead at feet level but the
-          // block above it is clear, request a jump so the zombie can walk up steps.
-          const aheadX = Math.floor(this.position.x + nx * (this.radius + 0.3));
-          const aheadZ = Math.floor(this.position.z + nz * (this.radius + 0.3));
-          const feetY = Math.floor(this.position.y);
-          if (
-            this.onGround &&
-            world.isSolid(aheadX, feetY, aheadZ) &&
-            !world.isSolid(aheadX, feetY + 1, aheadZ)
-          ) {
-            this.jumpRequested = true;
-          }
+          // Step-climb a 1-block ledge in the direction of travel.
+          this.tryStepUp(world, nx, nz);
         } else {
           // Standing essentially on top of the player — stop horizontal movement.
           this.velocity.x = 0;

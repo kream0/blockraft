@@ -37,7 +37,7 @@ export abstract class PassiveMob extends Mob {
     this.fleeTimer = PASSIVE_FLEE_DURATION_S;
   }
 
-  protected override think(dt: number, _world: IWorld): void {
+  protected override think(dt: number, world: IWorld): void {
     if (this.fleeTimer > 0) {
       this.fleeTimer -= dt;
       const dx = this.position.x - this.lastHitFromX;
@@ -47,6 +47,7 @@ export abstract class PassiveMob extends Mob {
       this.velocity.z = (dz / len) * PASSIVE_FLEE_SPEED;
       // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the run direction.
       this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+      this.tryStepUp(world, dx / len, dz / len);
       return;
     }
 
@@ -65,6 +66,7 @@ export abstract class PassiveMob extends Mob {
       this.velocity.z = Math.sin(this.wanderAngle) * this.walkSpeed;
       // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the direction of travel.
       this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+      this.tryStepUp(world, Math.cos(this.wanderAngle), Math.sin(this.wanderAngle));
     } else {
       this.velocity.x = 0;
       this.velocity.z = 0;
