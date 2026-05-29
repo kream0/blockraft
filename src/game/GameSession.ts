@@ -99,6 +99,8 @@ export interface GameSessionOptions {
   rendererTarget: HTMLElement;
   /** Called by the ESC handler. App handles the state transition. */
   onPauseRequested(): void;
+  /** Called when the player's health reaches 0. App shows the death overlay. */
+  onDeath(): void;
 }
 
 export class GameSession {
@@ -121,6 +123,7 @@ export class GameSession {
   private readonly hudContainer: HTMLElement;
   private readonly rendererTarget: HTMLElement;
   private readonly onPauseRequested: () => void;
+  private readonly onDeath: () => void;
 
   private last = 0;
   private acc = 0;
@@ -132,6 +135,8 @@ export class GameSession {
   private readonly gameMode: GameMode;
   private hostileSpawnAcc: number = 0;
   private respawnInvuln: number = 0;
+  /** True from the moment health hits 0 until the player clicks Respawn. Freezes hostile contact and de-dupes the death event. */
+  private isDead: boolean = false;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
@@ -152,6 +157,7 @@ export class GameSession {
     this.hudContainer = opts.hudContainer;
     this.rendererTarget = opts.rendererTarget;
     this.onPauseRequested = opts.onPauseRequested;
+    this.onDeath = opts.onDeath;
 
     const settings = opts.settings;
     const meta = opts.initialSave.metadata;
@@ -304,7 +310,10 @@ export class GameSession {
       this.player.state.pitch = this.controls.input.pitch;
 
       while (this.acc >= FIXED_DT) {
-        this.physics.update(this.player.state, this.controls.input, FIXED_DT);
+        // Freeze the player in place while dead so the death cam doesn't drift/fall.
+        if (!this.isDead) {
+          this.physics.update(this.player.state, this.controls.input, FIXED_DT);
+        }
         this.world.entityManager.update(FIXED_DT, this.world);
         this.applyHostileContact(FIXED_DT);
         this.acc -= FIXED_DT;
@@ -447,6 +456,11 @@ export class GameSession {
     return this.controls.isLocked;
   }
 
+  /** True while the death overlay is up (health hit 0, awaiting respawn). */
+  isDeadState(): boolean {
+    return this.isDead;
+  }
+
   /** Re-acquire pointer lock (called from a user-gesture handler like Resume button). */
   requestPointerLock(): void {
     this.controls.lock();
@@ -494,8 +508,9 @@ export class GameSession {
     }
   }
 
-  /** Per-fixed-step (survival only): zombies in range bite the player; death triggers respawn. */
+  /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
   private applyHostileContact(dt: number): void {
+    if (this.isDead) return;
     if (this.gameMode !== GameMode.SURVIVAL) return;
     if (this.respawnInvuln > 0) {
       this.respawnInvuln = Math.max(0, this.respawnInvuln - dt);
@@ -513,7 +528,9 @@ export class GameSession {
         this.player.state.health = Math.max(0, this.player.state.health - ZOMBIE_ATTACK_DAMAGE);
         this.hud.flashDamage();
         if (this.player.state.health <= 0) {
-          this.respawnPlayer();
+          this.isDead = true;
+          this.controls.unlock();
+          this.onDeath();
           return;
         }
       }
@@ -534,6 +551,12 @@ export class GameSession {
     this.player.state.onGround = true;
     this.player.state.health = PLAYER_MAX_HEALTH;
     this.respawnInvuln = PLAYER_RESPAWN_INVULN_S;
+  }
+
+  /** Public entry from the death screen's Respawn button. Resets the player and re-enables hostile contact. */
+  respawn(): void {
+    this.respawnPlayer();
+    this.isDead = false;
   }
 
   /** Frame-rate, throttled: spawn zombies at night near the player up to the cap; despawn all at dawn. */

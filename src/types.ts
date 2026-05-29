@@ -212,6 +212,7 @@ export type AppState =
   | 'create_world'
   | 'in_game'
   | 'paused'
+  | 'dead'
   | 'settings';
 
 // === Game mode ===

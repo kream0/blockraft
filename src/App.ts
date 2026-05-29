@@ -5,6 +5,7 @@ import { WorldStorage } from './persistence/WorldStorage';
 import { CreateWorldMenu, type CreateWorldData } from './ui/menu/CreateWorldMenu';
 import { MainMenu } from './ui/menu/MainMenu';
 import { MenuScreen } from './ui/menu/MenuScreen';
+import { DeathScreen } from './ui/menu/DeathScreen';
 import { PauseMenu } from './ui/menu/PauseMenu';
 import { SettingsMenu } from './ui/menu/SettingsMenu';
 import { WorldsMenu } from './ui/menu/WorldsMenu';
@@ -77,7 +78,8 @@ export class App {
 
   private async _show(state: AppState): Promise<void> {
     // If we're transitioning AWAY from in_game (and the session exists), tear it down.
-    const leavingInGame = this.state === 'in_game' && state !== 'in_game' && state !== 'paused';
+    const leavingInGame =
+      this.state === 'in_game' && state !== 'in_game' && state !== 'paused' && state !== 'dead';
     if (leavingInGame && this.session !== null) {
       try {
         await this.session.save();
@@ -189,6 +191,18 @@ export class App {
         });
         break;
 
+      case 'dead':
+        // Session stays alive so the player can respawn into the same world.
+        this._setHudVisible(true);
+        this._setMenuVisible(true);
+        this.currentScreen = new DeathScreen(this.menuContainer, {
+          onRespawn: () => this._respawnSession(),
+          onQuitToMenu: () => {
+            void this._quitToMenu();
+          },
+        });
+        break;
+
       case 'settings':
         this._setMenuVisible(true);
         this.currentScreen = new SettingsMenu(this.menuContainer, this.settings, {
@@ -241,9 +255,30 @@ export class App {
     this.session.requestPointerLock();
   }
 
+  private _respawnSession(): void {
+    if (this.session === null) {
+      void this._show('main_menu');
+      return;
+    }
+    if (this.currentScreen !== null) {
+      this.currentScreen.dispose();
+      this.currentScreen = null;
+    }
+    this.session.respawn();
+    this.state = 'in_game';
+    this._setMenuVisible(false);
+    this._setHudVisible(true);
+    this.session.requestPointerLock();
+  }
+
   private async _quitToMenu(): Promise<void> {
     if (this.session === null) return;
     this._flushSettingsSave();
+    // Quitting from the death screen: respawn first so we persist a safe spawn,
+    // not the corpse position (which would otherwise reload into a fresh death).
+    if (this.session.isDeadState()) {
+      this.session.respawn();
+    }
     try {
       await this.session.save();
     } catch (err) {
@@ -336,6 +371,11 @@ export class App {
         // Avoid re-entering pause if we're already there or transitioning.
         if (this.state !== 'in_game') return;
         void this._show('paused');
+      },
+      onDeath: () => {
+        // Only fire from active gameplay; guards against double-firing the death overlay.
+        if (this.state !== 'in_game') return;
+        void this._show('dead');
       },
     });
     this.session.start();
