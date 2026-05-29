@@ -346,6 +346,7 @@ export const EntityKind = {
   COW: 'cow',
   PIG: 'pig',
   SHEEP: 'sheep',
+  CHICKEN: 'chicken',
   SKELETON: 'skeleton',
   ARROW: 'arrow',
 } as const;

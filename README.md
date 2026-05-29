@@ -28,10 +28,11 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Edits persist per-world; reload your world and your changes are still there
 
 ### Mobs & combat
-- Passive animals roam the world: **Cow**, **Pig**, **Sheep** — each a distinct procedural block mesh
+- Passive animals roam the world: **Cow**, **Pig**, **Sheep**, **Chicken** — each a distinct procedural block mesh
 - Wander AI: alternate between strolling in a random heading and standing idle
 - A small herd spawns on dry ground around you when a world loads
 - **Hostile Zombies** spawn at night near the player (capped), chase you, and despawn at dawn
+- **Hostile Skeletons** also spawn at night: a ranged mob that range-band kites the player (keeps its distance) and fires **arrows** on cooldown when line-of-sight is clear; arrows fly straight and deal contact damage in Survival
 - Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated); zombies bite back for contact damage in Survival
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
 
@@ -80,7 +81,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
-- **More mobs**: Skeleton (hostile, ranged); Chicken (passive)
 - **Mob AI improvements**: pathfinding, target tracking, jump-over-obstacle behavior
 - **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material

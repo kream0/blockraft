@@ -15,6 +15,7 @@ import { BlockInteraction } from '../interaction/BlockInteraction';
 import { Cow } from '../entities/Cow';
 import { Pig } from '../entities/Pig';
 import { Sheep } from '../entities/Sheep';
+import { Chicken } from '../entities/Chicken';
 import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
 import { Skeleton } from '../entities/Skeleton';
@@ -550,6 +551,7 @@ export class GameSession {
       (p) => new Cow(p),
       (p) => new Pig(p),
       (p) => new Sheep(p),
+      (p) => new Chicken(p),
     ];
     let spawned = 0;
     for (
