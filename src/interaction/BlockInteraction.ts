@@ -36,10 +36,10 @@ export class BlockInteraction {
     return { x: hit.block.x, y: hit.block.y, z: hit.block.z, block: current };
   }
 
-  /** Raycast; if hit, place selected block at hit.block + hit.normal, but only if that target is currently AIR AND wouldn't overlap the player. */
-  placeBlock(): void {
+  /** Raycast; if hit, place selected block at hit.block + hit.normal, but only if that target is currently AIR AND wouldn't overlap the player. Returns true iff a block was placed. */
+  placeBlock(): boolean {
     const selected = this.player.getSelectedBlock();
-    if (selected === BlockId.AIR) return;
+    if (selected === BlockId.AIR) return false;
 
     const origin = this.player.camera.getWorldPosition(new THREE.Vector3());
     const direction = new THREE.Vector3(0, 0, -1)
@@ -51,14 +51,14 @@ export class BlockInteraction {
       { x: direction.x, y: direction.y, z: direction.z },
       REACH,
     );
-    if (hit === null) return;
+    if (hit === null) return false;
 
     const tx = hit.block.x + hit.normal.x;
     const ty = hit.block.y + hit.normal.y;
     const tz = hit.block.z + hit.normal.z;
 
     // Target must be AIR.
-    if (this.world.getBlock(tx, ty, tz) !== BlockId.AIR) return;
+    if (this.world.getBlock(tx, ty, tz) !== BlockId.AIR) return false;
 
     // Player overlap check: AABB of proposed block vs player AABB.
     const blockMinX = tx;
@@ -83,8 +83,9 @@ export class BlockInteraction {
       blockMaxY > playerMinY &&
       blockMinZ < playerMaxZ &&
       blockMaxZ > playerMinZ;
-    if (overlap) return;
+    if (overlap) return false;
 
     this.world.setBlock(tx, ty, tz, selected);
+    return true;
   }
 }

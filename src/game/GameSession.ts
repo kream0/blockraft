@@ -4,6 +4,7 @@ import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
+import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
 import { Player } from '../player/Player';
@@ -115,6 +116,7 @@ export interface GameSessionOptions {
 export class GameSession {
   private renderer: Renderer;
   private particles: ParticleSystem;
+  private audio: AudioManager;
   private dayNight: DayNightCycle;
   private atlas: TextureAtlas;
   private chunkMaterial: THREE.Material;
@@ -273,6 +275,11 @@ export class GameSession {
     this.particles = new ParticleSystem();
     this.renderer.scene.add(this.particles.object3D);
 
+    // Procedural SFX. AudioContext is created lazily on the first user gesture
+    // (see requestPointerLock / mouseDownHandler), not here.
+    this.audio = new AudioManager();
+    this.audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.sfxVolume);
+
     // Resize.
     this.resizeHandler = (): void => {
       const w = window.innerWidth;
@@ -296,16 +303,21 @@ export class GameSession {
     // Mouse input for break/place (only when pointer-locked).
     this.mouseDownHandler = (e: MouseEvent): void => {
       if (!this.controls.isLocked) return;
+      // A locked-canvas mousedown is a user gesture — safe to (idempotently) start audio.
+      this.audio.resume();
       if (e.button === 0) {
         if (!this.tryMeleeAttack()) {
           const broken = this.interaction.breakBlock();
           if (broken !== null) {
             const color = blockRegistry.get(broken.block).particleColor;
             this.particles.spawnBurst(broken.x + 0.5, broken.y + 0.5, broken.z + 0.5, color);
+            this.audio.playBreak();
           }
         }
       } else if (e.button === 2) {
-        this.interaction.placeBlock();
+        if (this.interaction.placeBlock()) {
+          this.audio.playPlace();
+        }
       }
     };
 
@@ -451,6 +463,7 @@ export class GameSession {
     this.renderer.scene.remove(this.player.camera);
     this.renderer.scene.remove(this.particles.object3D);
     this.particles.dispose();
+    this.audio.dispose();
     this.world.setTrackedTarget(null);
     this.world.dispose();
     this.renderer.dispose();
@@ -492,6 +505,7 @@ export class GameSession {
     this.world.setRenderDistance(settings.renderDistance);
     this.controls.setSensitivityScale(settings.mouseSensitivity);
     this.controls.setInvertY(settings.invertY);
+    this.audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.sfxVolume);
   }
 
   /** True iff pointer-locked (in active gameplay). */
@@ -507,6 +521,7 @@ export class GameSession {
   /** Re-acquire pointer lock (called from a user-gesture handler like Resume button). */
   requestPointerLock(): void {
     this.controls.lock();
+    this.audio.resume();
   }
 
   /** Reference the network adapter (kept so the field is used; reserved for future entity sync). */
@@ -558,6 +573,7 @@ export class GameSession {
     this.timeSinceLastDamage = 0;
     this.healthRegenAcc = 0;
     this.hud.flashDamage();
+    this.audio.playHurt();
     if (this.player.state.health <= 0) {
       this.isDead = true;
       this.controls.unlock();
@@ -770,6 +786,7 @@ export class GameSession {
       return this.gameMode === GameMode.SURVIVAL;
     }
     this.playerAttackCooldown = PLAYER_ATTACK_COOLDOWN_S;
+    this.audio.playAttack();
     const p = this.player.state.position;
     const killed = target.takeDamage(PLAYER_ATTACK_DAMAGE, p.x, p.z);
     if (killed) {
