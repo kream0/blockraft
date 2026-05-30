@@ -57,6 +57,7 @@ export class Zombie extends Mob {
 
           // Step-climb a 1-block ledge in the direction of travel.
           this.tryStepUp(world, nx, nz);
+          this.avoidLedge(world, nx, nz);
         } else {
           // Standing essentially on top of the player — stop horizontal movement.
           this.velocity.x = 0;
@@ -78,6 +79,10 @@ export class Zombie extends Mob {
     this.velocity.z = Math.sin(this.wanderAngle) * ZOMBIE_WANDER_SPEED;
     // velocity.y is owned by gravity in Mob.update().
     this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+    if (this.avoidLedge(world, Math.cos(this.wanderAngle), Math.sin(this.wanderAngle))) {
+      this.wanderAngle = Math.random() * Math.PI * 2;
+      this.wanderTimer = WANDER_INTERVAL_S;
+    }
   }
 
   /**

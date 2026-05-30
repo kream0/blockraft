@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
-import { GRAVITY, MAX_FALL_SPEED, EntityKind, MOB_KNOCKBACK_SPEED, MOB_KNOCKBACK_POP, MOB_KNOCKBACK_DURATION_S, type IWorld, type Vec3 } from '../types';
+import { GRAVITY, MAX_FALL_SPEED, EntityKind, MOB_KNOCKBACK_SPEED, MOB_KNOCKBACK_POP, MOB_KNOCKBACK_DURATION_S, MOB_MAX_SAFE_DROP, type IWorld, type Vec3 } from '../types';
 
 const COLLISION_EPSILON = 1e-4;
 /** Vertical kick when a mob jumps. Slightly weaker than the player's jump. */
@@ -123,6 +123,40 @@ export abstract class Mob extends Entity {
     if (world.isSolid(aheadX, feetY, aheadZ) && !world.isSolid(aheadX, feetY + 1, aheadZ)) {
       this.jumpRequested = true;
     }
+  }
+
+  /**
+   * Ledge guard (mirror of tryStepUp for going DOWN). If a grounded mob's next
+   * horizontal step would walk it off a drop deeper than MOB_MAX_SAFE_DROP blocks
+   * (a cliff, or deep water with no near floor), zero the horizontal velocity to
+   * veto the move and return true. Returns false when the step is safe — including
+   * when a step-UP is ahead (handled by tryStepUp) or when airborne.
+   * `dirX`/`dirZ` is the unit horizontal heading being attempted.
+   */
+  protected avoidLedge(world: IWorld, dirX: number, dirZ: number): boolean {
+    if (!this.onGround) return false;
+    if (dirX === 0 && dirZ === 0) return false;
+
+    const aheadX = Math.floor(this.position.x + dirX * (this.radius + 0.3));
+    const aheadZ = Math.floor(this.position.z + dirZ * (this.radius + 0.3));
+    const feetY = Math.floor(this.position.y); // feetY = the integer block index the feet rest in; a grounded mob settles with position.y = feetY + ε.
+
+    // A block at foot level ahead is a wall / step-up, not a ledge — tryStepUp owns it.
+    if (world.isSolid(aheadX, feetY, aheadZ)) return false;
+
+    // Scan from the support level (feetY - 1) down through the safe-drop window.
+    // If any solid block is found, the mob lands within the safe window → allow.
+    // The range is INCLUSIVE on both ends: drops of 0..MOB_MAX_SAFE_DROP blocks are
+    // permitted (e.g. MOB_MAX_SAFE_DROP=3 → 4 iterations: supportY, -1, -2, -3).
+    const supportY = feetY - 1;
+    for (let by = supportY; by >= supportY - MOB_MAX_SAFE_DROP; by--) {
+      if (world.isSolid(aheadX, by, aheadZ)) return false;
+    }
+
+    // No floor within the window → cliff/deep drop. Veto the horizontal move.
+    this.velocity.x = 0;
+    this.velocity.z = 0;
+    return true;
   }
 
   override update(dt: number, world: IWorld): void {

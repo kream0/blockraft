@@ -70,6 +70,10 @@ export class Skeleton extends Mob {
           // Too close — retreat.
           this.velocity.x = -nx * SKELETON_MOVE_SPEED;
           this.velocity.z = -nz * SKELETON_MOVE_SPEED;
+          // Guard the backpedal against cliffs. Retreat deliberately does NOT step-climb
+          // (tryStepUp is advance-only, per the note below), so a 1-block rise behind the
+          // skeleton just stops it — acceptable while kiting.
+          this.avoidLedge(world, -nx, -nz);
         } else if (dist > SKELETON_PREFERRED_MAX) {
           // Too far — advance.
           this.velocity.x = nx * SKELETON_MOVE_SPEED;
@@ -85,6 +89,7 @@ export class Skeleton extends Mob {
         // would cause spurious hops.
         if (dist > SKELETON_PREFERRED_MAX) {
           this.tryStepUp(world, nx, nz);
+          this.avoidLedge(world, nx, nz);
         }
 
         // Fire when off cooldown AND line-of-sight to the player's eye is clear.
@@ -132,6 +137,10 @@ export class Skeleton extends Mob {
     this.velocity.x = Math.cos(this.wanderAngle) * WANDER_SPEED;
     this.velocity.z = Math.sin(this.wanderAngle) * WANDER_SPEED;
     this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
+    if (this.avoidLedge(world, Math.cos(this.wanderAngle), Math.sin(this.wanderAngle))) {
+      this.wanderAngle = Math.random() * Math.PI * 2;
+      this.wanderTimer = WANDER_INTERVAL_S;
+    }
   }
 
   /**

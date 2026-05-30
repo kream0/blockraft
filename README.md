@@ -41,6 +41,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated); zombies bite back for contact damage in Survival
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
 - **Terrain step-climbing**: every mob — animals and hostiles alike — hops a 1-block ledge in its path via a shared step-up, so herds and pursuers walk up slopes instead of getting stuck
+- **Ledge/edge avoidance**: the same shared locomotion also vetoes a step that would walk a mob off a drop taller than 3 blocks — wandering animals turn away from cliffs and deep water, and chasers/skeletons stop at the brink instead of suiciding off it (no pathfinding yet — they won't route around the gap)
 
 ### Survival
 - Health bar with damage from zombie bites, fall damage, and drowning (Survival mode only)
@@ -94,7 +95,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
-- **Mob AI improvements**: pathfinding, smarter target tracking, cliff/edge avoidance (1-block step-climbing already ships — see Mobs & combat above)
+- **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
 - **Crafting**: recipes + a crafting grid — the inventory grid screen (open with **E**; move/swap/split stacks via a held cursor) now ships too (see Items & inventory above)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
 

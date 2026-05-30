@@ -37,6 +37,8 @@ export const PLAYER_RESPAWN_INVULN_S = 1.5;
 export const FALL_DAMAGE_SAFE_BLOCKS = 3;
 /** Damage (half-heart points) per block fallen beyond FALL_DAMAGE_SAFE_BLOCKS. */
 export const FALL_DAMAGE_PER_BLOCK = 1;
+/** Max downward drop (blocks) a mob will willingly step off. Steps over deeper drops are vetoed by Mob.avoidLedge so mobs don't walk off cliffs. Matches the player's fall-damage-free threshold. */
+export const MOB_MAX_SAFE_DROP = 3;
 /** Seconds without taking damage before passive health regeneration begins (survival only). */
 export const HEALTH_REGEN_DELAY_S = 6;
 /** Seconds per half-heart restored once regeneration is active. */

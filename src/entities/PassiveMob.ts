@@ -48,6 +48,12 @@ export abstract class PassiveMob extends Mob {
       // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the run direction.
       this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
       this.tryStepUp(world, dx / len, dz / len);
+      if (this.avoidLedge(world, dx / len, dz / len)) {
+        // Cornered against a ledge mid-flee — abandon fleeing so the wander state
+        // machine (which re-aims away from edges) picks a safe heading next tick,
+        // instead of oscillating at the edge for the rest of the flee window.
+        this.fleeTimer = 0;
+      }
       return;
     }
 
@@ -67,6 +73,11 @@ export abstract class PassiveMob extends Mob {
       // Mesh-forward is (-sin(yaw), 0, -cos(yaw)); face the direction of travel.
       this.yaw = Math.atan2(-this.velocity.x, -this.velocity.z);
       this.tryStepUp(world, Math.cos(this.wanderAngle), Math.sin(this.wanderAngle));
+      if (this.avoidLedge(world, Math.cos(this.wanderAngle), Math.sin(this.wanderAngle))) {
+        // Hit a ledge — pick a new heading next ticks instead of idling at the edge.
+        this.wanderAngle = Math.random() * Math.PI * 2;
+        this.stateTimer = WALK_MIN_S + Math.random() * (WALK_MAX_S - WALK_MIN_S);
+      }
     } else {
       this.velocity.x = 0;
       this.velocity.z = 0;
