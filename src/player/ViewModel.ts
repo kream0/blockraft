@@ -22,6 +22,7 @@ export class ViewModel {
   private geometries: THREE.BufferGeometry[] = [];
   private materials: THREE.Material[] = [];
   private heldMesh: THREE.Object3D | null = null;
+  private armParts: THREE.Mesh[] = [];
   private phase = 0;        // 0..1 within the current swing cycle
   private active = false;   // a swing is currently playing
   private looping = false;  // keep restarting cycles (held mining)
@@ -39,6 +40,7 @@ export class ViewModel {
 
     this.object3D.add(sleeve);
     this.object3D.add(skin);
+    this.armParts = [sleeve, skin];
   }
 
   private makePart(w: number, h: number, d: number, color: number): THREE.Mesh {
@@ -89,15 +91,19 @@ export class ViewModel {
     this.object3D.position.set(REST_POS.x, REST_POS.y - s * SWING_DIP_Y, REST_POS.z + s * SWING_PUSH_Z);
   }
 
-  setHeldItem(mesh: THREE.Object3D | null): void {
+  /** Update the held-item view-model. Pass `isTool = true` for pickaxe/axe/shovel to hide the arm and double the scale. */
+  setHeldItem(mesh: THREE.Object3D | null, isTool: boolean): void {
     if (this.heldMesh !== null) {
       this.object3D.remove(this.heldMesh);
       this.disposeHeld(this.heldMesh);
       this.heldMesh = null;
     }
+    // Hide the arm when a tool is in hand (show only the tool); otherwise show the arm.
+    const showArm = mesh === null || !isTool;
+    for (const part of this.armParts) part.visible = showArm;
     if (mesh === null) return;
 
-    mesh.scale.setScalar(HELD_SCALE);
+    mesh.scale.setScalar(isTool ? HELD_SCALE * 2 : HELD_SCALE);
     mesh.position.copy(HELD_POS);
     mesh.rotation.copy(HELD_ROT);
 

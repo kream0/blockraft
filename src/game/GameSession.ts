@@ -8,7 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
-import { toolMultiplierFor, blockDropFor } from '../items/ItemRegistry';
+import { toolMultiplierFor, blockDropFor, itemToolDef } from '../items/ItemRegistry';
 import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
@@ -453,7 +453,8 @@ export class GameSession {
       const selItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? null;
       if (selItem !== this.heldItemId) {
         this.heldItemId = selItem;
-        this.viewModel.setHeldItem(selItem === null ? null : buildItemMesh(selItem, this.atlas));
+        const isTool = selItem !== null && itemToolDef(selItem) !== null;
+        this.viewModel.setHeldItem(selItem === null ? null : buildItemMesh(selItem, this.atlas), isTool);
       }
       this.hud.update(this.player.state, dtMs);
       this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
