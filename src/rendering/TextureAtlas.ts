@@ -6,6 +6,10 @@ const COLS = 5;
 const ROWS = 4;
 const SIZE = TILE * COLS;
 
+export const ATLAS_TILE_PIXELS = TILE;
+export const ATLAS_COLS = COLS;
+export const ATLAS_SIZE = SIZE;
+
 type Rng = () => number;
 
 function makeRng(seed: number): Rng {

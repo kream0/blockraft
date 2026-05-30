@@ -693,3 +693,87 @@ export interface INetworkAdapter {
   /** Subscribe to inbound messages. Returns an unsubscribe fn. */
   onMessage(handler: (msg: NetworkMessage) => void): () => void;
 }
+
+// ===== Async chunk meshing (Web Worker) contract =====
+// The heavy ChunkMesher loop runs off-thread. The main thread builds a padded
+// "halo" block array for a chunk, posts it to the worker, and the worker returns
+// typed-array geometry buffers that the main thread uploads to the GPU.
+
+/**
+ * Compact, serializable block metadata the worker needs (the worker has no
+ * BlockRegistry / DOM / THREE). Built once on the main thread from BlockRegistry
+ * and posted to the worker at init. Index = BlockId numeric value; arrays are
+ * sized to (max BlockId + 1). Parallel arrays for tight postMessage payload.
+ */
+export interface WorkerBlockTable {
+  transparent: Uint8Array;  // transparent[id] = 1 if transparent, else 0
+  texTop: Uint8Array;       // atlas tile index for the top face
+  texBottom: Uint8Array;    // atlas tile index for the bottom face
+  texSide: Uint8Array;      // atlas tile index for side faces
+}
+
+/** Atlas geometry constants so the worker computes UVs without a canvas. */
+export interface WorkerAtlasParams {
+  tilePixels: number;  // TILE (16)
+  atlasCols: number;   // COLS (5)
+  atlasSize: number;   // SIZE = TILE * COLS (80) — used for BOTH U and V denominators
+}
+
+/** One-time init message: main thread -> worker. */
+export interface WorkerInitMsg {
+  type: 'init';
+  blockTable: WorkerBlockTable;
+  atlasParams: WorkerAtlasParams;
+}
+
+/**
+ * Per-chunk mesh job: main thread -> worker.
+ *
+ * `halo` is a padded copy of the chunk's blocks with a 1-block horizontal border
+ * holding neighbour blocks (INCLUDING the four diagonal corners — required for
+ * correct ambient-occlusion corner sampling on top/bottom faces). There is NO
+ * vertical padding: Y out-of-range is handled by the worker (below 0 = opaque so
+ * the world floor face is culled; at/above CHUNK_HEIGHT = air).
+ *
+ * Dimensions: HALO = CHUNK_SIZE + 2 (=18) in X and Z, CHUNK_HEIGHT (=96) in Y.
+ * Length = HALO * CHUNK_HEIGHT * HALO.
+ * Index of halo cell (hx, y, hz): hx + hz*HALO + y*HALO*HALO, hx,hz in [0, HALO).
+ * The chunk interior block (lx,ly,lz) lives at halo cell (lx+1, ly, lz+1).
+ * Border cells outside any loaded chunk are BlockId.AIR (0).
+ *
+ * `version` is the chunk's dirty-version at the moment the job was enqueued; the
+ * main thread discards a result whose version no longer matches the live chunk
+ * (or whose chunk was unloaded) to avoid applying a stale mesh.
+ */
+export interface ChunkMeshRequest {
+  type: 'mesh_request';
+  cx: number;
+  cz: number;
+  version: number;
+  halo: Uint8Array;
+}
+
+/** Geometry buffers for one mesh. All arrays are typed and Transferable. */
+export interface MeshBuffers {
+  positions: Float32Array; // vertexCount * 3
+  normals: Float32Array;   // vertexCount * 3
+  uvs: Float32Array;       // vertexCount * 2
+  colors: Float32Array;    // vertexCount * 3
+  indices: Uint32Array;    // faceCount * 6 (two triangles per quad)
+}
+
+/** Per-chunk mesh result: worker -> main thread. `water` is null if no water faces. */
+export interface ChunkMeshResult {
+  type: 'mesh_result';
+  cx: number;
+  cz: number;
+  version: number;
+  solid: MeshBuffers;
+  water: MeshBuffers | null;
+}
+
+/** Max concurrent in-flight worker jobs. */
+export const MESH_WORKER_CONCURRENCY = 4;
+
+/** Max mesh results uploaded to the GPU per frame (caps upload hitching). */
+export const MESH_UPLOAD_PER_FRAME = 4;

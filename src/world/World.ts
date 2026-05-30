@@ -11,10 +11,17 @@ import {
   type ITextureAtlas,
   type IWorld,
   type Vec3,
+  type WorkerInitMsg,
+  type WorkerBlockTable,
+  type WorkerAtlasParams,
+  type ChunkMeshRequest,
+  type ChunkMeshResult,
 } from '../types';
 import { floorDiv, mod } from '../utils/MathUtils';
 import { Chunk } from './Chunk';
 import { ChunkMesher } from './ChunkMesher';
+import { MeshQueue, buildGeometryFromBuffers } from './MeshQueue';
+import { ATLAS_TILE_PIXELS, ATLAS_COLS, ATLAS_SIZE } from '../rendering/TextureAtlas';
 import { TerrainGenerator } from './TerrainGenerator';
 import { EntityManager } from '../entities/EntityManager';
 
@@ -64,6 +71,43 @@ export class World implements IWorld {
    */
   private _streamingDirty = true;
 
+  /** null when the mesh worker could not be constructed — World then meshes synchronously via this.mesher. */
+  private meshQueue: MeshQueue | null = null;
+  /** Globally-monotonic, never-reused mesh request id. Stamped on each enqueue. */
+  private nextMeshVersion = 1;
+  /**
+   * chunkKey -> the version of the most-recent enqueue for that coord. A worker result is
+   * applied only if its version still equals this (else it is stale: superseded by a newer
+   * edit, or the chunk unloaded).
+   */
+  private liveMeshVersion = new Map<string, number>();
+
+  /** Arrow-function field so `this` is bound when passed as a callback to MeshQueue. */
+  private onMeshResult = (result: ChunkMeshResult): void => {
+    const key = World.key(result.cx, result.cz);
+    const expected = this.liveMeshVersion.get(key);
+    if (expected === undefined || result.version !== expected) return; // stale (superseded) or unloaded
+    const chunk = this.chunks.get(key);
+    if (!chunk) { this.liveMeshVersion.delete(key); return; }
+    // Swap solid mesh.
+    if (chunk.mesh) { this.group.remove(chunk.mesh); chunk.mesh.geometry.dispose(); chunk.mesh = null; }
+    if (chunk.waterMesh) { this.group.remove(chunk.waterMesh); chunk.waterMesh.geometry.dispose(); chunk.waterMesh = null; }
+    const solidGeo = buildGeometryFromBuffers(result.solid);
+    const solidMesh = new THREE.Mesh(solidGeo, this.material);
+    solidMesh.name = `chunk_${result.cx}_${result.cz}`;
+    solidMesh.frustumCulled = true;
+    chunk.mesh = solidMesh;
+    this.group.add(solidMesh);
+    if (result.water) {
+      const waterGeo = buildGeometryFromBuffers(result.water);
+      const waterMesh = new THREE.Mesh(waterGeo, this.waterMaterial);
+      waterMesh.name = `chunk_${result.cx}_${result.cz}_water`;
+      waterMesh.frustumCulled = true;
+      chunk.waterMesh = waterMesh;
+      this.group.add(waterMesh);
+    }
+  };
+
   constructor(
     atlas: ITextureAtlas,
     material: THREE.Material,
@@ -81,6 +125,35 @@ export class World implements IWorld {
     this.group = new THREE.Group();
     this.group.name = 'WorldChunks';
     this.renderDistance = this.clampRenderDistance(renderDistance);
+
+    // Build the worker block table from the registry (indexed by BlockId; ids are 0..max).
+    const ids = Object.values(BlockId);
+    const tableLen = Math.max(...ids) + 1;
+    const blockTable: WorkerBlockTable = {
+      transparent: new Uint8Array(tableLen),
+      texTop: new Uint8Array(tableLen),
+      texBottom: new Uint8Array(tableLen),
+      texSide: new Uint8Array(tableLen),
+    };
+    for (const id of ids) {
+      const def = registry.get(id);
+      blockTable.transparent[id] = registry.isTransparent(id) ? 1 : 0;
+      blockTable.texTop[id] = def.textures.top;
+      blockTable.texBottom[id] = def.textures.bottom;
+      blockTable.texSide[id] = def.textures.side;
+    }
+    const atlasParams: WorkerAtlasParams = {
+      tilePixels: ATLAS_TILE_PIXELS,
+      atlasCols: ATLAS_COLS,
+      atlasSize: ATLAS_SIZE,
+    };
+    const initMsg: WorkerInitMsg = { type: 'init', blockTable, atlasParams };
+    try {
+      this.meshQueue = new MeshQueue(initMsg, this.onMeshResult);
+    } catch (err) {
+      console.warn('Mesh worker unavailable; falling back to synchronous meshing.', err);
+      this.meshQueue = null;
+    }
 
     // Hydrate initial overrides into the internal map for O(1) per-chunk lookup on load.
     for (const [key, edits] of Object.entries(initialOverrides)) {
@@ -433,6 +506,8 @@ export class World implements IWorld {
         chunk.dispose();
         this.dirtyChunks.delete(chunk);
         this.chunks.delete(key);
+        this.liveMeshVersion.delete(key);
+        if (this.meshQueue !== null) this.meshQueue.cancelChunk(chunk.cx, chunk.cz);
         // An unload changes the chunk set — re-scan next frame to detect any follow-on work.
         this._streamingDirty = true;
       }
@@ -470,6 +545,7 @@ export class World implements IWorld {
 
     // 3. Flush some dirty chunks — runs EVERY frame regardless of the gate above.
     this.flushDirty(MAX_REMESH_PER_UPDATE);
+    if (this.meshQueue !== null) this.meshQueue.tick();
   }
 
   private loadChunk(cx: number, cz: number): void {
@@ -503,7 +579,49 @@ export class World implements IWorld {
     this.remeshChunk(chunk);
   }
 
+  private gatherNeighbourHalo(cx: number, cz: number): Uint8Array {
+    const HALO = CHUNK_SIZE + 2;
+    const halo = new Uint8Array(HALO * HALO * CHUNK_HEIGHT);
+    const baseX = cx * CHUNK_SIZE;
+    const baseZ = cz * CHUNK_SIZE;
+    const chunk = this.getChunk(cx, cz);
+    // Interior: copy this chunk's own blocks directly (fast path). hx=lx+1, hz=lz+1.
+    if (chunk) {
+      for (let y = 0; y < CHUNK_HEIGHT; y++) {
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            const hx = lx + 1;
+            const hz = lz + 1;
+            halo[hx + hz * HALO + y * HALO * HALO] = chunk.blocks[Chunk.idx(lx, y, lz)] ?? BlockId.AIR;
+          }
+        }
+      }
+    }
+    // Ring (incl. diagonals): border cells map to neighbor-chunk blocks via getBlock.
+    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+      for (let hz = 0; hz < HALO; hz++) {
+        for (let hx = 0; hx < HALO; hx++) {
+          if (hx !== 0 && hx !== HALO - 1 && hz !== 0 && hz !== HALO - 1) continue; // interior already filled
+          halo[hx + hz * HALO + y * HALO * HALO] = this.getBlock(baseX + hx - 1, y, baseZ + hz - 1);
+        }
+      }
+    }
+    return halo;
+  }
+
   private remeshChunk(chunk: Chunk): void {
+    if (this.meshQueue !== null) {
+      const key = World.key(chunk.cx, chunk.cz);
+      const version = this.nextMeshVersion++;
+      this.liveMeshVersion.set(key, version);
+      const halo = this.gatherNeighbourHalo(chunk.cx, chunk.cz);
+      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo };
+      this.meshQueue.enqueue(req);
+      chunk.dirty = false;
+      this.dirtyChunks.delete(chunk);
+      return;
+    }
+    // --- synchronous fallback ---
     if (chunk.mesh) {
       this.group.remove(chunk.mesh);
       chunk.mesh.geometry.dispose();
@@ -565,5 +683,7 @@ export class World implements IWorld {
     }
     this.chunks.clear();
     this.dirtyChunks.clear();
+    if (this.meshQueue !== null) { this.meshQueue.dispose(); this.meshQueue = null; }
+    this.liveMeshVersion.clear();
   }
 }
