@@ -317,6 +317,35 @@ function drawWater(ctx: CanvasRenderingContext2D, col: number, row: number, rng:
   }
 }
 
+function drawChest(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Planks-like wood-brown base — alternating horizontal bands like drawPlanks
+  for (let y = 0; y < TILE; y++) {
+    const band = Math.floor(y / 4);
+    ctx.fillStyle = band % 2 === 0 ? '#b6824a' : '#9e7140';
+    ctx.fillRect(col * TILE, row * TILE + y, TILE, 1);
+  }
+  // Vertical seams (offset per band, same pattern as drawPlanks)
+  ctx.fillStyle = '#6e4923';
+  for (let y = 0; y < TILE; y += 4) {
+    const offset = (y / 4) % 2 === 0 ? 5 : 11;
+    ctx.fillRect(col * TILE + offset, row * TILE + y, 1, 4);
+  }
+  // Horizontal seams between bands
+  ctx.fillStyle = '#6e4923';
+  for (let y = 4; y < TILE; y += 4) {
+    ctx.fillRect(col * TILE, row * TILE + y - 1, TILE, 1);
+  }
+  // Lid seam: darker horizontal line across the middle (y=7)
+  ctx.fillStyle = '#3d2a10';
+  ctx.fillRect(col * TILE, row * TILE + 7, TILE, 1);
+  // Metal latch: small rectangle centered on the seam (3×3 centered at x=6..8, y=6..8)
+  ctx.fillStyle = '#c8a84b';
+  ctx.fillRect(col * TILE + 6, row * TILE + 6, 4, 3);
+  ctx.fillStyle = '#a08030';
+  ctx.fillRect(col * TILE + 7, row * TILE + 7, 2, 1);
+  speckle(ctx, col, row, '#8a6038', 6, rng);
+}
+
 function drawBlank(ctx: CanvasRenderingContext2D, col: number, row: number): void {
   fillTile(ctx, col, row, '#000000');
 }
@@ -359,6 +388,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawFurnaceFront,  // tile 16 — furnace mouth face (used for all 4 vertical sides)
       drawFurnaceSide,   // tile 17 — plain stone face (used for top and bottom)
       drawDiamondOre,    // tile 18 — diamond ore (cyan speckled stone)
+      drawChest,         // tile 19 — wooden chest face
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

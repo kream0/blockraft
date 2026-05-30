@@ -190,6 +190,7 @@ export const BlockId = {
   IRON_ORE: 14,
   FURNACE: 15,
   DIAMOND_ORE: 16,
+  CHEST: 17,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
@@ -235,7 +236,7 @@ export const ItemId = {
   DIAMOND_LEGGINGS: 146,
   DIAMOND_BOOTS: 147,
 } as const;
-/** A BlockId value (0..16) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..17) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===
@@ -367,6 +368,18 @@ export interface FurnaceState {
   burnTimeTotal: number;
   /** Seconds of cooking accumulated toward SMELT_DURATION_S for the current input. */
   cookProgress: number;
+}
+
+/** Number of storage slots in a chest. */
+export const CHEST_SLOTS = 27;
+
+/**
+ * Live state of one chest at a world position. Plain & JSON-serializable so it can be
+ * persisted per-world. Each element is null when that slot is empty.
+ * `slots` is always length CHEST_SLOTS.
+ */
+export interface ChestState {
+  slots: (ItemStack | null)[];
 }
 
 // === Day/night cycle ===
@@ -603,8 +616,8 @@ export const WORLD_EXPORT_VERSION = 1;
 
 /**
  * Self-contained, JSON-serializable snapshot of one world: metadata + block overrides +
- * furnace states. This is the on-disk format produced by Export and consumed by Import.
- * `furnaces` is keyed by world-position string (e.g. "12,64,-3"), matching WorldStorage.
+ * furnace states + chest states. This is the on-disk format produced by Export and consumed by Import.
+ * `furnaces` and `chests` are keyed by world-position string (e.g. "12,64,-3"), matching WorldStorage.
  */
 export interface WorldExport {
   format: typeof WORLD_EXPORT_FORMAT;
@@ -612,6 +625,7 @@ export interface WorldExport {
   metadata: WorldMetadata;
   overrides: ChunkOverrides;
   furnaces: Record<string, FurnaceState>;
+  chests?: Record<string, ChestState>;
 }
 
 // === Entity system ===

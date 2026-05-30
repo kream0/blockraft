@@ -19,6 +19,8 @@ import { HUD } from '../ui/HUD';
 import { InventoryScreen } from '../ui/InventoryScreen';
 import { FurnaceManager } from '../world/FurnaceManager';
 import { FurnaceScreen } from '../ui/FurnaceScreen';
+import { ChestManager } from '../world/ChestManager';
+import { ChestScreen } from '../ui/ChestScreen';
 import { BlockInteraction } from '../interaction/BlockInteraction';
 import { Cow } from '../entities/Cow';
 import { Pig } from '../entities/Pig';
@@ -82,6 +84,7 @@ import {
   type WorldMetadata,
   type WorldSave,
   type FurnaceState,
+  type ChestState,
 } from '../types';
 
 const FIXED_DT = 1 / 60;
@@ -146,6 +149,7 @@ export interface GameSessionOptions {
   hudContainer: HTMLElement;
   rendererTarget: HTMLElement;
   initialFurnaces?: Record<string, FurnaceState>;
+  initialChests?: Record<string, ChestState>;
   /** Called by the ESC handler. App handles the state transition. */
   onPauseRequested(): void;
   /** Called when the player's health reaches 0. App shows the death overlay. */
@@ -233,6 +237,8 @@ export class GameSession {
   private inventoryScreen: InventoryScreen;
   private furnaceScreen: FurnaceScreen;
   private furnaceManager: FurnaceManager;
+  private chestScreen: ChestScreen;
+  private chestManager: ChestManager;
   private inventoryKeyHandler: (e: KeyboardEvent) => void;
 
   private resizeHandler: () => void;
@@ -351,6 +357,8 @@ export class GameSession {
     this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
     this.furnaceScreen = new FurnaceScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
     this.furnaceManager = new FurnaceManager(opts.initialFurnaces);
+    this.chestScreen = new ChestScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
+    this.chestManager = new ChestManager(opts.initialChests);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -388,7 +396,7 @@ export class GameSession {
 
     // Hotbar slot selection (1-9).
     this.slotKeyHandler = (e: KeyboardEvent): void => {
-      if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen) return;
+      if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) return;
       const code = e.code;
       if (code.length !== 6 || !code.startsWith('Digit')) return;
       const digit = Number.parseInt(code.slice(5), 10);
@@ -414,6 +422,10 @@ export class GameSession {
         const tgt = this.interaction.getTargetedBlock();
         if (tgt !== null && tgt.block === BlockId.FURNACE) {
           this.openFurnace(tgt.x, tgt.y, tgt.z);
+          return;
+        }
+        if (tgt !== null && tgt.block === BlockId.CHEST) {
+          this.openChest(tgt.x, tgt.y, tgt.z);
           return;
         }
         this.rightHeld = true;
@@ -454,6 +466,11 @@ export class GameSession {
         this.requestPointerLock();
         return;
       }
+      if (this.chestScreen.isOpen) {
+        this.chestScreen.close();
+        this.requestPointerLock();
+        return;
+      }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
         this.requestPointerLock();           // inventory-key keydown is a user gesture → re-lock OK
@@ -472,6 +489,11 @@ export class GameSession {
       if (!this.started) return;
       if (this.furnaceScreen.isOpen) {
         this.furnaceScreen.close();
+        this.requestPointerLock();
+        return;
+      }
+      if (this.chestScreen.isOpen) {
+        this.chestScreen.close();
         this.requestPointerLock();
         return;
       }
@@ -496,7 +518,7 @@ export class GameSession {
       this.player.state.pitch = this.controls.input.pitch;
 
       while (this.acc >= FIXED_DT) {
-        if (!this.inventoryScreen.isOpen && !this.furnaceScreen.isOpen) {
+        if (!this.inventoryScreen.isOpen && !this.furnaceScreen.isOpen && !this.chestScreen.isOpen) {
           // Freeze the player in place while dead so the death cam doesn't drift/fall.
           if (!this.isDead) {
             const wasOnGround = this.player.state.onGround;
@@ -516,6 +538,7 @@ export class GameSession {
       this.world.update(this.player.state.position);
       this.furnaceManager.update(dt);
       if (this.furnaceScreen.isOpen) this.furnaceScreen.refresh();
+      if (this.chestScreen.isOpen) this.chestScreen.refresh();
       this.updateHostiles(dt);
       this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
       this.player.syncCamera();
@@ -628,6 +651,8 @@ export class GameSession {
     this.inventoryScreen.dispose();
     this.furnaceScreen.dispose();
     this.furnaceManager.clear();
+    this.chestScreen.dispose();
+    this.chestManager.clear();
 
     // Detach canvas from DOM BEFORE disposing the renderer so a stale GL context
     // can't try to render into a still-attached canvas during dispose.
@@ -681,6 +706,7 @@ export class GameSession {
     };
     await this.worldStorage.saveWorld(save);
     await this.worldStorage.saveFurnaces(this.worldName, this.furnaceManager.serialize());
+    await this.worldStorage.saveChests(this.worldName, this.chestManager.serialize());
   }
 
   /** Apply settings live (FOV, mouse sensitivity, invertY, keybindings, render distance, show FPS). */
@@ -732,6 +758,15 @@ export class GameSession {
   private openFurnace(x: number, y: number, z: number): void {
     const state = this.furnaceManager.getOrRegister(x, y, z);
     this.furnaceScreen.open(state);
+    this.controls.unlock();
+    this.leftHeld = false;
+    this.rightHeld = false;
+    this.eatProgress = 0;
+  }
+
+  private openChest(x: number, y: number, z: number): void {
+    const state = this.chestManager.getOrRegister(x, y, z);
+    this.chestScreen.open(state);
     this.controls.unlock();
     this.leftHeld = false;
     this.rightHeld = false;
@@ -1181,6 +1216,20 @@ export class GameSession {
             }
           }
         }
+        if (broken.block === BlockId.CHEST) {
+          const contents = this.chestManager.unregister(broken.x, broken.y, broken.z);
+          if (this.gameMode === GameMode.SURVIVAL) {
+            for (const stack of contents) {
+              this.world.entityManager.spawn(
+                new DroppedItem(
+                  { x: broken.x + 0.5, y: broken.y + 0.3, z: broken.z + 0.5 },
+                  stack.item,
+                  stack.count,
+                ),
+              );
+            }
+          }
+        }
       }
       // Reset progress; keep mining the next block under the crosshair while still held.
       this.mineProgress = 0;
@@ -1193,7 +1242,7 @@ export class GameSession {
 
   /** Per-frame (survival only): hold right-click on a food item to eat it after EAT_DURATION_S, restoring hunger and consuming one. */
   private updateEating(dt: number): void {
-    if (this.gameMode !== GameMode.SURVIVAL || this.isDead || this.inventoryScreen.isOpen || this.furnaceScreen.isOpen) {
+    if (this.gameMode !== GameMode.SURVIVAL || this.isDead || this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) {
       this.eatProgress = 0;
       return;
     }

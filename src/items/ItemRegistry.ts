@@ -31,6 +31,7 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.IRON_ORE]:    '#C8865A',
   [BlockId.FURNACE]:     '#8a7a6a',
   [BlockId.DIAMOND_ORE]: '#4FC3F7',
+  [BlockId.CHEST]:       '#8b6e3a',
 };
 
 // === Block item identity set — built once at module load ===
@@ -592,6 +593,7 @@ export const BLOCK_TOOL_CATEGORY: Partial<Record<BlockId, ToolKind>> = {
   [BlockId.SNOW]:  ToolKind.SHOVEL,
 
   [BlockId.FURNACE]: ToolKind.PICKAXE,
+  [BlockId.CHEST]:   ToolKind.AXE,
 };
 
 /**

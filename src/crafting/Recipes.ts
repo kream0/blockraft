@@ -123,6 +123,21 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: BlockId.FURNACE, count: 1 },
   },
+  // Chest — 8 planks ring, empty center (shaped 3x3)
+  // [P, P, P]
+  // [P, _, P]
+  // [P, P, P]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.PLANKS, BlockId.PLANKS, BlockId.PLANKS,
+      BlockId.PLANKS, null,           BlockId.PLANKS,
+      BlockId.PLANKS, BlockId.PLANKS, BlockId.PLANKS,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: BlockId.CHEST, count: 1 },
+  },
   // Iron Pickaxe (shaped 3x3)
   // [I, I, I]
   // [_, S, _]

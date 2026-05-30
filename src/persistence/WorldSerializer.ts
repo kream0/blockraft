@@ -6,6 +6,7 @@ import {
   type WorldMetadata,
   type ChunkOverrides,
   type FurnaceState,
+  type ChestState,
   type ItemStack,
   type Vec3,
   type BlockId,
@@ -13,16 +14,18 @@ import {
   GameMode,
   INVENTORY_SIZE,
   ARMOR_SLOT_COUNT,
+  CHEST_SLOTS,
 } from '../types';
 
 /** Build the export envelope and JSON-stringify it (pretty-printed with 2-space indent). */
-export function serializeWorld(save: WorldSave, furnaces: Record<string, FurnaceState>): string {
+export function serializeWorld(save: WorldSave, furnaces: Record<string, FurnaceState>, chests: Record<string, ChestState>): string {
   const envelope: WorldExport = {
     format: WORLD_EXPORT_FORMAT,
     version: WORLD_EXPORT_VERSION,
     metadata: save.metadata,
     overrides: save.overrides,
     furnaces,
+    chests,
   };
   return JSON.stringify(envelope, null, 2);
 }
@@ -126,6 +129,31 @@ function toFurnaces(raw: unknown): Record<string, FurnaceState> {
   return result;
 }
 
+function toChests(raw: unknown): Record<string, ChestState> {
+  const result: Record<string, ChestState> = {};
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return result;
+  const obj = raw as Record<string, unknown>;
+
+  for (const key of Object.keys(obj)) {
+    // Chest key is "x,y,z" with optional negative integers.
+    if (!/^-?\d+,-?\d+,-?\d+$/.test(key)) continue;
+    const val = obj[key];
+    if (val === null || typeof val !== 'object' || Array.isArray(val)) continue;
+    const cs = val as Record<string, unknown>;
+
+    const rawSlots = cs['slots'];
+    const slots: (ItemStack | null)[] = new Array<ItemStack | null>(CHEST_SLOTS).fill(null);
+    if (Array.isArray(rawSlots)) {
+      for (let i = 0; i < CHEST_SLOTS; i++) {
+        slots[i] = i < rawSlots.length ? toStack(rawSlots[i]) : null;
+      }
+    }
+    result[key] = { slots };
+  }
+
+  return result;
+}
+
 /**
  * Untrusted-file boundary. Parse an already-JSON.parsed value into a clean WorldExport,
  * or return null if it is not a recoverable Blockraft world file. NEVER throws.
@@ -213,6 +241,7 @@ export function validateWorldExport(input: unknown): WorldExport | null {
 
   const overrides = toOverrides(obj['overrides']);
   const furnaces = toFurnaces(obj['furnaces']);
+  const chests = toChests(obj['chests']);
 
   return {
     format: WORLD_EXPORT_FORMAT,
@@ -220,5 +249,6 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     metadata,
     overrides,
     furnaces,
+    chests,
   };
 }

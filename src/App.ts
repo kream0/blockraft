@@ -15,6 +15,7 @@ import {
   GameMode,
   type AppState,
   type FurnaceState,
+  type ChestState,
   type INetworkAdapter,
   type Settings,
   type WorldMetadata,
@@ -350,7 +351,13 @@ export class App {
     } catch (err) {
       console.error('Load furnaces failed:', err);
     }
-    this._startSession(save, furnaces);
+    let chests: Record<string, ChestState> = {};
+    try {
+      chests = await this.worldStorage.loadChests(name);
+    } catch (err) {
+      console.error('Load chests failed:', err);
+    }
+    this._startSession(save, furnaces, chests);
   }
 
   private async _deleteWorld(name: string): Promise<void> {
@@ -411,7 +418,13 @@ export class App {
     } catch (err) {
       console.error('Export: loadFurnaces failed (continuing without furnaces):', err);
     }
-    const json = serializeWorld(save, furnaces);
+    let chests: Record<string, ChestState> = {};
+    try {
+      chests = await this.worldStorage.loadChests(name);
+    } catch (err) {
+      console.error('Export: loadChests failed (continuing without chests):', err);
+    }
+    const json = serializeWorld(save, furnaces, chests);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -493,6 +506,14 @@ export class App {
       void this._show('worlds');
       return;
     }
+    try {
+      await this.worldStorage.saveChests(uniqueName, exp.chests ?? {});
+    } catch (err) {
+      console.error('Import: saveChests failed (world imported without chest state):', err);
+      this._toast('Imported "' + uniqueName + '" (chest data lost)');
+      void this._show('worlds');
+      return;
+    }
     this._toast('Imported "' + uniqueName + '"');
     void this._show('worlds');
   }
@@ -507,7 +528,7 @@ export class App {
     return base + ' (imported ' + n + ')';
   }
 
-  private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}): void {
+  private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}, initialChests: Record<string, ChestState> = {}): void {
     // Bail if a session is already starting or running (fast double-click race guard).
     if (this.session !== null || this.state === 'in_game') return;
     this._flushSettingsSave();
@@ -527,6 +548,7 @@ export class App {
       hudContainer: this.hudContainer,
       rendererTarget: document.body,
       initialFurnaces,
+      initialChests,
       onPauseRequested: () => {
         // Avoid re-entering pause if we're already there or transitioning.
         if (this.state !== 'in_game') return;

@@ -1,11 +1,12 @@
-import type { WorldMetadata, WorldSave, ChunkOverrides, FurnaceState } from '../types';
+import type { WorldMetadata, WorldSave, ChunkOverrides, FurnaceState, ChestState } from '../types';
 
 /** All worlds live in one IndexedDB database; one object store per kind. */
 const DB_NAME = 'mc-clone';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_META = 'world_meta';
 const STORE_OVERRIDES = 'world_overrides';
 const STORE_FURNACES = 'world_furnaces';
+const STORE_CHESTS = 'world_chests';
 
 /** Wrapper row stored in the overrides store. The keyPath is the top-level `name`. */
 interface OverridesRow {
@@ -16,6 +17,11 @@ interface OverridesRow {
 interface FurnacesRow {
   name: string;
   furnaces: Record<string, FurnaceState>;
+}
+
+interface ChestsRow {
+  name: string;
+  chests: Record<string, ChestState>;
 }
 
 /**
@@ -137,10 +143,11 @@ export class WorldStorage {
   async deleteWorld(name: string): Promise<void> {
     const db = await this._getDB();
     return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([STORE_META, STORE_OVERRIDES, STORE_FURNACES], 'readwrite');
+      const tx = db.transaction([STORE_META, STORE_OVERRIDES, STORE_FURNACES, STORE_CHESTS], 'readwrite');
       tx.objectStore(STORE_META).delete(name);
       tx.objectStore(STORE_OVERRIDES).delete(name);
       tx.objectStore(STORE_FURNACES).delete(name);
+      tx.objectStore(STORE_CHESTS).delete(name);
       tx.onerror = (): void => reject(tx.error ?? new Error('deleteWorld: transaction failed'));
       tx.oncomplete = (): void => resolve();
     });
@@ -174,6 +181,34 @@ export class WorldStorage {
     });
   }
 
+  /** Persist all chest states for a world. */
+  async saveChests(name: string, chests: Record<string, ChestState>): Promise<void> {
+    const db = await this._getDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_CHESTS, 'readwrite');
+      const row: ChestsRow = { name, chests };
+      tx.objectStore(STORE_CHESTS).put(row);
+      tx.onerror = (): void => reject(tx.error ?? new Error('saveChests: transaction failed'));
+      tx.oncomplete = (): void => resolve();
+    });
+  }
+
+  /** Load chest states for a world. Returns {} if none stored. */
+  async loadChests(name: string): Promise<Record<string, ChestState>> {
+    const db = await this._getDB();
+    return new Promise<Record<string, ChestState>>((resolve, reject) => {
+      const tx = db.transaction(STORE_CHESTS, 'readonly');
+      const req = tx.objectStore(STORE_CHESTS).get(name);
+      let chests: Record<string, ChestState> = {};
+      req.onsuccess = (): void => {
+        const row = req.result as ChestsRow | undefined;
+        if (row !== undefined) chests = row.chests;
+      };
+      tx.onerror = (): void => reject(tx.error ?? new Error('loadChests: transaction failed'));
+      tx.oncomplete = (): void => resolve(chests);
+    });
+  }
+
   /** Close the connection. Subsequent ops will reopen lazily. */
   close(): void {
     const pending = this._dbPromise;
@@ -202,6 +237,9 @@ export class WorldStorage {
         }
         if (!db.objectStoreNames.contains(STORE_FURNACES)) {
           db.createObjectStore(STORE_FURNACES, { keyPath: 'name' });
+        }
+        if (!db.objectStoreNames.contains(STORE_CHESTS)) {
+          db.createObjectStore(STORE_CHESTS, { keyPath: 'name' });
         }
       };
       req.onsuccess = (): void => {

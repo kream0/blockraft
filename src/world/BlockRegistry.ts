@@ -154,6 +154,15 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0x4FC3F7,
     hardness: 4.0,
   },
+  [BlockId.CHEST]: {
+    id: BlockId.CHEST,
+    name: 'Chest',
+    solid: true,
+    transparent: false,
+    textures: { top: 19, bottom: 19, side: 19 },
+    particleColor: 0x8b6e3a,
+    hardness: 2.5,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;
