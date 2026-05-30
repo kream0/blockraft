@@ -1,5 +1,5 @@
 import { HOTBAR_SIZE, type ItemStack } from '../types';
-import { itemSwatchColor, itemGlyph } from '../items/ItemRegistry';
+import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 
 const SLOT_COUNT = HOTBAR_SIZE;
 
@@ -9,10 +9,12 @@ export class Hotbar {
 
   private root: HTMLElement;
   private showCounts: boolean;
+  private iconRenderer: ItemIconRenderer;
 
-  constructor(container: HTMLElement, stacks: ReadonlyArray<ItemStack | null>, showCounts: boolean) {
+  constructor(container: HTMLElement, stacks: ReadonlyArray<ItemStack | null>, showCounts: boolean, iconRenderer: ItemIconRenderer) {
     this.selectedSlot = 0;
     this.showCounts = showCounts;
+    this.iconRenderer = iconRenderer;
 
     const root = document.createElement('div');
     root.className = 'mc-hotbar';
@@ -39,7 +41,7 @@ export class Hotbar {
         'height: 32px',
         'box-sizing: border-box',
         'border: 2px solid white',
-        'background: transparent',
+        'background-color: transparent',
         'display: flex',
         'align-items: flex-end',
         'justify-content: flex-end',
@@ -48,6 +50,9 @@ export class Hotbar {
         'color: white',
         'text-shadow: 1px 1px 2px black',
         'padding: 1px 2px',
+        'background-size: contain',
+        'background-repeat: no-repeat',
+        'background-position: center',
       ].join(';');
       root.appendChild(slot);
       this.slots.push(slot);
@@ -65,16 +70,13 @@ export class Hotbar {
       if (slot === undefined) continue;
       const stack = stacks[i] ?? null;
       if (stack === null) {
-        slot.style.background = 'transparent';
+        slot.style.backgroundImage = 'none';
+        slot.style.backgroundColor = 'transparent';
         slot.textContent = '';
       } else {
-        slot.style.background = itemSwatchColor(stack.item);
-        const glyph = itemGlyph(stack.item);
-        if (glyph !== '') {
-          slot.textContent = glyph;
-        } else {
-          slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
-        }
+        slot.style.backgroundColor = 'transparent';
+        slot.style.backgroundImage = `url(${this.iconRenderer.getIcon(stack.item)})`;
+        slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
       }
     }
   }

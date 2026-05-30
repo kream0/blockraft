@@ -9,6 +9,8 @@ import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
 import { toolMultiplierFor } from '../items/ItemRegistry';
+import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
+import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
 import { Controls } from '../player/Controls';
 import { Physics } from '../player/Physics';
@@ -29,6 +31,7 @@ import { Mob } from '../entities/Mob';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
   BlockId,
+  ItemId,
   CHUNK_HEIGHT,
   CHUNK_SIZE,
   GameMode,
@@ -134,6 +137,8 @@ export class GameSession {
   private audio: AudioManager;
   private dayNight: DayNightCycle;
   private atlas: TextureAtlas;
+  private iconRenderer: ItemIconRenderer;
+  private heldItemId: ItemId | null = null;
   private chunkMaterial: THREE.Material;
   private waterMaterial: THREE.Material;
   private world: World;
@@ -225,6 +230,7 @@ export class GameSession {
 
     // Atlas + materials.
     this.atlas = new TextureAtlas();
+    this.iconRenderer = new ItemIconRenderer(this.atlas);
     this.chunkMaterial = createChunkMaterial(this.atlas);
     this.waterMaterial = createWaterMaterial(this.atlas);
 
@@ -295,8 +301,8 @@ export class GameSession {
     this.physics = new Physics(this.world);
 
     // HUD — always created/destroyed per session.
-    this.hud = new HUD(this.hudContainer, this.player.inventory.hotbarSlots(), this.gameMode === GameMode.SURVIVAL);
-    this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory);
+    this.hud = new HUD(this.hudContainer, this.player.inventory.hotbarSlots(), this.gameMode === GameMode.SURVIVAL, this.iconRenderer);
+    this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory, this.iconRenderer);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -444,6 +450,11 @@ export class GameSession {
       this.player.syncCamera();
       this.updateMining(dt);
       this.viewModel.update(dt);
+      const selItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? null;
+      if (selItem !== this.heldItemId) {
+        this.heldItemId = selItem;
+        this.viewModel.setHeldItem(selItem === null ? null : buildItemMesh(selItem, this.atlas));
+      }
       this.hud.update(this.player.state, dtMs);
       this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
       this.dayNight.update(dt);
@@ -557,6 +568,7 @@ export class GameSession {
     this.chunkMaterial.dispose();
     this.waterMaterial.dispose();
     this.atlas.texture.dispose();
+    this.iconRenderer.dispose();
   }
 
   /** Persist current player state + overrides via WorldStorage. */

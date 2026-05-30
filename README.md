@@ -26,7 +26,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - First-person controls (WASD + mouse look + jump + sprint)
 - AABB physics with per-axis swept collision (Y → X → Z) and gravity
 - **Progressive mining**: hold left-click to break a block — mining time scales with the block's hardness (dirt is quick, stone slower, ore tougher, bedrock unbreakable), shown by a radial progress ring on the crosshair **and a Minecraft-style destroy-stage crack overlay that deepens on the block itself** (10 cumulative stages); releasing or looking away cancels. Creative mode breaks instantly.
-- **First-person hand**: a camera-attached view-model arm that swings when you mine, attack, or place
+- **First-person hand**: a camera-attached view-model arm that swings when you mine, attack, or place, and **shows the item you're holding** — the selected hotbar item appears as a 3D model gripped in the hand (empty-handed when the slot is empty)
 - DDA voxel raycasting picks the block under the crosshair for break/place
 - 9-slot hotbar with number-key selection
 - Block-break particle bursts tinted to the broken block's color
@@ -53,8 +53,8 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Items & inventory
 - **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot
-- Items generalize beyond blocks: **sticks** and **wooden tools** (pickaxe / axe / shovel) are first-class items with their own glyphs and stack sizes
-- 36-slot inventory model (9 hotbar + 27 backpack); the hotbar shows a per-item color swatch and live stack count, and the inventory persists per-world
+- Items generalize beyond blocks: **sticks** and **wooden tools** (pickaxe / axe / shovel) are first-class items, each rendered from its own **3D mesh model**, with their own stack sizes
+- 36-slot inventory model (9 hotbar + 27 backpack); every slot renders a **live 3D item icon** (blocks as isometric cubes, tools as their 3D models) with stack count, and the inventory persists per-world
 - **Inventory & crafting screen** (both modes): press **E** to open a grid of all 36 slots alongside a 3×3 crafting grid; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
 - **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, and planks + sticks → tools; the result previews live in the output slot and the inputs are consumed when you take it
 - **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow)

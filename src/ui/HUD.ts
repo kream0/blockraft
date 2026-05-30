@@ -1,5 +1,6 @@
 import type { PlayerState, ItemStack } from '../types';
 import { Hotbar } from './Hotbar';
+import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 
 const STYLE_ID = 'mc-hud-style';
 
@@ -54,7 +55,7 @@ export class HUD {
   private fpsInitialized: boolean = false;
   private showFps: boolean = true;
 
-  constructor(container: HTMLElement, hotbarStacks: ReadonlyArray<ItemStack | null>, showCounts: boolean) {
+  constructor(container: HTMLElement, hotbarStacks: ReadonlyArray<ItemStack | null>, showCounts: boolean, iconRenderer: ItemIconRenderer) {
     ensureStyle();
 
     const crosshair = document.createElement('div');
@@ -140,7 +141,7 @@ export class HUD {
     container.appendChild(vignette);
     this.damageVignetteEl = vignette;
 
-    this.hotbar = new Hotbar(container, hotbarStacks, showCounts);
+    this.hotbar = new Hotbar(container, hotbarStacks, showCounts, iconRenderer);
   }
 
   update(player: PlayerState, dtMs: number): void {

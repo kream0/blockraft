@@ -1,6 +1,7 @@
 import { INVENTORY_SIZE, HOTBAR_SIZE, CRAFTING_GRID_DIM, CRAFTING_GRID_SLOTS, type ItemStack, type ItemId } from '../types';
 import type { Inventory } from '../player/Inventory';
-import { itemSwatchColor, itemGlyph, itemMaxStack } from '../items/ItemRegistry';
+import { itemMaxStack } from '../items/ItemRegistry';
+import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { matchRecipe } from '../crafting/Recipes';
 
 const CRAFT_INPUT_BASE = 100;   // synthetic indices 100..108 for the 3x3 inputs
@@ -9,6 +10,7 @@ const CRAFT_OUTPUT_INDEX = 200; // synthetic index for the output slot
 export class InventoryScreen {
   isOpen: boolean = false;
   private inventory: Inventory;
+  private iconRenderer: ItemIconRenderer;
   private root: HTMLElement;
   private slotEls: (HTMLElement | undefined)[];
   private cursorEl: HTMLElement;
@@ -20,8 +22,9 @@ export class InventoryScreen {
   private craftSlotEls: (HTMLElement | undefined)[] = new Array<HTMLElement | undefined>(CRAFTING_GRID_SLOTS).fill(undefined);
   private craftOutputEl: HTMLElement;
 
-  constructor(container: HTMLElement, inventory: Inventory) {
+  constructor(container: HTMLElement, inventory: Inventory, iconRenderer: ItemIconRenderer) {
     this.inventory = inventory;
+    this.iconRenderer = iconRenderer;
     this.slotEls = new Array<HTMLElement | undefined>(INVENTORY_SIZE).fill(undefined);
 
     // Full-screen overlay backdrop
@@ -145,6 +148,9 @@ export class InventoryScreen {
       'font-size:11px',
       'color:white',
       'text-shadow:1px 1px 2px black',
+      'background-size:contain',
+      'background-repeat:no-repeat',
+      'background-position:center',
     ].join(';');
     cursorEl.style.display = 'none';
     root.appendChild(cursorEl);
@@ -163,7 +169,7 @@ export class InventoryScreen {
       'height:40px',
       'box-sizing:border-box',
       'border:2px solid #555',
-      'background:transparent',
+      'background-color:transparent',
       'display:flex',
       'align-items:flex-end',
       'justify-content:flex-end',
@@ -171,6 +177,9 @@ export class InventoryScreen {
       'text-shadow:1px 1px 2px black',
       'padding:1px 3px',
       'cursor:default',
+      'background-size:contain',
+      'background-repeat:no-repeat',
+      'background-position:center',
     ].join(';');
   }
 
@@ -202,16 +211,13 @@ export class InventoryScreen {
 
   private paintTile(el: HTMLElement, stack: ItemStack | null): void {
     if (stack === null) {
-      el.style.background = 'transparent';
+      el.style.backgroundImage = 'none';
+      el.style.backgroundColor = 'transparent';
       el.textContent = '';
     } else {
-      el.style.background = itemSwatchColor(stack.item);
-      const glyph = itemGlyph(stack.item);
-      if (glyph !== '') {
-        el.textContent = glyph;
-      } else {
-        el.textContent = stack.count > 1 ? String(stack.count) : '';
-      }
+      el.style.backgroundColor = 'transparent';
+      el.style.backgroundImage = `url(${this.iconRenderer.getIcon(stack.item)})`;
+      el.textContent = stack.count > 1 ? String(stack.count) : '';
     }
   }
 
@@ -231,17 +237,14 @@ export class InventoryScreen {
 
   private updateCursorEl(): void {
     if (this.cursor === null) {
-      this.cursorEl.style.background = 'transparent';
+      this.cursorEl.style.backgroundImage = 'none';
+      this.cursorEl.style.backgroundColor = 'transparent';
       this.cursorEl.textContent = '';
       this.cursorEl.style.display = 'none';
     } else {
-      this.cursorEl.style.background = itemSwatchColor(this.cursor.item);
-      const glyph = itemGlyph(this.cursor.item);
-      if (glyph !== '') {
-        this.cursorEl.textContent = glyph;
-      } else {
-        this.cursorEl.textContent = this.cursor.count > 1 ? String(this.cursor.count) : '';
-      }
+      this.cursorEl.style.backgroundColor = 'transparent';
+      this.cursorEl.style.backgroundImage = `url(${this.iconRenderer.getIcon(this.cursor.item)})`;
+      this.cursorEl.textContent = this.cursor.count > 1 ? String(this.cursor.count) : '';
       this.cursorEl.style.display = 'flex';
     }
   }
