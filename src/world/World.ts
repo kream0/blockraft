@@ -23,6 +23,16 @@ const MAX_REMESH_PER_UPDATE = 4;
 const MIN_RENDER_DISTANCE = 2;
 const MAX_RENDER_DISTANCE = 16;
 
+/**
+ * A LEAVES block decays (→ AIR) when no WOOD block lies within this many 6-connected
+ * leaf-steps of it; re-evaluated whenever a nearby log is removed. Also the Chebyshev
+ * radius of decayLeaves' search box, so it MUST be ≥ the trunk's max log-to-log span
+ * (trunk height − 1 = 4 for the current 5-tall trees) — otherwise removing one log could
+ * leave another trunk log outside the box and wrongly decay still-supported leaves. 6 also
+ * matches Minecraft's leaf-persistence distance and leaves margin over the 5-tall trunk.
+ */
+const LEAF_DECAY_DISTANCE = 6;
+
 export class World implements IWorld {
   readonly group: THREE.Group;
   readonly entityManager: EntityManager;
@@ -37,6 +47,10 @@ export class World implements IWorld {
   /** chunkKey ("cx,cz") -> linearIndex -> blockId. Sparse map of player edits per chunk. */
   private overrides: Map<string, Map<number, BlockId>> = new Map();
   private trackedTarget: Vec3 | null = null;
+  /** True while a top-level setBlock is still resolving its block-update cascade. Re-entrant setBlock calls during the cascade defer their remeshes into pendingRemesh, which the top-level call flushes once at the end. */
+  private batchingRemesh = false;
+  /** Chunks awaiting a single remesh at the end of the current setBlock cascade. */
+  private readonly pendingRemesh: Set<Chunk> = new Set();
 
   constructor(
     atlas: ITextureAtlas,
@@ -118,15 +132,39 @@ export class World implements IWorld {
 
   setBlock(x: number, y: number, z: number, id: BlockId): void {
     if (y < 0 || y >= CHUNK_HEIGHT) return;
+    const topLevel = !this.batchingRemesh;
+    if (topLevel) this.batchingRemesh = true;
+    try {
+      const oldId = this.writeBlock(x, y, z, id);
+      if (oldId === null) return;   // chunk not loaded — nothing changed
+      if (oldId === id) return;     // no-op write — skip cascade + remesh
+      this.runBlockUpdates(x, y, z, oldId, id);
+    } finally {
+      if (topLevel) {
+        this.batchingRemesh = false;
+        for (const c of this.pendingRemesh) this.remeshChunk(c);
+        this.pendingRemesh.clear();
+      }
+    }
+  }
+
+  /**
+   * Apply a single block write: mutate the chunk, record the override, and queue the
+   * affected chunk(s) for remesh (flushed by the top-level setBlock). Returns the PRIOR
+   * block id, or null if the chunk isn't loaded. Does NOT run block-update cascades.
+   */
+  private writeBlock(x: number, y: number, z: number, id: BlockId): BlockId | null {
     const cx = floorDiv(x, CHUNK_SIZE);
     const cz = floorDiv(z, CHUNK_SIZE);
     const chunk = this.getChunk(cx, cz);
-    if (!chunk) return;
+    if (!chunk) return null;
     const lx = mod(x, CHUNK_SIZE);
     const lz = mod(z, CHUNK_SIZE);
+    const oldId = chunk.getBlock(lx, y, lz);
+    if (oldId === id) return oldId; // no change: don't record an override or queue a remesh
     chunk.setBlock(lx, y, lz, id);
 
-    // Record the edit in the overrides map AFTER the block has been applied to the chunk.
+    // Record the edit AFTER applying it to the chunk.
     const key = World.key(cx, cz);
     let inner = this.overrides.get(key);
     if (inner === undefined) {
@@ -135,48 +173,104 @@ export class World implements IWorld {
     }
     inner.set(Chunk.idx(lx, y, lz), id);
 
-    const affected = new Set<Chunk>();
     chunk.dirty = true;
     this.dirtyChunks.add(chunk);
-    affected.add(chunk);
+    this.pendingRemesh.add(chunk);
 
-    // Mark neighbor chunks dirty if we touched a border block.
-    if (lx === 0) {
-      const n = this.getChunk(cx - 1, cz);
-      if (n) {
-        n.dirty = true;
-        this.dirtyChunks.add(n);
-        affected.add(n);
-      }
-    } else if (lx === CHUNK_SIZE - 1) {
-      const n = this.getChunk(cx + 1, cz);
-      if (n) {
-        n.dirty = true;
-        this.dirtyChunks.add(n);
-        affected.add(n);
-      }
-    }
-    if (lz === 0) {
-      const n = this.getChunk(cx, cz - 1);
-      if (n) {
-        n.dirty = true;
-        this.dirtyChunks.add(n);
-        affected.add(n);
-      }
-    } else if (lz === CHUNK_SIZE - 1) {
-      const n = this.getChunk(cx, cz + 1);
-      if (n) {
-        n.dirty = true;
-        this.dirtyChunks.add(n);
-        affected.add(n);
-      }
+    // Mark border-neighbor chunks for remesh too (face culling across the border).
+    if (lx === 0) { const n = this.getChunk(cx - 1, cz); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    else if (lx === CHUNK_SIZE - 1) { const n = this.getChunk(cx + 1, cz); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    if (lz === 0) { const n = this.getChunk(cx, cz - 1); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    else if (lz === CHUNK_SIZE - 1) { const n = this.getChunk(cx, cz + 1); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+
+    return oldId;
+  }
+
+  /**
+   * React to a single block change at (x,y,z). Re-entrant: any setBlock calls made here
+   * are absorbed into the current remesh batch. Two rules today:
+   *  - Unsupported SAND falls (gravity).
+   *  - Removing a WOOD log decays orphaned LEAVES nearby.
+   */
+  private runBlockUpdates(x: number, y: number, z: number, oldId: BlockId, newId: BlockId): void {
+    // Sand that just appeared (placed, or settled) with empty space beneath it falls now.
+    if (newId === BlockId.SAND) this.settleSand(x, y, z);
+
+    // Clearing/replacing this cell with something non-solid may unsupport SAND resting directly on top of it.
+    if (!this.registry.isSolid(newId) && this.getBlock(x, y + 1, z) === BlockId.SAND) {
+      this.settleSand(x, y + 1, z);
     }
 
-    // Re-mesh only the chunks we just touched so player edits feel instantaneous;
-    // leave the long-tail backlog for the streaming update() path.
-    for (const c of affected) {
-      this.remeshChunk(c);
+    // A removed log can orphan the canopy that depended on it.
+    if (oldId === BlockId.WOOD && newId !== BlockId.WOOD) {
+      this.decayLeaves(x, y, z);
     }
+  }
+
+  /**
+   * Drop the SAND at (x,y,z) straight down to rest on the first solid block (or world floor).
+   * No-op if it isn't sand or is already resting. Places the sand at its landing cell FIRST,
+   * THEN clears the source cell — so when the vacated source re-triggers the cascade, any sand
+   * that was stacked above lands cleanly on top of the block we just placed (no two blocks claim
+   * the same landing cell). Termination: each move strictly lowers a sand block; floor is y=0.
+   */
+  private settleSand(x: number, y: number, z: number): void {
+    if (this.getBlock(x, y, z) !== BlockId.SAND) return;
+    let ny = y;
+    while (ny - 1 >= 0 && !this.isSolid(x, ny - 1, z)) ny--;
+    if (ny === y) return; // already resting
+    this.setBlock(x, ny, z, BlockId.SAND); // occupy landing first
+    this.setBlock(x, y, z, BlockId.AIR);   // then vacate source → stacked sand above falls onto the pile
+  }
+
+  /**
+   * After a log is removed at (ox,oy,oz), decay LEAVES in a small box that are no longer within
+   * LEAF_DECAY_DISTANCE 6-connected leaf-steps of a remaining WOOD block. Seeds a BFS from every
+   * WOOD block in the box (depth 0), floods through LEAVES up to LEAF_DECAY_DISTANCE steps; any
+   * LEAVES in the box not reached become AIR. Bounded box (radius LEAF_DECAY_DISTANCE) keeps it
+   * cheap and guarantees termination (leaves are only removed, never added).
+   */
+  private decayLeaves(ox: number, oy: number, oz: number): void {
+    const R = LEAF_DECAY_DISTANCE;
+    const keyOf = (x: number, y: number, z: number): string => `${x},${y},${z}`;
+    const supported = new Set<string>();
+    const queue: { x: number; y: number; z: number; d: number }[] = [];
+
+    // Seed: every remaining WOOD block in the box is a support source.
+    for (let dx = -R; dx <= R; dx++)
+      for (let dy = -R; dy <= R; dy++)
+        for (let dz = -R; dz <= R; dz++) {
+          if (this.getBlock(ox + dx, oy + dy, oz + dz) === BlockId.WOOD) {
+            queue.push({ x: ox + dx, y: oy + dy, z: oz + dz, d: 0 });
+          }
+        }
+
+    const NEIGHBORS: [number, number, number][] = [
+      [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+    ];
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++]!;
+      if (cur.d >= R) continue; // reached the decay limit; don't expand further
+      for (const [nx, ny, nz] of NEIGHBORS) {
+        const lx = cur.x + nx, ly = cur.y + ny, lz = cur.z + nz;
+        if (Math.abs(lx - ox) > R || Math.abs(ly - oy) > R || Math.abs(lz - oz) > R) continue; // stay in box
+        if (this.getBlock(lx, ly, lz) !== BlockId.LEAVES) continue;
+        const k = keyOf(lx, ly, lz);
+        if (supported.has(k)) continue;
+        supported.add(k);
+        queue.push({ x: lx, y: ly, z: lz, d: cur.d + 1 });
+      }
+    }
+
+    // Any LEAVES in the box NOT proven supported decays.
+    for (let dx = -R; dx <= R; dx++)
+      for (let dy = -R; dy <= R; dy++)
+        for (let dz = -R; dz <= R; dz++) {
+          const bx = ox + dx, by = oy + dy, bz = oz + dz;
+          if (this.getBlock(bx, by, bz) !== BlockId.LEAVES) continue;
+          if (!supported.has(keyOf(bx, by, bz))) this.setBlock(bx, by, bz, BlockId.AIR);
+        }
   }
 
   isSolid(x: number, y: number, z: number): boolean {

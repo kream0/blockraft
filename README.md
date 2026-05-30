@@ -31,6 +31,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - 9-slot hotbar with number-key selection
 - Block-break particle bursts tinted to the broken block's color
 - Edits persist per-world; reload your world and your changes are still there
+- **Block updates**: world edits trigger cascading reactions — unsupported **sand falls** and settles onto the first solid block below it; **leaves decay** to air when no log remains within 6 connected blocks (chop a tree's trunk and its canopy clears). A single edit's whole cascade is batched into one remesh per affected chunk
 
 ### Mobs & combat
 - Passive animals roam the world: **Cow**, **Pig**, **Sheep**, **Chicken** — each a distinct procedural block mesh
@@ -103,7 +104,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.
 - **Lighting**: per-block sky/torch lightmap, smooth shading at chunk edges
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
-- **Block updates**: water flow, sand falling, leaf decay
+- **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
 - **Structure generation**: villages, dungeons
 - **Chunk LOD or async meshing**: move meshing to a Web Worker
 

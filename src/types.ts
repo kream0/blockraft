@@ -228,7 +228,7 @@ export interface BlockHit {
 export interface IWorld {
   /** Returns BlockId.AIR for out-of-bounds (above CHUNK_HEIGHT or below 0) and unloaded chunks. */
   getBlock(x: number, y: number, z: number): BlockId;
-  /** Sets the block. Triggers re-mesh of the chunk and any neighboring chunks if on a border. No-op if chunk not loaded. */
+  /** Sets the block. Triggers re-mesh of the chunk and any neighboring chunks if on a border. No-op if chunk not loaded. May trigger cascading block updates (unsupported sand falls; removing a log decays orphaned leaves); all resulting chunk remeshes are batched into this call. */
   setBlock(x: number, y: number, z: number, id: BlockId): void;
   /** True if the block at integer coords is solid (per BlockDef.solid). Out-of-bounds: false. */
   isSolid(x: number, y: number, z: number): boolean;
