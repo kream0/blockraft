@@ -13,6 +13,14 @@ const BIOME_PLAINS = 0;
 const BIOME_DESERT = 1;
 const BIOME_SNOWY = 2;
 
+// Mountains: a low-frequency elevation mask raises regional terrain into snow-capped peaks.
+const MOUNTAIN_SCALE = 0.0025;     // lower than biome scale → very large mountain ranges
+const MOUNTAIN_START = 0.15;       // mask noise below this → flat lowland
+const MOUNTAIN_FULL = 0.55;        // mask noise at/above this → full mountain height
+const MOUNTAIN_AMPLITUDE = 32;     // max blocks added to the heightmap at full mask
+const MOUNTAIN_STONE_LINE = 60;    // surface at/above this (and below snow) is bare STONE
+const SNOW_LINE = 72;              // surface at/above this is SNOW-capped, regardless of biome
+
 // Ore generation tuning. Iron is rarer and deeper than coal.
 const ORE_MIN_Y = 2;            // never touch bedrock (y=0) or just above it
 const COAL_MAX_Y = 50;
@@ -67,6 +75,7 @@ export class TerrainGenerator {
   private noise: PerlinNoise;
   private biomeNoise: PerlinNoise;
   private caveNoise: PerlinNoise;
+  private mountainNoise: PerlinNoise;
   private seed: number;
   private oreState = 0;
 
@@ -77,6 +86,8 @@ export class TerrainGenerator {
     this.biomeNoise = new PerlinNoise((this.seed ^ 0x9e3779b9) >>> 0);
     // Independent cave noise: distinct magic constant so caves don't alias with biomes or heightmap.
     this.caveNoise = new PerlinNoise((this.seed ^ 0x517cc1e5) >>> 0);
+    // Independent low-frequency mountain mask: distinct magic so peaks don't alias with heightmap/biomes/caves.
+    this.mountainNoise = new PerlinNoise((this.seed ^ 0x2f6a1d3b) >>> 0);
   }
 
   private oreNext(): number {
@@ -364,6 +375,13 @@ export class TerrainGenerator {
     this.placeVillage(chunk, heights);
   }
 
+  /** Regional mountain mask in [0,1]: 0 in lowlands, smoothly ramps to 1 where the low-frequency mountain noise is high. */
+  private mountainMaskAt(wx: number, wz: number): number {
+    const m = this.mountainNoise.noise2D(wx * MOUNTAIN_SCALE, wz * MOUNTAIN_SCALE); // ~[-1, 1]
+    const t = clamp((m - MOUNTAIN_START) / (MOUNTAIN_FULL - MOUNTAIN_START), 0, 1);
+    return t * t * (3 - 2 * t); // smoothstep
+  }
+
   /** Pick a biome for a world column. Smooth low-frequency noise → large regions. */
   private biomeAt(wx: number, wz: number): number {
     const b = this.biomeNoise.noise2D(wx * BIOME_SCALE, wz * BIOME_SCALE);
@@ -385,10 +403,14 @@ export class TerrainGenerator {
         const wx = baseX + lx;
         const wz = baseZ + lz;
         const n = this.noise.fbm(wx * 0.01, wz * 0.01, 4);
-        const raw = BASE_HEIGHT + Math.round(n * AMPLITUDE);
+        const mountain = this.mountainMaskAt(wx, wz);
+        const raw = BASE_HEIGHT + Math.round(n * AMPLITUDE) + Math.round(mountain * MOUNTAIN_AMPLITUDE);
         const h = clamp(raw, 4, CHUNK_HEIGHT - 2);
         heights[lx + lz * CHUNK_SIZE] = h;
         const biome = this.biomeAt(wx, wz);
+        // Altitude-driven surface override (any biome): bare rock on high slopes, snow on peaks.
+        const isPeak = h >= SNOW_LINE;
+        const isRocky = !isPeak && h >= MOUNTAIN_STONE_LINE;
 
         for (let y = 0; y <= h; y++) {
           let id: BlockId;
@@ -397,11 +419,16 @@ export class TerrainGenerator {
           } else if (y < h - 3) {
             id = BlockId.STONE;
           } else if (y < h) {
-            id = biome === BIOME_DESERT ? BlockId.SAND : BlockId.DIRT;
+            // Sub-surface band: solid rock under rocky/peak columns, else dirt (sand in desert).
+            id = (isPeak || isRocky) ? BlockId.STONE : (biome === BIOME_DESERT ? BlockId.SAND : BlockId.DIRT);
           } else {
             // y === h (surface block)
             if (h <= SEA_LEVEL) {
               id = BlockId.SAND;            // beaches & lakebeds stay sand in every biome
+            } else if (isPeak) {
+              id = BlockId.SNOW;            // snow-capped peak (overrides biome skin)
+            } else if (isRocky) {
+              id = BlockId.STONE;           // bare rock slope (overrides biome skin)
             } else if (biome === BIOME_DESERT) {
               id = BlockId.SAND;
             } else if (biome === BIOME_SNOWY) {
@@ -439,7 +466,7 @@ export class TerrainGenerator {
       const lx = 2 + (h1 % (CHUNK_SIZE - 4));
       const lz = 2 + (h2 % (CHUNK_SIZE - 4));
       const surface = heights[lx + lz * CHUNK_SIZE]!;
-      // Skip on sand or below sea level.
+      // Trees only grow on grass — skip sand, stone, snow, or anything below sea level.
       const surfaceId = (chunk.blocks[Chunk.idx(lx, surface, lz)] ?? BlockId.AIR) as BlockId;
       if (surfaceId !== BlockId.GRASS) continue;
       // Need 6 vertical blocks of room (5 trunk + 1 leaves above).

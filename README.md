@@ -17,6 +17,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Procedural terrain via Perlin FBM heightmap
 - Trees placed deterministically per chunk (Plains only)
 - **Biomes**: a low-frequency biome map skins the surface into grassy **Plains**, sandy **Desert**, and snow-capped **Snowy** regions (deterministic per seed; heightmap unchanged)
+- **Mountains**: an independent low-frequency elevation mask (smoothstep-ramped) raises whole regions far above the lowlands, adding up to 32 blocks of height purely on top of the base heightmap. High slopes expose bare **stone**, and peaks above the snow line cap with **snow** — overriding the biome skin at altitude, with solid rock filling the columns beneath (deterministic per seed; lowlands stay untouched)
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
 - **Ore veins**: Coal, Iron, and Diamond scatter through stone as deterministic random-walk veins — coal up to mid-depth (y≤50), iron deep only (y≤28), and **diamond** deepest of all (y≤12); only replaces stone and never touches bedrock
 - **Caves**: underground cave systems carved from a 3D fractal-noise iso-band (`|n| < threshold`) in world coordinates, so caverns connect seamlessly across chunk borders; only stone becomes air (~15–19% carved), leaving the surface skin, bedrock, water, and ore intact (deterministic per seed; carved before ore so veins stay embedded)
