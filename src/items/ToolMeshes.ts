@@ -141,10 +141,15 @@ export function buildShovelMesh(headColor: number = HEAD_COLOR): THREE.Group {
 
 export function buildStoneShovelMesh(): THREE.Group { return buildShovelMesh(STONE_HEAD_COLOR); }
 
-const IRON_HEAD_COLOR = 0xd8d8d8; // bright steel
+const IRON_HEAD_COLOR    = 0xd8d8d8; // bright steel
 export function buildIronPickaxeMesh(): THREE.Group { return buildPickaxeMesh(IRON_HEAD_COLOR); }
 export function buildIronAxeMesh(): THREE.Group { return buildAxeMesh(IRON_HEAD_COLOR); }
 export function buildIronShovelMesh(): THREE.Group { return buildShovelMesh(IRON_HEAD_COLOR); }
+
+const DIAMOND_HEAD_COLOR = 0x4FC3F7; // cyan diamond
+export function buildDiamondPickaxeMesh(): THREE.Group { return buildPickaxeMesh(DIAMOND_HEAD_COLOR); }
+export function buildDiamondAxeMesh(): THREE.Group { return buildAxeMesh(DIAMOND_HEAD_COLOR); }
+export function buildDiamondShovelMesh(): THREE.Group { return buildShovelMesh(DIAMOND_HEAD_COLOR); }
 
 /** Returns a new THREE.Group with the sword mesh. bladeColor tints the blade + crossguard; the grip is always dark wood. */
 export function buildSwordMesh(bladeColor: number = HEAD_COLOR): THREE.Group {
@@ -183,3 +188,4 @@ export function buildSwordMesh(bladeColor: number = HEAD_COLOR): THREE.Group {
 export function buildWoodenSwordMesh(): THREE.Group { return buildSwordMesh(HEAD_COLOR); }
 export function buildStoneSwordMesh(): THREE.Group { return buildSwordMesh(STONE_HEAD_COLOR); }
 export function buildIronSwordMesh(): THREE.Group { return buildSwordMesh(IRON_HEAD_COLOR); }
+export function buildDiamondSwordMesh(): THREE.Group { return buildSwordMesh(DIAMOND_HEAD_COLOR); }

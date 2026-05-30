@@ -189,12 +189,13 @@ export const BlockId = {
   COAL_ORE: 13,
   IRON_ORE: 14,
   FURNACE: 15,
+  DIAMOND_ORE: 16,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..15) directly, so a persisted block stack {block,count} reads
+// numeric value (0..16) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -217,15 +218,24 @@ export const ItemId = {
   COOKED_CHICKEN: 116,
   COOKED_MUTTON: 117,
   IRON_INGOT: 120,
+  DIAMOND: 121,          // gem / crafting material
+  DIAMOND_PICKAXE: 122,  // diamond-tier tools
+  DIAMOND_AXE: 123,
+  DIAMOND_SHOVEL: 124,
   WOODEN_SWORD: 130,
   STONE_SWORD: 131,
   IRON_SWORD: 132,
+  DIAMOND_SWORD: 133,    // diamond-tier sword
   IRON_HELMET: 140,
   IRON_CHESTPLATE: 141,
   IRON_LEGGINGS: 142,
   IRON_BOOTS: 143,
+  DIAMOND_HELMET: 144,      // diamond-tier armor
+  DIAMOND_CHESTPLATE: 145,
+  DIAMOND_LEGGINGS: 146,
+  DIAMOND_BOOTS: 147,
 } as const;
-/** A BlockId value (0..15) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..16) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

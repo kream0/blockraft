@@ -30,12 +30,13 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.COAL_ORE]:    '#2B2B2B',
   [BlockId.IRON_ORE]:    '#C8865A',
   [BlockId.FURNACE]:     '#8a7a6a',
+  [BlockId.DIAMOND_ORE]: '#4FC3F7',
 };
 
 // === Block item identity set — built once at module load ===
 const _blockIdSet = new Set<number>(Object.values(BlockId));
 
-/** True if id is one of the BlockId numeric values (0..14). */
+/** True if id is one of the BlockId numeric values (0..16). */
 export function isBlockItem(id: ItemId): boolean {
   return _blockIdSet.has(id);
 }
@@ -330,6 +331,130 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       food: null,
     },
   ],
+  [ItemId.DIAMOND, {
+    id: ItemId.DIAMOND, name: 'Diamond', maxStack: 64,
+    swatchColor: '#4FC3F7', glyph: 'D', placeable: null, tool: null, weapon: null, armor: null, food: null,
+  }],
+  [
+    ItemId.DIAMOND_PICKAXE,
+    {
+      id: ItemId.DIAMOND_PICKAXE,
+      name: 'Diamond Pickaxe',
+      maxStack: 1,
+      swatchColor: '#4FC3F7',
+      glyph: 'P',
+      placeable: null,
+      tool: { kind: ToolKind.PICKAXE, speedMultiplier: 12 } satisfies ToolDef,
+      weapon: null,
+      armor: null,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_AXE,
+    {
+      id: ItemId.DIAMOND_AXE,
+      name: 'Diamond Axe',
+      maxStack: 1,
+      swatchColor: '#4FC3F7',
+      glyph: 'A',
+      placeable: null,
+      tool: { kind: ToolKind.AXE, speedMultiplier: 12 } satisfies ToolDef,
+      weapon: null,
+      armor: null,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_SHOVEL,
+    {
+      id: ItemId.DIAMOND_SHOVEL,
+      name: 'Diamond Shovel',
+      maxStack: 1,
+      swatchColor: '#4FC3F7',
+      glyph: 'S',
+      placeable: null,
+      tool: { kind: ToolKind.SHOVEL, speedMultiplier: 12 } satisfies ToolDef,
+      weapon: null,
+      armor: null,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_SWORD,
+    {
+      id: ItemId.DIAMOND_SWORD,
+      name: 'Diamond Sword',
+      maxStack: 1,
+      swatchColor: '#4FC3F7',
+      glyph: 'W',
+      placeable: null,
+      tool: null,
+      weapon: { damage: 11 } satisfies WeaponDef,
+      armor: null,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_HELMET,
+    {
+      id: ItemId.DIAMOND_HELMET,
+      name: 'Diamond Helmet',
+      maxStack: 1,
+      swatchColor: '#86d9e8',
+      glyph: 'H',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.HEAD, defense: 3 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_CHESTPLATE,
+    {
+      id: ItemId.DIAMOND_CHESTPLATE,
+      name: 'Diamond Chestplate',
+      maxStack: 1,
+      swatchColor: '#86d9e8',
+      glyph: 'C',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.CHEST, defense: 8 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_LEGGINGS,
+    {
+      id: ItemId.DIAMOND_LEGGINGS,
+      name: 'Diamond Leggings',
+      maxStack: 1,
+      swatchColor: '#86d9e8',
+      glyph: 'L',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.LEGS, defense: 6 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.DIAMOND_BOOTS,
+    {
+      id: ItemId.DIAMOND_BOOTS,
+      name: 'Diamond Boots',
+      maxStack: 1,
+      swatchColor: '#86d9e8',
+      glyph: 'B',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.FEET, defense: 3 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
   [ItemId.COOKED_BEEF, {
     id: ItemId.COOKED_BEEF, name: 'Steak', maxStack: 64,
     swatchColor: '#7a4a2a', glyph: 'B', placeable: null, tool: null, weapon: null,
@@ -456,6 +581,7 @@ export const BLOCK_TOOL_CATEGORY: Partial<Record<BlockId, ToolKind>> = {
   [BlockId.COBBLESTONE]: ToolKind.PICKAXE,
   [BlockId.COAL_ORE]:    ToolKind.PICKAXE,
   [BlockId.IRON_ORE]:    ToolKind.PICKAXE,
+  [BlockId.DIAMOND_ORE]: ToolKind.PICKAXE,
 
   [BlockId.WOOD]:   ToolKind.AXE,
   [BlockId.PLANKS]: ToolKind.AXE,
@@ -481,12 +607,16 @@ export function toolMultiplierFor(heldItem: ItemId, target: BlockId): number {
 }
 
 /**
- * The block item that drops when `block` is mined. Stone drops cobblestone
- * (so cobblestone is obtainable and stone tools are craftable); every other
- * block drops itself. Ore-specific drops (coal/raw iron items) are future work.
+ * The item that drops when `block` is mined. Stone drops cobblestone (so
+ * cobblestone is obtainable and stone tools are craftable). Diamond ore drops
+ * the diamond gem (ItemId.DIAMOND) rather than the ore block itself. Every
+ * other block drops itself. Return type is ItemId because gem drops are not
+ * block items; BlockId values are valid ItemId numbers so the widening is safe.
  */
-export function blockDropFor(block: BlockId): BlockId {
-  return block === BlockId.STONE ? BlockId.COBBLESTONE : block;
+export function blockDropFor(block: BlockId): ItemId {
+  if (block === BlockId.STONE) return BlockId.COBBLESTONE;
+  if (block === BlockId.DIAMOND_ORE) return ItemId.DIAMOND;
+  return block;
 }
 
 /** The food item a passive animal drops on death, or null for non-food mobs. */

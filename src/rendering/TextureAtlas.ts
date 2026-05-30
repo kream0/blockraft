@@ -218,6 +218,19 @@ function drawIronOre(ctx: CanvasRenderingContext2D, col: number, row: number, rn
   speckle(ctx, col, row, '#A8703E', 10, rng);
 }
 
+function drawDiamondOre(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  drawStone(ctx, col, row, rng);
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rng() * (TILE - 3));
+    const y = Math.floor(rng() * (TILE - 3));
+    const w = 2 + Math.floor(rng() * 2);
+    const h = 2 + Math.floor(rng() * 2);
+    ctx.fillStyle = '#4FC3F7';
+    ctx.fillRect(col * TILE + x, row * TILE + y, w, h);
+  }
+  speckle(ctx, col, row, '#29B6F6', 10, rng);
+}
+
 function drawFurnaceSide(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Stone-grey furnace body — used for top and bottom faces
   fillTile(ctx, col, row, '#6b6b6b');
@@ -321,7 +334,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 4x4 grid: index = row * COLS + col
-    // Tile 0..15 are real.
+    // Tile 0..18 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -341,6 +354,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawIronOre,
       drawFurnaceFront,  // tile 16 — furnace mouth face (used for all 4 vertical sides)
       drawFurnaceSide,   // tile 17 — plain stone face (used for top and bottom)
+      drawDiamondOre,    // tile 18 — diamond ore (cyan speckled stone)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

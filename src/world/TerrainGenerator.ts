@@ -17,12 +17,16 @@ const BIOME_SNOWY = 2;
 const ORE_MIN_Y = 2;            // never touch bedrock (y=0) or just above it
 const COAL_MAX_Y = 50;
 const IRON_MAX_Y = 28;
+const DIAMOND_MAX_Y = 12;
 const COAL_VEINS_PER_CHUNK = 8;
 const IRON_VEINS_PER_CHUNK = 5;
+const DIAMOND_VEINS_PER_CHUNK = 2;
 const COAL_VEIN_SIZE = 7;       // random-walk steps (ore blocks attempted)
 const IRON_VEIN_SIZE = 5;
+const DIAMOND_VEIN_SIZE = 4;
 const ORE_SALT_COAL = 0x1f1f1f1f;
 const ORE_SALT_IRON = 0x2e2e2e2e;
+const ORE_SALT_DIAMOND = 0x3d3d3d3d;
 
 // Cave carving tuning. Caves are carved into stone only (so the surface skin, bedrock, and water are untouched).
 const CAVE_SCALE_XZ = 0.06;   // horizontal frequency
@@ -130,10 +134,11 @@ export class TerrainGenerator {
     }
   }
 
-  /** Place all ore veins for a chunk. Coal: common, up to mid-depth. Iron: rarer, deep only. */
+  /** Place all ore veins for a chunk. Coal: common, up to mid-depth. Iron: rarer, deep only. Diamond: very rare, very deep. */
   private placeOreVeins(chunk: Chunk): void {
     this.scatterOre(chunk, BlockId.COAL_ORE, COAL_VEINS_PER_CHUNK, COAL_VEIN_SIZE, ORE_MIN_Y, COAL_MAX_Y, ORE_SALT_COAL);
     this.scatterOre(chunk, BlockId.IRON_ORE, IRON_VEINS_PER_CHUNK, IRON_VEIN_SIZE, ORE_MIN_Y, IRON_MAX_Y, ORE_SALT_IRON);
+    this.scatterOre(chunk, BlockId.DIAMOND_ORE, DIAMOND_VEINS_PER_CHUNK, DIAMOND_VEIN_SIZE, ORE_MIN_Y, DIAMOND_MAX_Y, ORE_SALT_DIAMOND);
   }
 
   /** Place a rounded cobblestone boulder on the surface if the chunk's roll succeeds. */

@@ -269,6 +269,122 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: ItemId.IRON_BOOTS, count: 1 },
   },
+  // Diamond Pickaxe (shaped 3x3)
+  // [D, D, D]
+  // [_, S, _]
+  // [_, S, _]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, ItemId.DIAMOND, ItemId.DIAMOND,
+      null,           ItemId.STICK,   null,
+      null,           ItemId.STICK,   null,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.DIAMOND_PICKAXE, count: 1 },
+  },
+  // Diamond Axe (shaped 2x3)
+  // [D, D]
+  // [D, S]
+  // [_, S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, ItemId.DIAMOND,
+      ItemId.DIAMOND, ItemId.STICK,
+      null,           ItemId.STICK,
+    ],
+    width: 2,
+    height: 3,
+    output: { item: ItemId.DIAMOND_AXE, count: 1 },
+  },
+  // Diamond Shovel (shaped 1x3)
+  // [D]
+  // [S]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND,
+      ItemId.STICK,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.DIAMOND_SHOVEL, count: 1 },
+  },
+  // Diamond Sword (shaped 1x3)
+  // [D]
+  // [D]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND,
+      ItemId.DIAMOND,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.DIAMOND_SWORD, count: 1 },
+  },
+  // Diamond Helmet (shaped 3x2)
+  // [D, D, D]
+  // [D, _, D]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, ItemId.DIAMOND, ItemId.DIAMOND,
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+    ],
+    width: 3,
+    height: 2,
+    output: { item: ItemId.DIAMOND_HELMET, count: 1 },
+  },
+  // Diamond Chestplate (shaped 3x3)
+  // [D, _, D]
+  // [D, D, D]
+  // [D, D, D]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+      ItemId.DIAMOND, ItemId.DIAMOND, ItemId.DIAMOND,
+      ItemId.DIAMOND, ItemId.DIAMOND, ItemId.DIAMOND,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.DIAMOND_CHESTPLATE, count: 1 },
+  },
+  // Diamond Leggings (shaped 3x3)
+  // [D, D, D]
+  // [D, _, D]
+  // [D, _, D]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, ItemId.DIAMOND, ItemId.DIAMOND,
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.DIAMOND_LEGGINGS, count: 1 },
+  },
+  // Diamond Boots (shaped 3x2)
+  // [D, _, D]
+  // [D, _, D]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+      ItemId.DIAMOND, null,           ItemId.DIAMOND,
+    ],
+    width: 3,
+    height: 2,
+    output: { item: ItemId.DIAMOND_BOOTS, count: 1 },
+  },
 ];
 
 // ============================================================

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BlockId, ItemId, type ITextureAtlas } from '../types';
 import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
-import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh } from './ToolMeshes';
+import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh, buildDiamondPickaxeMesh, buildDiamondAxeMesh, buildDiamondShovelMesh, buildDiamondSwordMesh } from './ToolMeshes';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -30,6 +30,10 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
       case ItemId.WOODEN_SWORD:    return buildWoodenSwordMesh();
       case ItemId.STONE_SWORD:     return buildStoneSwordMesh();
       case ItemId.IRON_SWORD:      return buildIronSwordMesh();
+      case ItemId.DIAMOND_PICKAXE: return buildDiamondPickaxeMesh();
+      case ItemId.DIAMOND_AXE:     return buildDiamondAxeMesh();
+      case ItemId.DIAMOND_SHOVEL:  return buildDiamondShovelMesh();
+      case ItemId.DIAMOND_SWORD:   return buildDiamondSwordMesh();
       default: {
         const color = new THREE.Color(itemSwatchColor(item));
         return new THREE.Mesh(

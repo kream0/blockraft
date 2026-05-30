@@ -145,6 +145,15 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0x6b6b6b,
     hardness: 3.5,
   },
+  [BlockId.DIAMOND_ORE]: {
+    id: BlockId.DIAMOND_ORE,
+    name: 'Diamond Ore',
+    solid: true,
+    transparent: false,
+    textures: { top: 18, bottom: 18, side: 18 },
+    particleColor: 0x4FC3F7,
+    hardness: 4.0,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;
