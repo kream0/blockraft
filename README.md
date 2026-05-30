@@ -12,7 +12,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ## Current features
 
 ### World
-- Chunked voxel world (16×96×16 chunks) with face-culled meshing
+- Chunked voxel world (16×96×16 chunks) with face-culled meshing — **built off the main thread in a Web Worker**: a padded block "halo" is transferred to the worker, which returns typed-array geometry buffers (with a global-version staleness check so an unloaded/reloaded chunk never picks up a stale result), so heavy chunk streaming no longer stalls the frame; a synchronous mesher remains as an automatic fallback
 - **Ambient occlusion**: chunk meshes bake per-vertex AO, so block crevices, ledges, and the ground beneath trees pick up soft contact shadows (the classic voxel smooth-lighting look) — opaque blocks occlude, foliage/glass/water don't, and a flip-quad split avoids the diagonal-gradient artifact
 - Procedural terrain via Perlin FBM heightmap
 - Trees placed deterministically per chunk (Plains only)
@@ -118,7 +118,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
 - **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
 - **Structure generation (more)**: loot-containers and larger multi-chunk village layouts — v1 boulders, dungeon rooms (iron reward), and single-chunk villages already ship (see World above)
-- **Chunk LOD or async meshing**: move meshing to a Web Worker
+- **Chunk LOD**: distance-based level of detail for far chunks — async meshing in a Web Worker already ships (see World above)
 
 ### Long term / nice-to-haves
 - **Custom resource packs**: swap the procedural texture atlas for user-supplied PNGs
