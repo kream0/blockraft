@@ -8,7 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
-import { toolMultiplierFor, blockDropFor, itemToolDef, itemFoodDef, foodDropForMob } from '../items/ItemRegistry';
+import { toolMultiplierFor, blockDropFor, itemToolDef, itemFoodDef, itemWeaponDef, foodDropForMob } from '../items/ItemRegistry';
 import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
@@ -505,7 +505,7 @@ export class GameSession {
       const selItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? null;
       if (selItem !== this.heldItemId) {
         this.heldItemId = selItem;
-        const isTool = selItem !== null && itemToolDef(selItem) !== null;
+        const isTool = selItem !== null && (itemToolDef(selItem) !== null || itemWeaponDef(selItem) !== null);
         this.viewModel.setHeldItem(selItem === null ? null : buildItemMesh(selItem, this.atlas), isTool);
       }
       this.hud.update(this.player.state, dtMs);
@@ -1206,7 +1206,10 @@ export class GameSession {
     this.playerAttackCooldown = PLAYER_ATTACK_COOLDOWN_S;
     this.audio.playAttack();
     const p = this.player.state.position;
-    const killed = target.takeDamage(PLAYER_ATTACK_DAMAGE, p.x, p.z);
+    const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
+    const weapon = itemWeaponDef(heldItem);
+    const damage = weapon !== null ? weapon.damage : PLAYER_ATTACK_DAMAGE;
+    const killed = target.takeDamage(damage, p.x, p.z);
     if (killed) {
       if (this.gameMode === GameMode.SURVIVAL) {
         const drop = foodDropForMob(target.kind);

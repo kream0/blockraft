@@ -145,3 +145,41 @@ const IRON_HEAD_COLOR = 0xd8d8d8; // bright steel
 export function buildIronPickaxeMesh(): THREE.Group { return buildPickaxeMesh(IRON_HEAD_COLOR); }
 export function buildIronAxeMesh(): THREE.Group { return buildAxeMesh(IRON_HEAD_COLOR); }
 export function buildIronShovelMesh(): THREE.Group { return buildShovelMesh(IRON_HEAD_COLOR); }
+
+/** Returns a new THREE.Group with the sword mesh. bladeColor tints the blade + crossguard; the grip is always dark wood. */
+export function buildSwordMesh(bladeColor: number = HEAD_COLOR): THREE.Group {
+  const group = new THREE.Group();
+
+  // Grip: short handle at the bottom
+  const grip = new THREE.Mesh(
+    new THREE.BoxGeometry(0.09, 0.24, 0.09),
+    new THREE.MeshLambertMaterial({ color: HANDLE_COLOR }),
+  );
+  grip.position.set(0, -0.28, 0);
+  group.add(grip);
+
+  // Crossguard: short horizontal bar above the grip
+  const guard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.08, 0.1),
+    new THREE.MeshLambertMaterial({ color: bladeColor }),
+  );
+  guard.position.set(0, -0.12, 0);
+  group.add(guard);
+
+  // Blade: long vertical bar above the guard
+  const blade = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.6, 0.06),
+    new THREE.MeshLambertMaterial({ color: bladeColor }),
+  );
+  blade.position.set(0, 0.22, 0);
+  group.add(blade);
+
+  // Diagonal tilt — lower-left to upper-right (matches the other tools)
+  group.rotation.z = Math.PI / 4;
+
+  return group;
+}
+
+export function buildWoodenSwordMesh(): THREE.Group { return buildSwordMesh(HEAD_COLOR); }
+export function buildStoneSwordMesh(): THREE.Group { return buildSwordMesh(STONE_HEAD_COLOR); }
+export function buildIronSwordMesh(): THREE.Group { return buildSwordMesh(IRON_HEAD_COLOR); }

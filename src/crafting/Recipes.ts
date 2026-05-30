@@ -168,6 +168,51 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: ItemId.IRON_SHOVEL, count: 1 },
   },
+  // Wooden Sword (shaped 1x3)
+  // [P]
+  // [P]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.PLANKS,
+      BlockId.PLANKS,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.WOODEN_SWORD, count: 1 },
+  },
+  // Stone Sword (shaped 1x3)
+  // [C]
+  // [C]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE,
+      BlockId.COBBLESTONE,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.STONE_SWORD, count: 1 },
+  },
+  // Iron Sword (shaped 1x3)
+  // [I]
+  // [I]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.IRON_SWORD, count: 1 },
+  },
 ];
 
 // ============================================================

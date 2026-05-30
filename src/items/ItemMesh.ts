@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BlockId, ItemId, type ITextureAtlas } from '../types';
 import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
-import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh } from './ToolMeshes';
+import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh } from './ToolMeshes';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -27,6 +27,9 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
       case ItemId.IRON_PICKAXE:    return buildIronPickaxeMesh();
       case ItemId.IRON_AXE:        return buildIronAxeMesh();
       case ItemId.IRON_SHOVEL:     return buildIronShovelMesh();
+      case ItemId.WOODEN_SWORD:    return buildWoodenSwordMesh();
+      case ItemId.STONE_SWORD:     return buildStoneSwordMesh();
+      case ItemId.IRON_SWORD:      return buildIronSwordMesh();
       default: {
         const color = new THREE.Color(itemSwatchColor(item));
         return new THREE.Mesh(

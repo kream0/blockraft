@@ -217,6 +217,9 @@ export const ItemId = {
   COOKED_CHICKEN: 116,
   COOKED_MUTTON: 117,
   IRON_INGOT: 120,
+  WOODEN_SWORD: 130,
+  STONE_SWORD: 131,
+  IRON_SWORD: 132,
 } as const;
 /** A BlockId value (0..15) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
@@ -242,6 +245,12 @@ export interface FoodDef {
   hungerRestore: number;
 }
 
+/** Weapon behavior: the melee attack damage (half-heart points) dealt when this item is held. */
+export interface WeaponDef {
+  /** Absolute melee damage in half-heart points; replaces the base fist damage (PLAYER_ATTACK_DAMAGE) while held. */
+  damage: number;
+}
+
 /** Per-item metadata. Block items synthesize this from their BlockId; non-block items have static defs. */
 export interface ItemDef {
   id: ItemId;
@@ -255,6 +264,8 @@ export interface ItemDef {
   placeable: BlockId | null;
   /** Tool behavior if this item is a tool, else null. */
   tool: ToolDef | null;
+  /** Weapon behavior if this item is a melee weapon, else null. */
+  weapon: WeaponDef | null;
   /** Food behavior if this item is edible, else null. */
   food: FoodDef | null;
 }

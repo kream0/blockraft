@@ -40,7 +40,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - A small herd spawns on dry ground around you when a world loads
 - **Hostile Zombies** spawn at night near the player (capped), chase you, and despawn at dawn
 - **Hostile Skeletons** also spawn at night: a ranged mob that range-band kites the player (keeps its distance) and fires **arrows** on cooldown when line-of-sight is clear; arrows fly straight and deal contact damage in Survival
-- Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated); zombies bite back for contact damage in Survival
+- Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated), **dealing more damage when you're holding a sword**; zombies bite back for contact damage in Survival
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
 - **Terrain step-climbing**: every mob — animals and hostiles alike — hops a 1-block ledge in its path via a shared step-up, so herds and pursuers walk up slopes instead of getting stuck
 - **Ledge/edge avoidance**: the same shared locomotion also vetoes a step that would walk a mob off a drop taller than 3 blocks — wandering animals turn away from cliffs and deep water, and chasers/skeletons stop at the brink instead of suiciding off it (no pathfinding yet — they won't route around the gap)
@@ -56,11 +56,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Items & inventory
 - **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot. **Mining stone yields cobblestone** (as in Minecraft), making it gatherable and feeding stone-tool crafting
 - **Food drops** (Survival): killing a passive animal drops raw food — cow → raw beef, pig → raw porkchop, chicken → raw chicken, sheep → raw mutton — each a stackable item that refills hunger when eaten
-- Items generalize beyond blocks: **sticks**, **iron ingots**, and **tools in three tiers** — **wooden, stone + iron** (pickaxe / axe / shovel each) — are first-class items, each rendered from its own **3D mesh model** (stone tools share the wood silhouette with a grey head; iron tools a pale steel head), with their own stack sizes
+- Items generalize beyond blocks: **sticks**, **iron ingots**, **tools in three tiers** — **wooden, stone + iron** (pickaxe / axe / shovel each) — and **swords in those same three tiers** are first-class items, each rendered from its own **3D mesh model** (stone variants share the wood silhouette with a grey head; iron a pale steel head), with their own stack sizes
 - 36-slot inventory model (9 hotbar + 27 backpack); every slot renders a **live 3D item icon** (blocks as isometric cubes, tools as their 3D models) with stack count, and the inventory persists per-world
 - **Inventory & crafting screen** (both modes): press **E** to open a grid of all 36 slots alongside a 3×3 crafting grid; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
 - **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, planks + sticks → wooden tools, and **cobblestone + sticks → stone tools**; the result previews live in the output slot and the inputs are consumed when you take it
 - **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow), and **iron tools mine faster than stone, which mine faster than wood**
+- **Swords boost melee damage**: holding a sword raises your hit above the bare-fist baseline — **wooden < stone < iron** — so an iron sword one-shots a basic hostile while fists take several swings. Crafted like the other tools (two of the tier material stacked over a stick)
 - **Smelting** (both modes): craft a **Furnace** (a ring of 8 cobblestone) and place it, then **right-click** it to open a 3-slot smelting screen (input · fuel · output). Fuel — **coal, wood, planks, or sticks** (coal lasts longest) — burns to smelt the input over time: **iron ore → iron ingot**, **sand → glass**, **cobblestone → stone**, and **raw food → cooked food** (cooking more than doubles the hunger it restores). The flame gauge and progress arrow animate live, smelting keeps running while the screen is open, and **each furnace's contents persist per-world**. Iron ingots feed the **iron tool tier**; breaking a furnace drops it (and spills its contents) in Survival
 - Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts — but crafting works from palette items too
 
@@ -106,7 +107,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger polish**: a hidden saturation layer and cooked-food items — the core hunger bar (exhaustion drain, health-regen gating, starvation, raw-food drops, hold-to-eat) already ships (see Survival above)
 - **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
-- **A wider recipe book**: more crafting + smelting recipes and further tool/armor tiers — the crafting grid, **wooden / stone / iron tools**, and **smelting via the furnace** (ore→ingot, sand→glass, cobble→stone, raw→cooked food) already ship (see Items & inventory above)
+- **A wider recipe book**: more crafting + smelting recipes and **armor** tiers — the crafting grid, **wooden / stone / iron tools and swords**, and **smelting via the furnace** (ore→ingot, sand→glass, cobble→stone, raw→cooked food) already ship (see Items & inventory above)
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.
