@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { ITextureAtlas } from '../types';
 
 const TILE = 16;
-const COLS = 4;
+const COLS = 5;
 const ROWS = 4;
 const SIZE = TILE * COLS;
 
@@ -218,6 +218,38 @@ function drawIronOre(ctx: CanvasRenderingContext2D, col: number, row: number, rn
   speckle(ctx, col, row, '#A8703E', 10, rng);
 }
 
+function drawFurnaceSide(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Stone-grey furnace body — used for top and bottom faces
+  fillTile(ctx, col, row, '#6b6b6b');
+  speckle(ctx, col, row, '#555555', 24, rng);
+  speckle(ctx, col, row, '#7d7d7d', 12, rng);
+  // Horizontal mortar lines for a brick look
+  ctx.fillStyle = '#4a4a4a';
+  ctx.fillRect(col * TILE, row * TILE + 5,  TILE, 1);
+  ctx.fillRect(col * TILE, row * TILE + 10, TILE, 1);
+  ctx.fillRect(col * TILE, row * TILE + 15, TILE, 1);
+}
+
+function drawFurnaceFront(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Same grey body as drawFurnaceSide
+  fillTile(ctx, col, row, '#6b6b6b');
+  speckle(ctx, col, row, '#555555', 24, rng);
+  speckle(ctx, col, row, '#7d7d7d', 12, rng);
+  ctx.fillStyle = '#4a4a4a';
+  ctx.fillRect(col * TILE, row * TILE + 5,  TILE, 1);
+  ctx.fillRect(col * TILE, row * TILE + 10, TILE, 1);
+  // Lintel bar just above the mouth
+  ctx.fillStyle = '#8a8a8a';
+  ctx.fillRect(col * TILE + 4, row * TILE + 6, 8, 1);
+  // Dark recessed mouth opening x∈[4,12), y∈[7,13)
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(col * TILE + 4, row * TILE + 7, 8, 6);
+  // Ember glow pixels in the lower part of the mouth
+  pixel(ctx, col, row, 5,  11, '#d2691e');
+  pixel(ctx, col, row, 7,  12, '#ff8c1a');
+  pixel(ctx, col, row, 10, 11, '#d2691e');
+}
+
 function drawGlass(ctx: CanvasRenderingContext2D, col: number, row: number, _rng: Rng): void {
   // Mostly transparent-looking pale tint
   ctx.fillStyle = '#C5DDED';
@@ -307,6 +339,8 @@ export class TextureAtlas implements ITextureAtlas {
       drawSnow,
       drawCoalOre,
       drawIronOre,
+      drawFurnaceFront,  // tile 16 — furnace mouth face (used for all 4 vertical sides)
+      drawFurnaceSide,   // tile 17 — plain stone face (used for top and bottom)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

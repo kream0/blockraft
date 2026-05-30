@@ -188,12 +188,13 @@ export const BlockId = {
   SNOW: 12,
   COAL_ORE: 13,
   IRON_ORE: 14,
+  FURNACE: 15,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..14) directly, so a persisted block stack {block,count} reads
+// numeric value (0..15) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -204,13 +205,20 @@ export const ItemId = {
   STONE_PICKAXE: 104,
   STONE_AXE: 105,
   STONE_SHOVEL: 106,
-  // 107-109 reserved for future tools
+  IRON_PICKAXE: 107,
+  IRON_AXE: 108,
+  IRON_SHOVEL: 109,
   RAW_BEEF: 110,
   RAW_PORKCHOP: 111,
   RAW_CHICKEN: 112,
   RAW_MUTTON: 113,
+  COOKED_BEEF: 114,
+  COOKED_PORKCHOP: 115,
+  COOKED_CHICKEN: 116,
+  COOKED_MUTTON: 117,
+  IRON_INGOT: 120,
 } as const;
-/** A BlockId value (0..14) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..15) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===
@@ -277,6 +285,37 @@ export interface ItemStack {
 export type Recipe =
   | { kind: 'shaped'; pattern: (ItemId | null)[]; width: number; height: number; output: ItemStack }
   | { kind: 'shapeless'; ingredients: ItemId[]; output: ItemStack };
+
+// === Smelting / furnace ===
+/** Real-time seconds to smelt one item in a furnace at the base rate. */
+export const SMELT_DURATION_S = 10;
+
+/** A furnace smelting recipe: one input item smelts into one output item (always count 1). */
+export interface SmeltingRecipe {
+  input: ItemId;
+  output: ItemId;
+}
+
+/** Fuel behavior. burnValue = how many items this fuel can smelt (Minecraft-style; coal=8). Seconds of burn = burnValue * SMELT_DURATION_S. */
+export interface FuelDef {
+  burnValue: number;
+}
+
+/**
+ * Live state of one furnace at a world position. Plain & JSON-serializable so it can be
+ * persisted per-world. All three stacks are null when that slot is empty.
+ */
+export interface FurnaceState {
+  input: ItemStack | null;
+  fuel: ItemStack | null;
+  output: ItemStack | null;
+  /** Seconds of fuel burn remaining; >0 means actively lit. */
+  burnTimeRemaining: number;
+  /** Seconds the current lit fuel unit started with, for the flame-gauge ratio. 0 when not lit. */
+  burnTimeTotal: number;
+  /** Seconds of cooking accumulated toward SMELT_DURATION_S for the current input. */
+  cookProgress: number;
+}
 
 // === Day/night cycle ===
 /**

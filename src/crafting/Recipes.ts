@@ -108,6 +108,66 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: ItemId.STONE_SHOVEL, count: 1 },
   },
+  // Furnace — 8 cobblestone ring, empty center (shaped 3x3)
+  // [C, C, C]
+  // [C, _, C]
+  // [C, C, C]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE, BlockId.COBBLESTONE, BlockId.COBBLESTONE,
+      BlockId.COBBLESTONE, null,                BlockId.COBBLESTONE,
+      BlockId.COBBLESTONE, BlockId.COBBLESTONE, BlockId.COBBLESTONE,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: BlockId.FURNACE, count: 1 },
+  },
+  // Iron Pickaxe (shaped 3x3)
+  // [I, I, I]
+  // [_, S, _]
+  // [_, S, _]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+      null,              ItemId.STICK,       null,
+      null,              ItemId.STICK,       null,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.IRON_PICKAXE, count: 1 },
+  },
+  // Iron Axe (shaped 2x3)
+  // [I, I]
+  // [I, S]
+  // [_, S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, ItemId.STICK,
+      null,              ItemId.STICK,
+    ],
+    width: 2,
+    height: 3,
+    output: { item: ItemId.IRON_AXE, count: 1 },
+  },
+  // Iron Shovel (shaped 1x3)
+  // [I]
+  // [S]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT,
+      ItemId.STICK,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.IRON_SHOVEL, count: 1 },
+  },
 ];
 
 // ============================================================

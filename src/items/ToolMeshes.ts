@@ -140,3 +140,8 @@ export function buildShovelMesh(headColor: number = HEAD_COLOR): THREE.Group {
 }
 
 export function buildStoneShovelMesh(): THREE.Group { return buildShovelMesh(STONE_HEAD_COLOR); }
+
+const IRON_HEAD_COLOR = 0xd8d8d8; // bright steel
+export function buildIronPickaxeMesh(): THREE.Group { return buildPickaxeMesh(IRON_HEAD_COLOR); }
+export function buildIronAxeMesh(): THREE.Group { return buildAxeMesh(IRON_HEAD_COLOR); }
+export function buildIronShovelMesh(): THREE.Group { return buildShovelMesh(IRON_HEAD_COLOR); }

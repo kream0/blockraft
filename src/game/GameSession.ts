@@ -17,6 +17,8 @@ import { Physics } from '../player/Physics';
 import { ViewModel } from '../player/ViewModel';
 import { HUD } from '../ui/HUD';
 import { InventoryScreen } from '../ui/InventoryScreen';
+import { FurnaceManager } from '../world/FurnaceManager';
+import { FurnaceScreen } from '../ui/FurnaceScreen';
 import { BlockInteraction } from '../interaction/BlockInteraction';
 import { Cow } from '../entities/Cow';
 import { Pig } from '../entities/Pig';
@@ -75,6 +77,7 @@ import {
   type Vec3,
   type WorldMetadata,
   type WorldSave,
+  type FurnaceState,
 } from '../types';
 
 const FIXED_DT = 1 / 60;
@@ -136,6 +139,7 @@ export interface GameSessionOptions {
   network: INetworkAdapter;
   hudContainer: HTMLElement;
   rendererTarget: HTMLElement;
+  initialFurnaces?: Record<string, FurnaceState>;
   /** Called by the ESC handler. App handles the state transition. */
   onPauseRequested(): void;
   /** Called when the player's health reaches 0. App shows the death overlay. */
@@ -216,6 +220,8 @@ export class GameSession {
   private mineTotal: number = 0;
 
   private inventoryScreen: InventoryScreen;
+  private furnaceScreen: FurnaceScreen;
+  private furnaceManager: FurnaceManager;
   private inventoryKeyHandler: (e: KeyboardEvent) => void;
 
   private resizeHandler: () => void;
@@ -323,7 +329,9 @@ export class GameSession {
 
     // HUD — always created/destroyed per session.
     this.hud = new HUD(this.hudContainer, this.player.inventory.hotbarSlots(), this.gameMode === GameMode.SURVIVAL, this.iconRenderer);
-    this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory, this.iconRenderer);
+    this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
+    this.furnaceScreen = new FurnaceScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
+    this.furnaceManager = new FurnaceManager(opts.initialFurnaces);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -360,7 +368,7 @@ export class GameSession {
 
     // Hotbar slot selection (1-9).
     this.slotKeyHandler = (e: KeyboardEvent): void => {
-      if (this.inventoryScreen.isOpen) return;
+      if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen) return;
       const code = e.code;
       if (code.length !== 6 || !code.startsWith('Digit')) return;
       const digit = Number.parseInt(code.slice(5), 10);
@@ -383,6 +391,11 @@ export class GameSession {
         }
         // Block mining itself is handled per-frame in updateMining().
       } else if (e.button === 2) {
+        const tgt = this.interaction.getTargetedBlock();
+        if (tgt !== null && tgt.block === BlockId.FURNACE) {
+          this.openFurnace(tgt.x, tgt.y, tgt.z);
+          return;
+        }
         this.rightHeld = true;
         if (this.interaction.placeBlock()) {
           if (this.gameMode === GameMode.SURVIVAL) {
@@ -415,6 +428,11 @@ export class GameSession {
     this.inventoryKeyHandler = (e: KeyboardEvent): void => {
       if (e.code !== 'KeyE') return;
       if (!this.started || this.isDead) return;
+      if (this.furnaceScreen.isOpen) {
+        this.furnaceScreen.close();
+        this.requestPointerLock();
+        return;
+      }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
         this.requestPointerLock();           // KeyE keydown is a user gesture → re-lock OK
@@ -431,6 +449,11 @@ export class GameSession {
     this.escKeyHandler = (e: KeyboardEvent): void => {
       if (e.code !== 'Escape') return;
       if (!this.started) return;
+      if (this.furnaceScreen.isOpen) {
+        this.furnaceScreen.close();
+        this.requestPointerLock();
+        return;
+      }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
         this.requestPointerLock();
@@ -452,7 +475,7 @@ export class GameSession {
       this.player.state.pitch = this.controls.input.pitch;
 
       while (this.acc >= FIXED_DT) {
-        if (!this.inventoryScreen.isOpen) {
+        if (!this.inventoryScreen.isOpen && !this.furnaceScreen.isOpen) {
           // Freeze the player in place while dead so the death cam doesn't drift/fall.
           if (!this.isDead) {
             const wasOnGround = this.player.state.onGround;
@@ -470,6 +493,8 @@ export class GameSession {
       }
 
       this.world.update(this.player.state.position);
+      this.furnaceManager.update(dt);
+      if (this.furnaceScreen.isOpen) this.furnaceScreen.refresh();
       this.updateHostiles(dt);
       this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
       this.player.syncCamera();
@@ -574,6 +599,8 @@ export class GameSession {
     this.controls.dispose();
     this.hud.dispose();
     this.inventoryScreen.dispose();
+    this.furnaceScreen.dispose();
+    this.furnaceManager.clear();
 
     // Detach canvas from DOM BEFORE disposing the renderer so a stale GL context
     // can't try to render into a still-attached canvas during dispose.
@@ -626,6 +653,7 @@ export class GameSession {
       overrides: this.world.getOverrides(),
     };
     await this.worldStorage.saveWorld(save);
+    await this.worldStorage.saveFurnaces(this.worldName, this.furnaceManager.serialize());
   }
 
   /** Apply settings live (FOV, mouse sensitivity, invertY, render distance, show FPS). */
@@ -663,6 +691,23 @@ export class GameSession {
   /** Reference the world name (kept so the field is used; reserved for save UI). */
   getWorldName(): string {
     return this.worldName;
+  }
+
+  /** Spawn dropped items for stacks that couldn't be returned to a full inventory on UI close (Survival only). */
+  private spillItem(item: ItemId, count: number): void {
+    if (this._disposed) return;
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    const p = this.player.state.position;
+    this.world.entityManager.spawn(new DroppedItem({ x: p.x, y: p.y + 0.3, z: p.z }, item, count));
+  }
+
+  private openFurnace(x: number, y: number, z: number): void {
+    const state = this.furnaceManager.getOrRegister(x, y, z);
+    this.furnaceScreen.open(state);
+    this.controls.unlock();
+    this.leftHeld = false;
+    this.rightHeld = false;
+    this.eatProgress = 0;
   }
 
   private spawnPassiveMobs(): void {
@@ -1058,6 +1103,20 @@ export class GameSession {
             ),
           );
         }
+        if (broken.block === BlockId.FURNACE) {
+          const contents = this.furnaceManager.unregister(broken.x, broken.y, broken.z);
+          if (this.gameMode === GameMode.SURVIVAL) {
+            for (const stack of contents) {
+              this.world.entityManager.spawn(
+                new DroppedItem(
+                  { x: broken.x + 0.5, y: broken.y + 0.3, z: broken.z + 0.5 },
+                  stack.item,
+                  stack.count,
+                ),
+              );
+            }
+          }
+        }
       }
       // Reset progress; keep mining the next block under the crosshair while still held.
       this.mineProgress = 0;
@@ -1070,7 +1129,7 @@ export class GameSession {
 
   /** Per-frame (survival only): hold right-click on a food item to eat it after EAT_DURATION_S, restoring hunger and consuming one. */
   private updateEating(dt: number): void {
-    if (this.gameMode !== GameMode.SURVIVAL || this.isDead || this.inventoryScreen.isOpen) {
+    if (this.gameMode !== GameMode.SURVIVAL || this.isDead || this.inventoryScreen.isOpen || this.furnaceScreen.isOpen) {
       this.eatProgress = 0;
       return;
     }

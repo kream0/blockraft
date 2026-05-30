@@ -26,6 +26,7 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.WATER]:       '#3B6FCB',
   [BlockId.COAL_ORE]:    '#2B2B2B',
   [BlockId.IRON_ORE]:    '#C8865A',
+  [BlockId.FURNACE]:     '#8a7a6a',
 };
 
 // === Block item identity set — built once at module load ===
@@ -154,6 +155,69 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
     swatchColor: '#b85c4e', glyph: 'M', placeable: null, tool: null,
     food: { hungerRestore: 2 } satisfies FoodDef,
   }],
+  [
+    ItemId.IRON_PICKAXE,
+    {
+      id: ItemId.IRON_PICKAXE,
+      name: 'Iron Pickaxe',
+      maxStack: 1,
+      swatchColor: '#cfcfcf',
+      glyph: 'P',
+      placeable: null,
+      tool: { kind: ToolKind.PICKAXE, speedMultiplier: 8 } satisfies ToolDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_AXE,
+    {
+      id: ItemId.IRON_AXE,
+      name: 'Iron Axe',
+      maxStack: 1,
+      swatchColor: '#cfcfcf',
+      glyph: 'A',
+      placeable: null,
+      tool: { kind: ToolKind.AXE, speedMultiplier: 8 } satisfies ToolDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_SHOVEL,
+    {
+      id: ItemId.IRON_SHOVEL,
+      name: 'Iron Shovel',
+      maxStack: 1,
+      swatchColor: '#cfcfcf',
+      glyph: 'S',
+      placeable: null,
+      tool: { kind: ToolKind.SHOVEL, speedMultiplier: 8 } satisfies ToolDef,
+      food: null,
+    },
+  ],
+  [ItemId.IRON_INGOT, {
+    id: ItemId.IRON_INGOT, name: 'Iron Ingot', maxStack: 64,
+    swatchColor: '#d8d8d8', glyph: 'I', placeable: null, tool: null, food: null,
+  }],
+  [ItemId.COOKED_BEEF, {
+    id: ItemId.COOKED_BEEF, name: 'Steak', maxStack: 64,
+    swatchColor: '#7a4a2a', glyph: 'B', placeable: null, tool: null,
+    food: { hungerRestore: 8 } satisfies FoodDef,
+  }],
+  [ItemId.COOKED_PORKCHOP, {
+    id: ItemId.COOKED_PORKCHOP, name: 'Cooked Porkchop', maxStack: 64,
+    swatchColor: '#c98a5a', glyph: 'O', placeable: null, tool: null,
+    food: { hungerRestore: 8 } satisfies FoodDef,
+  }],
+  [ItemId.COOKED_CHICKEN, {
+    id: ItemId.COOKED_CHICKEN, name: 'Cooked Chicken', maxStack: 64,
+    swatchColor: '#caa86a', glyph: 'C', placeable: null, tool: null,
+    food: { hungerRestore: 6 } satisfies FoodDef,
+  }],
+  [ItemId.COOKED_MUTTON, {
+    id: ItemId.COOKED_MUTTON, name: 'Cooked Mutton', maxStack: 64,
+    swatchColor: '#8a5a3a', glyph: 'M', placeable: null, tool: null,
+    food: { hungerRestore: 6 } satisfies FoodDef,
+  }],
 ]);
 
 /** True if id refers to any known item (block or non-block). */
@@ -248,6 +312,8 @@ export const BLOCK_TOOL_CATEGORY: Partial<Record<BlockId, ToolKind>> = {
   [BlockId.GRASS]: ToolKind.SHOVEL,
   [BlockId.SAND]:  ToolKind.SHOVEL,
   [BlockId.SNOW]:  ToolKind.SHOVEL,
+
+  [BlockId.FURNACE]: ToolKind.PICKAXE,
 };
 
 /**

@@ -136,6 +136,15 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0xC8865A,
     hardness: 3.5,
   },
+  [BlockId.FURNACE]: {
+    id: BlockId.FURNACE,
+    name: 'Furnace',
+    solid: true,
+    transparent: false,
+    textures: { top: 17, bottom: 17, side: 16 },
+    particleColor: 0x6b6b6b,
+    hardness: 3.5,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

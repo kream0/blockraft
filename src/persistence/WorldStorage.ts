@@ -1,15 +1,21 @@
-import type { WorldMetadata, WorldSave, ChunkOverrides } from '../types';
+import type { WorldMetadata, WorldSave, ChunkOverrides, FurnaceState } from '../types';
 
 /** All worlds live in one IndexedDB database; one object store per kind. */
 const DB_NAME = 'mc-clone';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORE_META = 'world_meta';
 const STORE_OVERRIDES = 'world_overrides';
+const STORE_FURNACES = 'world_furnaces';
 
 /** Wrapper row stored in the overrides store. The keyPath is the top-level `name`. */
 interface OverridesRow {
   name: string;
   overrides: ChunkOverrides;
+}
+
+interface FurnacesRow {
+  name: string;
+  furnaces: Record<string, FurnaceState>;
 }
 
 /**
@@ -131,11 +137,40 @@ export class WorldStorage {
   async deleteWorld(name: string): Promise<void> {
     const db = await this._getDB();
     return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([STORE_META, STORE_OVERRIDES], 'readwrite');
+      const tx = db.transaction([STORE_META, STORE_OVERRIDES, STORE_FURNACES], 'readwrite');
       tx.objectStore(STORE_META).delete(name);
       tx.objectStore(STORE_OVERRIDES).delete(name);
+      tx.objectStore(STORE_FURNACES).delete(name);
       tx.onerror = (): void => reject(tx.error ?? new Error('deleteWorld: transaction failed'));
       tx.oncomplete = (): void => resolve();
+    });
+  }
+
+  /** Persist all furnace states for a world. */
+  async saveFurnaces(name: string, furnaces: Record<string, FurnaceState>): Promise<void> {
+    const db = await this._getDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_FURNACES, 'readwrite');
+      const row: FurnacesRow = { name, furnaces };
+      tx.objectStore(STORE_FURNACES).put(row);
+      tx.onerror = (): void => reject(tx.error ?? new Error('saveFurnaces: transaction failed'));
+      tx.oncomplete = (): void => resolve();
+    });
+  }
+
+  /** Load furnace states for a world. Returns {} if none stored (e.g. pre-v2 worlds). */
+  async loadFurnaces(name: string): Promise<Record<string, FurnaceState>> {
+    const db = await this._getDB();
+    return new Promise<Record<string, FurnaceState>>((resolve, reject) => {
+      const tx = db.transaction(STORE_FURNACES, 'readonly');
+      const req = tx.objectStore(STORE_FURNACES).get(name);
+      let furnaces: Record<string, FurnaceState> = {};
+      req.onsuccess = (): void => {
+        const row = req.result as FurnacesRow | undefined;
+        if (row !== undefined) furnaces = row.furnaces;
+      };
+      tx.onerror = (): void => reject(tx.error ?? new Error('loadFurnaces: transaction failed'));
+      tx.oncomplete = (): void => resolve(furnaces);
     });
   }
 
@@ -165,8 +200,18 @@ export class WorldStorage {
         if (!db.objectStoreNames.contains(STORE_OVERRIDES)) {
           db.createObjectStore(STORE_OVERRIDES, { keyPath: 'name' });
         }
+        if (!db.objectStoreNames.contains(STORE_FURNACES)) {
+          db.createObjectStore(STORE_FURNACES, { keyPath: 'name' });
+        }
       };
-      req.onsuccess = (): void => resolve(req.result);
+      req.onsuccess = (): void => {
+        const db = req.result;
+        db.onversionchange = (): void => {
+          this._dbPromise = null;
+          db.close();
+        };
+        resolve(db);
+      };
       req.onerror = (): void => reject(req.error ?? new Error('indexedDB.open failed'));
       req.onblocked = (): void => reject(new Error('indexedDB.open blocked by another connection'));
     });

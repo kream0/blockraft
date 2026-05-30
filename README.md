@@ -19,7 +19,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
 - **Ore veins**: Coal and Iron scatter through stone as deterministic random-walk veins — coal up to mid-depth (y≤50), iron deep only (y≤28); only replaces stone and never touches bedrock
 - **Caves**: underground cave systems carved from a 3D fractal-noise iso-band (`|n| < threshold`) in world coordinates, so caverns connect seamlessly across chunk borders; only stone becomes air (~15–19% carved), leaving the surface skin, bedrock, water, and ore intact (deterministic per seed; carved before ore so veins stay embedded)
-- 15 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Air
+- 16 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Furnace, Air
 - Procedurally generated 16×16 texture atlas (no external image assets)
 
 ### Gameplay
@@ -55,11 +55,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Items & inventory
 - **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot. **Mining stone yields cobblestone** (as in Minecraft), making it gatherable and feeding stone-tool crafting
 - **Food drops** (Survival): killing a passive animal drops raw food — cow → raw beef, pig → raw porkchop, chicken → raw chicken, sheep → raw mutton — each a stackable item that refills hunger when eaten
-- Items generalize beyond blocks: **sticks** and **tools in two tiers** — **wooden + stone** (pickaxe / axe / shovel each) — are first-class items, each rendered from its own **3D mesh model** (stone tools share the wood silhouette with a grey head), with their own stack sizes
+- Items generalize beyond blocks: **sticks**, **iron ingots**, and **tools in three tiers** — **wooden, stone + iron** (pickaxe / axe / shovel each) — are first-class items, each rendered from its own **3D mesh model** (stone tools share the wood silhouette with a grey head; iron tools a pale steel head), with their own stack sizes
 - 36-slot inventory model (9 hotbar + 27 backpack); every slot renders a **live 3D item icon** (blocks as isometric cubes, tools as their 3D models) with stack count, and the inventory persists per-world
 - **Inventory & crafting screen** (both modes): press **E** to open a grid of all 36 slots alongside a 3×3 crafting grid; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
 - **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, planks + sticks → wooden tools, and **cobblestone + sticks → stone tools**; the result previews live in the output slot and the inputs are consumed when you take it
-- **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow), and **stone tools mine faster than wooden ones**
+- **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow), and **iron tools mine faster than stone, which mine faster than wood**
+- **Smelting** (both modes): craft a **Furnace** (a ring of 8 cobblestone) and place it, then **right-click** it to open a 3-slot smelting screen (input · fuel · output). Fuel — **coal, wood, planks, or sticks** (coal lasts longest) — burns to smelt the input over time: **iron ore → iron ingot**, **sand → glass**, **cobblestone → stone**, and **raw food → cooked food** (cooking more than doubles the hunger it restores). The flame gauge and progress arrow animate live, smelting keeps running while the screen is open, and **each furnace's contents persist per-world**. Iron ingots feed the **iron tool tier**; breaking a furnace drops it (and spills its contents) in Survival
 - Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts — but crafting works from palette items too
 
 ### Day & night
@@ -102,7 +103,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger polish**: a hidden saturation layer and cooked-food items — the core hunger bar (exhaustion drain, health-regen gating, starvation, raw-food drops, hold-to-eat) already ships (see Survival above)
 - **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
-- **More recipes & tool tiers**: iron tools, smelting, and a wider recipe book — the crafting grid, wooden tools, and **stone tools** already ship (see Items & inventory above)
+- **A wider recipe book**: more crafting + smelting recipes and further tool/armor tiers — the crafting grid, **wooden / stone / iron tools**, and **smelting via the furnace** (ore→ingot, sand→glass, cobble→stone, raw→cooked food) already ship (see Items & inventory above)
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.

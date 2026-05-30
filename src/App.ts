@@ -13,6 +13,7 @@ import {
   DEFAULT_SETTINGS,
   GameMode,
   type AppState,
+  type FurnaceState,
   type INetworkAdapter,
   type Settings,
   type WorldMetadata,
@@ -307,7 +308,13 @@ export class App {
       this._toast('World not found');
       return;
     }
-    this._startSession(save);
+    let furnaces: Record<string, FurnaceState> = {};
+    try {
+      furnaces = await this.worldStorage.loadFurnaces(name);
+    } catch (err) {
+      console.error('Load furnaces failed:', err);
+    }
+    this._startSession(save, furnaces);
   }
 
   private async _deleteWorld(name: string): Promise<void> {
@@ -348,7 +355,7 @@ export class App {
     this._startSession(save);
   }
 
-  private _startSession(save: WorldSave): void {
+  private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}): void {
     // Bail if a session is already starting or running (fast double-click race guard).
     if (this.session !== null || this.state === 'in_game') return;
     this._flushSettingsSave();
@@ -367,6 +374,7 @@ export class App {
       network: this.network,
       hudContainer: this.hudContainer,
       rendererTarget: document.body,
+      initialFurnaces,
       onPauseRequested: () => {
         // Avoid re-entering pause if we're already there or transitioning.
         if (this.state !== 'in_game') return;

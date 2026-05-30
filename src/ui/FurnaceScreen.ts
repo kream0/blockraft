@@ -1,26 +1,37 @@
-import { INVENTORY_SIZE, HOTBAR_SIZE, CRAFTING_GRID_DIM, CRAFTING_GRID_SLOTS, type ItemStack, type ItemId } from '../types';
+import { INVENTORY_SIZE, HOTBAR_SIZE, SMELT_DURATION_S, type ItemId, type ItemStack, type FurnaceState } from '../types';
 import type { Inventory } from '../player/Inventory';
 import { itemMaxStack } from '../items/ItemRegistry';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
-import { matchRecipe } from '../crafting/Recipes';
 
-const CRAFT_INPUT_BASE = 100;   // synthetic indices 100..108 for the 3x3 inputs
-const CRAFT_OUTPUT_INDEX = 200; // synthetic index for the output slot
+// Synthetic slot indices for the three furnace slots — must not collide with real
+// inventory indices 0..35.
+const FURNACE_INPUT  = 300;
+const FURNACE_FUEL   = 301;
+const FURNACE_OUTPUT = 302;
 
-export class InventoryScreen {
+export class FurnaceScreen {
   isOpen: boolean = false;
+
   private inventory: Inventory;
   private iconRenderer: ItemIconRenderer;
+  private state: FurnaceState | null = null;
+
   private root: HTMLElement;
   private slotEls: (HTMLElement | undefined)[];
   private cursorEl: HTMLElement;
   private cursor: ItemStack | null = null;
   private onMouseMove: (e: MouseEvent) => void;
 
-  private craftGrid: (ItemStack | null)[] = new Array<ItemStack | null>(CRAFTING_GRID_SLOTS).fill(null);
-  private craftOutput: ItemStack | null = null;
-  private craftSlotEls: (HTMLElement | undefined)[] = new Array<HTMLElement | undefined>(CRAFTING_GRID_SLOTS).fill(undefined);
-  private craftOutputEl: HTMLElement;
+  // Furnace slot elements
+  private furnaceInputEl: HTMLElement;
+  private furnaceFuelEl: HTMLElement;
+  private furnaceOutputEl: HTMLElement;
+
+  // Gauge elements
+  private flameGaugeFillEl: HTMLElement;
+  private progressArrowFillEl: HTMLElement;
+  // Fixed track width for progress arrow fill math
+  private readonly ARROW_TRACK_WIDTH = 48;
 
   private onSpill: ((item: ItemId, count: number) => void) | null;
 
@@ -64,43 +75,108 @@ export class InventoryScreen {
 
     // Title
     const title = document.createElement('div');
-    title.textContent = 'Inventory';
+    title.textContent = 'Furnace';
     title.style.cssText = 'font-size:13px;margin-bottom:6px;color:#ccc;';
     panel.appendChild(title);
 
-    // Crafting section: 3x3 grid → arrow → output slot
-    const craftRow = document.createElement('div');
-    craftRow.style.cssText = [
+    // Furnace row: [input+flame+fuel column] [arrow track] [output slot]
+    const furnaceRow = document.createElement('div');
+    furnaceRow.style.cssText = [
       'display:flex',
       'flex-direction:row',
       'align-items:center',
       'margin-bottom:8px',
+      'gap:8px',
     ].join(';');
-    panel.appendChild(craftRow);
+    panel.appendChild(furnaceRow);
 
-    const craftGridEl = document.createElement('div');
-    craftGridEl.style.cssText = [
-      'display:grid',
-      'grid-template-columns:repeat(3, 40px)',
+    // Left column: input slot / flame gauge / fuel slot
+    const leftColumn = document.createElement('div');
+    leftColumn.style.cssText = [
+      'display:flex',
+      'flex-direction:column',
+      'align-items:center',
       'gap:4px',
     ].join(';');
-    craftRow.appendChild(craftGridEl);
+    furnaceRow.appendChild(leftColumn);
 
-    for (let i = 0; i < CRAFTING_GRID_SLOTS; i++) {
-      const synthIndex = CRAFT_INPUT_BASE + i;
-      const cell = this.buildCraftCell(synthIndex);
-      this.craftSlotEls[i] = cell;
-      craftGridEl.appendChild(cell);
-    }
+    // Input slot
+    const inputEl = this.buildFurnaceSlot(FURNACE_INPUT);
+    leftColumn.appendChild(inputEl);
+    this.furnaceInputEl = inputEl;
 
-    const craftArrow = document.createElement('div');
-    craftArrow.textContent = '→';
-    craftArrow.style.cssText = 'margin:0 10px;font-size:18px;color:#aaa;';
-    craftRow.appendChild(craftArrow);
+    // Flame gauge container (16px wide × 18px tall; orange fill anchored to bottom)
+    const flameContainer = document.createElement('div');
+    flameContainer.style.cssText = [
+      'width:16px',
+      'height:18px',
+      'background:#333',
+      'border:1px solid #555',
+      'border-radius:2px',
+      'overflow:hidden',
+      'display:flex',
+      'flex-direction:column',
+      'justify-content:flex-end',
+    ].join(';');
+    leftColumn.appendChild(flameContainer);
 
-    const craftOutputEl = this.buildCraftCell(CRAFT_OUTPUT_INDEX);
-    craftRow.appendChild(craftOutputEl);
-    this.craftOutputEl = craftOutputEl;
+    const flameGaugeFill = document.createElement('div');
+    flameGaugeFill.style.cssText = [
+      'width:100%',
+      'height:0%',
+      'background:#f80',
+      'transition:height 0.1s linear',
+    ].join(';');
+    flameContainer.appendChild(flameGaugeFill);
+    this.flameGaugeFillEl = flameGaugeFill;
+
+    // Fuel slot
+    const fuelEl = this.buildFurnaceSlot(FURNACE_FUEL);
+    leftColumn.appendChild(fuelEl);
+    this.furnaceFuelEl = fuelEl;
+
+    // Progress arrow track (48px wide × 14px tall; green fill from left)
+    const arrowTrack = document.createElement('div');
+    arrowTrack.style.cssText = [
+      `width:${this.ARROW_TRACK_WIDTH}px`,
+      'height:14px',
+      'background:#333',
+      'border:1px solid #555',
+      'border-radius:2px',
+      'overflow:hidden',
+      'position:relative',
+    ].join(';');
+    furnaceRow.appendChild(arrowTrack);
+
+    // Arrow label centered over the track
+    const arrowLabel = document.createElement('div');
+    arrowLabel.textContent = '→';
+    arrowLabel.style.cssText = [
+      'position:absolute',
+      'inset:0',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'font-size:12px',
+      'color:#777',
+      'pointer-events:none',
+    ].join(';');
+    arrowTrack.appendChild(arrowLabel);
+
+    const progressFill = document.createElement('div');
+    progressFill.style.cssText = [
+      'height:100%',
+      'width:0%',
+      'background:rgba(80,200,80,0.55)',
+      'transition:width 0.1s linear',
+    ].join(';');
+    arrowTrack.appendChild(progressFill);
+    this.progressArrowFillEl = progressFill;
+
+    // Output slot
+    const outputEl = this.buildFurnaceSlot(FURNACE_OUTPUT);
+    furnaceRow.appendChild(outputEl);
+    this.furnaceOutputEl = outputEl;
 
     // Backpack grid: slots 9..35 (27 slots, 3 rows × 9)
     const backpackGrid = document.createElement('div');
@@ -162,7 +238,7 @@ export class InventoryScreen {
     // Mouse-move handler (stored for add/remove by open/close)
     this.onMouseMove = (e: MouseEvent): void => {
       this.cursorEl.style.left = (e.clientX - 17) + 'px';
-      this.cursorEl.style.top = (e.clientY - 17) + 'px';
+      this.cursorEl.style.top  = (e.clientY - 17) + 'px';
     };
   }
 
@@ -186,6 +262,7 @@ export class InventoryScreen {
     ].join(';');
   }
 
+  /** Build a regular inventory slot element and register it in slotEls[]. */
   private buildSlotEl(invIndex: number): HTMLElement {
     const el = document.createElement('div');
     el.dataset['index'] = String(invIndex);
@@ -199,8 +276,8 @@ export class InventoryScreen {
     return el;
   }
 
-  /** Build a slot element for craft input/output synthetic indices. Does NOT write to slotEls. */
-  private buildCraftCell(synthIndex: number): HTMLElement {
+  /** Build a furnace slot element (synthetic index; NOT written to slotEls[]). */
+  private buildFurnaceSlot(synthIndex: number): HTMLElement {
     const el = document.createElement('div');
     el.dataset['index'] = String(synthIndex);
     el.style.cssText = this.slotCss();
@@ -224,20 +301,6 @@ export class InventoryScreen {
     }
   }
 
-  refresh(): void {
-    for (let i = 0; i < INVENTORY_SIZE; i++) {
-      const el = this.slotEls[i];
-      if (el === undefined) continue;
-      this.paintTile(el, this.inventory.getSlot(i));
-    }
-    this.updateCursorEl();
-    for (let i = 0; i < CRAFTING_GRID_SLOTS; i++) {
-      const el = this.craftSlotEls[i];
-      if (el !== undefined) this.paintTile(el, this.craftGrid[i] ?? null);
-    }
-    this.paintTile(this.craftOutputEl, this.craftOutput);
-  }
-
   private updateCursorEl(): void {
     if (this.cursor === null) {
       this.cursorEl.style.backgroundImage = 'none';
@@ -252,52 +315,52 @@ export class InventoryScreen {
     }
   }
 
+  /** Read from the appropriate slot (furnace or inventory). Returns null if state not bound. */
   private getCell(index: number): ItemStack | null {
-    if (index >= CRAFT_INPUT_BASE && index < CRAFT_INPUT_BASE + CRAFTING_GRID_SLOTS) {
-      return this.craftGrid[index - CRAFT_INPUT_BASE] ?? null;
+    if (index === FURNACE_INPUT || index === FURNACE_FUEL || index === FURNACE_OUTPUT) {
+      if (this.state === null) return null;
+      if (index === FURNACE_INPUT)  return this.state.input;
+      if (index === FURNACE_FUEL)   return this.state.fuel;
+      // index === FURNACE_OUTPUT
+      return this.state.output;
     }
     return this.inventory.getSlot(index);
   }
 
+  /** Write to the appropriate slot (furnace or inventory). No-op if state not bound for furnace slots. */
   private setCell(index: number, stack: ItemStack | null): void {
-    if (index >= CRAFT_INPUT_BASE && index < CRAFT_INPUT_BASE + CRAFTING_GRID_SLOTS) {
-      this.craftGrid[index - CRAFT_INPUT_BASE] = stack;
+    if (index === FURNACE_INPUT || index === FURNACE_FUEL || index === FURNACE_OUTPUT) {
+      if (this.state === null) return;
+      if (index === FURNACE_INPUT)  { this.state.input  = stack; return; }
+      if (index === FURNACE_FUEL)   { this.state.fuel   = stack; return; }
+      // index === FURNACE_OUTPUT
+      this.state.output = stack;
       return;
     }
     this.inventory.setSlot(index, stack);
   }
 
-  private recomputeOutput(): void {
-    const ids: (ItemId | null)[] = this.craftGrid.map(s => (s !== null ? s.item : null));
-    this.craftOutput = matchRecipe(ids, CRAFTING_GRID_DIM);
-  }
-
-  private handleTakeResult(): void {
-    if (this.craftOutput === null) return;
-    const out = this.craftOutput;
-    if (this.cursor === null) {
-      this.cursor = { item: out.item, count: out.count };
-    } else if (this.cursor.item === out.item && this.cursor.count + out.count <= itemMaxStack(out.item)) {
-      this.cursor = { item: this.cursor.item, count: this.cursor.count + out.count };
-    } else {
-      // cursor holds a different item, or no room (e.g. tools maxStack=1) — can't take
-      return;
-    }
-    // Consume exactly one of each non-empty input cell.
-    for (let i = 0; i < this.craftGrid.length; i++) {
-      const cell = this.craftGrid[i] ?? null;
-      if (cell !== null) {
-        const left = cell.count - 1;
-        this.craftGrid[i] = left > 0 ? { item: cell.item, count: left } : null;
-      }
-    }
-  }
-
   private handleSlotMouseDown(index: number, button: number): void {
-    // Output slot: take crafted result then return early.
-    if (index === CRAFT_OUTPUT_INDEX) {
-      this.handleTakeResult();
-      this.recomputeOutput();
+    // Output slot: take-only rule — never deposit into it.
+    if (index === FURNACE_OUTPUT) {
+      if (this.state === null) return;
+      const out = this.state.output;
+      if (out === null) return; // nothing to take
+
+      if (this.cursor === null) {
+        // Pick up the whole output stack regardless of button.
+        this.cursor = { item: out.item, count: out.count };
+        this.state.output = null;
+      } else if (this.cursor.item === out.item) {
+        const available = itemMaxStack(out.item) - this.cursor.count;
+        if (available >= out.count) {
+          // Cursor has room for the entire output stack — merge it in.
+          this.cursor = { item: this.cursor.item, count: this.cursor.count + out.count };
+          this.state.output = null;
+        }
+        // else: cursor full or different item — no-op (do not swap into output).
+      }
+      // cursor holds a different item: no-op.
       this.refresh();
       return;
     }
@@ -369,12 +432,39 @@ export class InventoryScreen {
       }
     }
 
-    // Recompute output after any change (cheap, harmless on inventory-only clicks).
-    this.recomputeOutput();
     this.refresh();
   }
 
-  open(): void {
+  refresh(): void {
+    // Paint all 36 inventory slots
+    for (let i = 0; i < INVENTORY_SIZE; i++) {
+      const el = this.slotEls[i];
+      if (el === undefined) continue;
+      this.paintTile(el, this.inventory.getSlot(i));
+    }
+
+    // Paint the 3 furnace slots (read from live state if bound, else show empty)
+    this.paintTile(this.furnaceInputEl,  this.state !== null ? this.state.input  : null);
+    this.paintTile(this.furnaceFuelEl,   this.state !== null ? this.state.fuel   : null);
+    this.paintTile(this.furnaceOutputEl, this.state !== null ? this.state.output : null);
+
+    // Update flame gauge: bottom-anchored orange fill, height = burn ratio.
+    const flameRatio = (this.state !== null && this.state.burnTimeTotal > 0)
+      ? Math.max(0, Math.min(1, this.state.burnTimeRemaining / this.state.burnTimeTotal))
+      : 0;
+    this.flameGaugeFillEl.style.height = Math.round(flameRatio * 100) + '%';
+
+    // Update progress arrow: left-to-right green fill, width = cook ratio.
+    const cookRatio = this.state !== null
+      ? Math.max(0, Math.min(1, this.state.cookProgress / SMELT_DURATION_S))
+      : 0;
+    this.progressArrowFillEl.style.width = Math.round(cookRatio * 100) + '%';
+
+    this.updateCursorEl();
+  }
+
+  open(state: FurnaceState): void {
+    this.state = state;
     this.isOpen = true;
     this.root.style.display = 'flex';
     this.refresh();
@@ -382,37 +472,21 @@ export class InventoryScreen {
   }
 
   close(): void {
+    // Return any cursor-held stack to the player inventory (conservation invariant).
+    // Do NOT touch the 3 furnace slots — they belong to the furnace's FurnaceState.
     if (this.cursor !== null) {
-      // Return held items to the inventory (conservation invariant: always fits)
       const heldItem = this.cursor.item;
       const leftover = this.inventory.add(this.cursor.item, this.cursor.count);
       if (leftover > 0) {
         if (this.onSpill !== null) {
           this.onSpill(heldItem, leftover);
         } else {
-          console.error(`[InventoryScreen] close() could not return ${leftover} held item(s) — inventory full`);
+          console.error(`[FurnaceScreen] close() could not return ${leftover} held item(s) — inventory full`);
         }
       }
       this.cursor = null;
     }
-    // Return craft-grid inputs to the inventory (conservation: no item loss on close).
-    // The output slot is a computed preview — do NOT add it to the inventory.
-    for (let i = 0; i < this.craftGrid.length; i++) {
-      const cell = this.craftGrid[i] ?? null;
-      if (cell !== null) {
-        const cellItem = cell.item;
-        const leftover = this.inventory.add(cell.item, cell.count);
-        if (leftover > 0) {
-          if (this.onSpill !== null) {
-            this.onSpill(cellItem, leftover);
-          } else {
-            console.error(`[InventoryScreen] close() could not return ${leftover} craft input(s) — inventory full`);
-          }
-        }
-        this.craftGrid[i] = null;
-      }
-    }
-    this.craftOutput = null;
+    this.state = null;
     this.isOpen = false;
     this.root.style.display = 'none';
     this.updateCursorEl();
@@ -420,13 +494,11 @@ export class InventoryScreen {
   }
 
   dispose(): void {
-    // Route teardown through close() so a held cursor stack is returned to the
-    // inventory, craft inputs are returned, and the mousemove listener is removed.
+    // Route through close() so the cursor is returned and the mousemove listener removed.
     this.close();
     if (this.root.parentNode !== null) {
       this.root.parentNode.removeChild(this.root);
     }
     this.slotEls = [];
-    this.craftSlotEls = [];
   }
 }
