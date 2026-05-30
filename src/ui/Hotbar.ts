@@ -3,6 +3,11 @@ import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 
 const SLOT_COUNT = HOTBAR_SIZE;
 
+interface SlotCache {
+  item: number;
+  count: number;
+}
+
 export class Hotbar {
   slots: HTMLElement[];
   selectedSlot: number;
@@ -11,10 +16,18 @@ export class Hotbar {
   private showCounts: boolean;
   private iconRenderer: ItemIconRenderer;
 
+  // Per-slot last-rendered state. null means slot was empty; sentinel -1 item ensures first call writes.
+  private _slotCache: Array<SlotCache | null>;
+  // Last selected index, -1 sentinel ensures first call applies highlight.
+  private _lastSelected: number = -1;
+
   constructor(container: HTMLElement, stacks: ReadonlyArray<ItemStack | null>, showCounts: boolean, iconRenderer: ItemIconRenderer) {
     this.selectedSlot = 0;
     this.showCounts = showCounts;
     this.iconRenderer = iconRenderer;
+    // Initialize per-slot cache with a sentinel that differs from any real stack,
+    // so the first setStacks call unconditionally writes every slot.
+    this._slotCache = Array.from({ length: SLOT_COUNT }, () => ({ item: -1, count: -1 }));
 
     const root = document.createElement('div');
     root.className = 'mc-hotbar';
@@ -69,26 +82,38 @@ export class Hotbar {
       const slot = this.slots[i];
       if (slot === undefined) continue;
       const stack = stacks[i] ?? null;
+      const cached = this._slotCache[i] ?? null;
+
       if (stack === null) {
-        slot.style.backgroundImage = 'none';
-        slot.style.backgroundColor = 'transparent';
-        slot.textContent = '';
+        // Only write DOM when this slot was previously non-empty (or sentinel).
+        if (cached !== null) {
+          this._slotCache[i] = null;
+          slot.style.backgroundImage = 'none';
+          slot.style.backgroundColor = 'transparent';
+          slot.textContent = '';
+        }
       } else {
-        slot.style.backgroundColor = 'transparent';
-        slot.style.backgroundImage = `url(${this.iconRenderer.getIcon(stack.item)})`;
-        slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
+        // Only write DOM when item id or count changed since last render.
+        if (cached === null || cached.item !== stack.item || cached.count !== stack.count) {
+          this._slotCache[i] = { item: stack.item, count: stack.count };
+          slot.style.backgroundColor = 'transparent';
+          slot.style.backgroundImage = `url(${this.iconRenderer.getIcon(stack.item)})`;
+          slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
+        }
       }
     }
   }
 
   setSelectedSlot(slot: number): void {
     if (slot < 0 || slot >= this.slots.length) return;
+    if (slot === this._lastSelected) return;
     const prev = this.slots[this.selectedSlot];
     if (prev !== undefined) {
       prev.style.borderColor = 'white';
       prev.style.outline = '';
     }
     this.selectedSlot = slot;
+    this._lastSelected = slot;
     const cur = this.slots[slot];
     if (cur !== undefined) {
       cur.style.borderColor = '#FFD24A';

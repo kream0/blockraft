@@ -10,6 +10,8 @@ export class EntityManager implements IEntityManager {
   private entities = new Map<number, IEntity>();
   private nextId: number = 1;
   private group: THREE.Group;
+  private _allCache: IEntity[] = [];
+  private _allDirty = true;
 
   constructor(group: THREE.Group) {
     this.group = group;
@@ -22,6 +24,7 @@ export class EntityManager implements IEntityManager {
       this.group.add(entity.object3D);
     }
     this.entities.set(assigned, entity);
+    this._allDirty = true;
     return assigned;
   }
 
@@ -33,6 +36,7 @@ export class EntityManager implements IEntityManager {
     }
     entity.dispose();
     this.entities.delete(id);
+    this._allDirty = true;
   }
 
   get(id: number): IEntity | undefined {
@@ -40,13 +44,19 @@ export class EntityManager implements IEntityManager {
   }
 
   get all(): ReadonlyArray<IEntity> {
-    return Array.from(this.entities.values());
+    if (this._allDirty) {
+      this._allCache = Array.from(this.entities.values());
+      this._allDirty = false;
+    }
+    return this._allCache;
   }
 
   update(dt: number, world: IWorld): void {
     // Snapshot so an entity that despawns another (or itself) during update
-    // doesn't break iteration.
-    const snapshot = Array.from(this.entities.values());
+    // doesn't break iteration. _allCache is a stable array reference; despawn()
+    // only removes from the Map and flips _allDirty — it never mutates the cache
+    // array itself, so iterating snapshot mid-loop is safe.
+    const snapshot = this.all;
     for (const entity of snapshot) {
       try {
         entity.update(dt, world);

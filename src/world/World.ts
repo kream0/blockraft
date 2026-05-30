@@ -52,6 +52,18 @@ export class World implements IWorld {
   /** Chunks awaiting a single remesh at the end of the current setBlock cascade. */
   private readonly pendingRemesh: Set<Chunk> = new Set();
 
+  // --- Streaming dirty-gate state ---
+  /** Chunk X coord of the player's position at the last load-scan. NaN forces a scan on the first update. */
+  private _lastScanCx = Number.NaN;
+  /** Chunk Z coord of the player's position at the last load-scan. NaN forces a scan on the first update. */
+  private _lastScanCz = Number.NaN;
+  /**
+   * True when the chunk set may have changed (load or unload) since the last scan, so the
+   * next update() must re-run the load-scan even if the player hasn't moved chunk coords.
+   * Initialised true so the very first update always scans.
+   */
+  private _streamingDirty = true;
+
   constructor(
     atlas: ITextureAtlas,
     material: THREE.Material,
@@ -96,6 +108,7 @@ export class World implements IWorld {
 
   setRenderDistance(d: number): void {
     this.renderDistance = this.clampRenderDistance(d);
+    this._streamingDirty = true;
   }
 
   /** Returns a JSON-friendly snapshot of current overrides. */
@@ -394,50 +407,68 @@ export class World implements IWorld {
     const pcx = floorDiv(Math.floor(playerPos.x), CHUNK_SIZE);
     const pcz = floorDiv(Math.floor(playerPos.z), CHUNK_SIZE);
 
-    // 1. Unload chunks outside (renderDistance + 1) chebyshev distance.
-    const unloadRadius = this.renderDistance + 1;
-    const toUnload: string[] = [];
-    for (const [key, chunk] of this.chunks) {
-      const ddx = Math.abs(chunk.cx - pcx);
-      const ddz = Math.abs(chunk.cz - pcz);
-      if (ddx > unloadRadius || ddz > unloadRadius) {
-        toUnload.push(key);
+    // Early-exit the load-scan + sort when the player hasn't moved to a new chunk coord
+    // and the chunk set hasn't changed since the last scan. flushDirty still runs every frame.
+    const coordsChanged = pcx !== this._lastScanCx || pcz !== this._lastScanCz;
+    if (coordsChanged || this._streamingDirty) {
+      // 1. Unload chunks outside (renderDistance + 1) chebyshev distance.
+      const unloadRadius = this.renderDistance + 1;
+      const toUnload: string[] = [];
+      for (const [key, chunk] of this.chunks) {
+        const ddx = Math.abs(chunk.cx - pcx);
+        const ddz = Math.abs(chunk.cz - pcz);
+        if (ddx > unloadRadius || ddz > unloadRadius) {
+          toUnload.push(key);
+        }
       }
-    }
-    for (const key of toUnload) {
-      const chunk = this.chunks.get(key);
-      if (!chunk) continue;
-      if (chunk.mesh) {
-        this.group.remove(chunk.mesh);
+      for (const key of toUnload) {
+        const chunk = this.chunks.get(key);
+        if (!chunk) continue;
+        if (chunk.mesh) {
+          this.group.remove(chunk.mesh);
+        }
+        if (chunk.waterMesh) {
+          this.group.remove(chunk.waterMesh);
+        }
+        chunk.dispose();
+        this.dirtyChunks.delete(chunk);
+        this.chunks.delete(key);
+        // An unload changes the chunk set — re-scan next frame to detect any follow-on work.
+        this._streamingDirty = true;
       }
-      if (chunk.waterMesh) {
-        this.group.remove(chunk.waterMesh);
+
+      // 2. Find missing chunks in range; sort by distance from player; load up to MAX_NEW_CHUNKS_PER_UPDATE.
+      type Pending = { cx: number; cz: number; dist2: number };
+      const pending: Pending[] = [];
+      for (let dz = -this.renderDistance; dz <= this.renderDistance; dz++) {
+        for (let dx = -this.renderDistance; dx <= this.renderDistance; dx++) {
+          const cx = pcx + dx;
+          const cz = pcz + dz;
+          if (this.chunks.has(World.key(cx, cz))) continue;
+          pending.push({ cx, cz, dist2: dx * dx + dz * dz });
+        }
       }
-      chunk.dispose();
-      this.dirtyChunks.delete(chunk);
-      this.chunks.delete(key);
+      pending.sort((a, b) => a.dist2 - b.dist2);
+
+      const loadCount = Math.min(MAX_NEW_CHUNKS_PER_UPDATE, pending.length);
+      for (let i = 0; i < loadCount; i++) {
+        const p = pending[i]!;
+        this.loadChunk(p.cx, p.cz);
+        // loadChunk sets _streamingDirty = true so we keep scanning until all chunks settle.
+      }
+
+      // Record the scan position. Clear the dirty flag only when there was nothing left to load
+      // (pending is fully satisfied). If we still had work, keep dirty so the next frame rescans.
+      this._lastScanCx = pcx;
+      this._lastScanCz = pcz;
+      if (pending.length === 0) {
+        // All in-range chunks are present and no unloads happened this frame — steady state.
+        this._streamingDirty = false;
+      }
+      // If pending.length > 0, loadChunk already set _streamingDirty = true, so next frame rescans.
     }
 
-    // 2. Find missing chunks in range; sort by distance from player; load up to MAX_NEW_CHUNKS_PER_UPDATE.
-    type Pending = { cx: number; cz: number; dist2: number };
-    const pending: Pending[] = [];
-    for (let dz = -this.renderDistance; dz <= this.renderDistance; dz++) {
-      for (let dx = -this.renderDistance; dx <= this.renderDistance; dx++) {
-        const cx = pcx + dx;
-        const cz = pcz + dz;
-        if (this.chunks.has(World.key(cx, cz))) continue;
-        pending.push({ cx, cz, dist2: dx * dx + dz * dz });
-      }
-    }
-    pending.sort((a, b) => a.dist2 - b.dist2);
-
-    const loadCount = Math.min(MAX_NEW_CHUNKS_PER_UPDATE, pending.length);
-    for (let i = 0; i < loadCount; i++) {
-      const p = pending[i]!;
-      this.loadChunk(p.cx, p.cz);
-    }
-
-    // 3. Flush some dirty chunks.
+    // 3. Flush some dirty chunks — runs EVERY frame regardless of the gate above.
     this.flushDirty(MAX_REMESH_PER_UPDATE);
   }
 
@@ -451,6 +482,9 @@ export class World implements IWorld {
       }
     }
     this.chunks.set(World.key(cx, cz), chunk);
+    // A new chunk was added — signal that the next frame must re-scan (neighbors may now
+    // need this chunk's presence to decide border remeshes, and pending may still have more).
+    this._streamingDirty = true;
     // Mark all four neighbors dirty so their borders re-mesh against this new chunk.
     const neighbors: [number, number][] = [
       [cx - 1, cz],

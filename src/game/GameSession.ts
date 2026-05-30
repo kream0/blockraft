@@ -96,6 +96,8 @@ const HOSTILE_SPAWN_INTERVAL_S = 4;
 const HOSTILE_SPAWN_MIN_RADIUS = 12;
 const HOSTILE_SPAWN_MAX_RADIUS = 28;
 const HOSTILE_SPAWN_ATTEMPTS = 12;
+// Sky and ambient updates are imperceptible at >10 Hz; throttle to save GPU state changes.
+const SKY_UPDATE_INTERVAL_S = 0.1;
 
 /**
  * Finds a dry-land surface to spawn the player on.
@@ -202,6 +204,11 @@ export class GameSession {
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
+  // Initialized to the interval so the very first frame applies the sky immediately (no black-sky flash).
+  private skyAcc: number = SKY_UPDATE_INTERVAL_S;
+  // Reusable scratch vectors for findMeleeTarget — avoids per-frame allocations.
+  private _scratchEye = new THREE.Vector3();
+  private _scratchFwd = new THREE.Vector3();
 
   /** Accumulated activity exhaustion; each EXHAUSTION_PER_HUNGER converts to -1 hunger. */
   private exhaustion = 0;
@@ -523,9 +530,14 @@ export class GameSession {
       }
       this.hud.update(this.player.state, dtMs);
       this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
-      this.dayNight.update(dt);
-      this.renderer.applySky(this.dayNight.getSkyState());
-      this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.skyAcc += dt;
+      if (this.skyAcc >= SKY_UPDATE_INTERVAL_S) {
+        // Advance by the accumulated time so total simulated day length is conserved.
+        this.dayNight.update(this.skyAcc);
+        this.renderer.applySky(this.dayNight.getSkyState());
+        this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+        this.skyAcc = 0;
+      }
       this.hud.setUnderwater(this.isHeadSubmerged());
       this.updateBreath(dt);
       this.updateHealthRegen(dt);
@@ -1216,10 +1228,8 @@ export class GameSession {
    * ~35° cone around the camera's forward direction. Null if nothing is in reach/sight.
    */
   private findMeleeTarget(): Mob | null {
-    const eye = this.player.camera.getWorldPosition(new THREE.Vector3());
-    const fwd = new THREE.Vector3(0, 0, -1)
-      .applyQuaternion(this.player.camera.quaternion)
-      .normalize();
+    const eye = this.player.camera.getWorldPosition(this._scratchEye);
+    const fwd = this._scratchFwd.set(0, 0, -1).applyQuaternion(this.player.camera.quaternion).normalize();
     const cosCone = Math.cos((35 * Math.PI) / 180);
     let best: Mob | null = null;
     let bestDist = Infinity;

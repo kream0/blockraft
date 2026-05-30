@@ -75,6 +75,20 @@ export class HUD {
   private fpsInitialized: boolean = false;
   private showFps: boolean = true;
 
+  // Dirty-flag caches — sentinel values ensure first call always writes.
+  private _lastFpsStr: string = '';
+  private _lastPosStr: string = '';
+  private _lastTimeStr: string = '';
+  private _lastUnderwater: boolean | null = null;
+  private _lastHealthVal: number = -1;
+  private _lastHealthMax: number = -1;
+  private _lastAirVal: number = -1;
+  private _lastAirMax: number = -1;
+  private _lastHungerVal: number = -1;
+  private _lastHungerMax: number = -1;
+  private _lastArmorVal: number = -1;
+  private _lastArmorMax: number = -1;
+
   constructor(container: HTMLElement, hotbarStacks: ReadonlyArray<ItemStack | null>, showCounts: boolean, iconRenderer: ItemIconRenderer) {
     ensureStyle();
 
@@ -213,11 +227,18 @@ export class HUD {
       this.fpsEma = this.fpsEma + (instFps - this.fpsEma) * alpha;
     }
     if (this.showFps) {
-      this.fpsEl.textContent = 'FPS: ' + this.fpsEma.toFixed(0);
+      const fpsStr = 'FPS: ' + this.fpsEma.toFixed(0);
+      if (fpsStr !== this._lastFpsStr) {
+        this._lastFpsStr = fpsStr;
+        this.fpsEl.textContent = fpsStr;
+      }
     }
     const p = player.position;
-    this.posEl.textContent =
-      'Pos: ' + p.x.toFixed(1) + ', ' + p.y.toFixed(1) + ', ' + p.z.toFixed(1);
+    const posStr = 'Pos: ' + p.x.toFixed(1) + ', ' + p.y.toFixed(1) + ', ' + p.z.toFixed(1);
+    if (posStr !== this._lastPosStr) {
+      this._lastPosStr = posStr;
+      this.posEl.textContent = posStr;
+    }
 
     if (this.hotbar.selectedSlot !== player.selectedSlot) {
       this.hotbar.setSelectedSlot(player.selectedSlot);
@@ -239,11 +260,17 @@ export class HUD {
     const minutesOfDay = Math.floor((((t % 1) + 1) % 1) * 24 * 60);
     const hh = Math.floor(minutesOfDay / 60) % 24;
     const mm = minutesOfDay % 60;
-    this.timeEl.textContent =
-      'Time: ' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    const timeStr = 'Time: ' + String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    if (timeStr !== this._lastTimeStr) {
+      this._lastTimeStr = timeStr;
+      this.timeEl.textContent = timeStr;
+    }
   }
 
   setHealth(hp: number, max: number): void {
+    if (hp === this._lastHealthVal && max === this._lastHealthMax) return;
+    this._lastHealthVal = hp;
+    this._lastHealthMax = max;
     const clamped = Math.max(0, Math.min(max, hp));
     this.healthEl.hidden = false;
     this.heartFills.forEach((fg, i) => {
@@ -254,6 +281,9 @@ export class HUD {
   }
 
   setAir(air: number, max: number): void {
+    if (air === this._lastAirVal && max === this._lastAirMax) return;
+    this._lastAirVal = air;
+    this._lastAirMax = max;
     if (air >= max) {
       this.airEl.hidden = true;
       return;
@@ -268,6 +298,9 @@ export class HUD {
   }
 
   setHunger(hunger: number, max: number): void {
+    if (hunger === this._lastHungerVal && max === this._lastHungerMax) return;
+    this._lastHungerVal = hunger;
+    this._lastHungerMax = max;
     const clamped = Math.max(0, Math.min(max, hunger));
     this.hungerEl.hidden = false;
     this.hungerFills.forEach((fg, i) => {
@@ -279,6 +312,9 @@ export class HUD {
 
   /** Render the armor bar from total armor points. Hidden entirely at 0. `max` is the points scale across all 10 icons (2 points each). */
   setArmor(points: number, max: number): void {
+    if (points === this._lastArmorVal && max === this._lastArmorMax) return;
+    this._lastArmorVal = points;
+    this._lastArmorMax = max;
     if (points <= 0) {
       this.armorEl.hidden = true;
       return;
@@ -307,6 +343,8 @@ export class HUD {
 
   /** Fade the blue underwater tint in (active) or out. The CSS transition handles the animation. */
   setUnderwater(active: boolean): void {
+    if (active === this._lastUnderwater) return;
+    this._lastUnderwater = active;
     this.underwaterEl.style.opacity = active ? '1' : '0';
   }
 

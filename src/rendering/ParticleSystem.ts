@@ -157,11 +157,18 @@ export class ParticleSystem {
     }
 
     const geometry = this.object3D.geometry;
-    geometry.setDrawRange(0, this.count);
-    geometry.attributes['position']!.needsUpdate = true;
-    if (removed) {
-      // A swap-remove copied a (possibly different) color into a recycled slot; re-upload colors.
-      geometry.attributes['color']!.needsUpdate = true;
+    if (this.count > 0) {
+      // Live particles remain — update draw range and flag both buffers for GPU upload.
+      geometry.setDrawRange(0, this.count);
+      geometry.attributes['position']!.needsUpdate = true;
+      if (removed) {
+        // A swap-remove copied a (possibly different) color into a recycled slot; re-upload colors.
+        geometry.attributes['color']!.needsUpdate = true;
+      }
+    } else {
+      // All particles expired this frame — collapse the draw range so the GPU draws nothing.
+      // The early-return at the top of update() will skip all work on subsequent frames.
+      geometry.setDrawRange(0, 0);
     }
   }
 
