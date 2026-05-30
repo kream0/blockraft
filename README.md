@@ -25,7 +25,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Gameplay
 - First-person controls (WASD + mouse look + jump + sprint)
 - AABB physics with per-axis swept collision (Y → X → Z) and gravity
-- **Progressive mining**: hold left-click to break a block — mining time scales with the block's hardness (dirt is quick, stone slower, ore tougher, bedrock unbreakable), shown by a radial progress ring on the crosshair; releasing or looking away cancels. Creative mode breaks instantly.
+- **Progressive mining**: hold left-click to break a block — mining time scales with the block's hardness (dirt is quick, stone slower, ore tougher, bedrock unbreakable), shown by a radial progress ring on the crosshair **and a Minecraft-style destroy-stage crack overlay that deepens on the block itself** (10 cumulative stages); releasing or looking away cancels. Creative mode breaks instantly.
 - **First-person hand**: a camera-attached view-model arm that swings when you mine, attack, or place
 - DDA voxel raycasting picks the block under the crosshair for break/place
 - 9-slot hotbar with number-key selection
