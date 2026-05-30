@@ -47,6 +47,13 @@ export class PerlinNoise {
     return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
   }
 
+  private static grad3(hash: number, x: number, y: number, z: number): number {
+    const h = hash & 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+  }
+
   /** 2D noise in approximately [-1, 1]. */
   noise2D(x: number, y: number): number {
     const xi = Math.floor(x) & 255;
@@ -75,6 +82,71 @@ export class PerlinNoise {
     );
 
     return PerlinNoise.lerp(x1, x2, v);
+  }
+
+  /** 3D noise in approximately [-1, 1]. */
+  noise3D(x: number, y: number, z: number): number {
+    const xi = Math.floor(x) & 255;
+    const yi = Math.floor(y) & 255;
+    const zi = Math.floor(z) & 255;
+    const xf = x - Math.floor(x);
+    const yf = y - Math.floor(y);
+    const zf = z - Math.floor(z);
+
+    const u = PerlinNoise.fade(xf);
+    const v = PerlinNoise.fade(yf);
+    const w = PerlinNoise.fade(zf);
+
+    const p = this.perm;
+    const a = (p[xi] ?? 0) + yi;
+    const aa = (p[a] ?? 0) + zi;
+    const ab = (p[a + 1] ?? 0) + zi;
+    const b = (p[xi + 1] ?? 0) + yi;
+    const ba = (p[b] ?? 0) + zi;
+    const bb = (p[b + 1] ?? 0) + zi;
+
+    const x1 = PerlinNoise.lerp(
+      PerlinNoise.lerp(
+        PerlinNoise.grad3(p[aa] ?? 0, xf, yf, zf),
+        PerlinNoise.grad3(p[ba] ?? 0, xf - 1, yf, zf),
+        u,
+      ),
+      PerlinNoise.lerp(
+        PerlinNoise.grad3(p[ab] ?? 0, xf, yf - 1, zf),
+        PerlinNoise.grad3(p[bb] ?? 0, xf - 1, yf - 1, zf),
+        u,
+      ),
+      v,
+    );
+    const x2 = PerlinNoise.lerp(
+      PerlinNoise.lerp(
+        PerlinNoise.grad3(p[aa + 1] ?? 0, xf, yf, zf - 1),
+        PerlinNoise.grad3(p[ba + 1] ?? 0, xf - 1, yf, zf - 1),
+        u,
+      ),
+      PerlinNoise.lerp(
+        PerlinNoise.grad3(p[ab + 1] ?? 0, xf, yf - 1, zf - 1),
+        PerlinNoise.grad3(p[bb + 1] ?? 0, xf - 1, yf - 1, zf - 1),
+        u,
+      ),
+      v,
+    );
+    return PerlinNoise.lerp(x1, x2, w);
+  }
+
+  /** Fractal/octave 3D noise; result approximately in [-1, 1]. */
+  fbm3D(x: number, y: number, z: number, octaves: number, lacunarity = 2.0, persistence = 0.5): number {
+    let total = 0;
+    let amplitude = 1;
+    let frequency = 1;
+    let maxAmplitude = 0;
+    for (let i = 0; i < octaves; i++) {
+      total += this.noise3D(x * frequency, y * frequency, z * frequency) * amplitude;
+      maxAmplitude += amplitude;
+      amplitude *= persistence;
+      frequency *= lacunarity;
+    }
+    return maxAmplitude === 0 ? 0 : total / maxAmplitude;
   }
 
   /** Fractal/octave noise; result is approximately in [-1, 1]. */

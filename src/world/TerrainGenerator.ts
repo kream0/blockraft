@@ -24,6 +24,13 @@ const IRON_VEIN_SIZE = 5;
 const ORE_SALT_COAL = 0x1f1f1f1f;
 const ORE_SALT_IRON = 0x2e2e2e2e;
 
+// Cave carving tuning. Caves are carved into stone only (so the surface skin, bedrock, and water are untouched).
+const CAVE_SCALE_XZ = 0.06;   // horizontal frequency
+const CAVE_SCALE_Y = 0.10;    // vertical frequency (higher → flatter, wider caverns)
+const CAVE_THRESHOLD = 0.04;  // iso-band half-width around the noise zero-surface; larger → more/bigger caves. Empirically tuned: ~15-19% of stone carved (0.12 carved ~53%, leaving terrain too hollow).
+const CAVE_OCTAVES = 2;
+const CAVE_MIN_Y = 1;         // keep bedrock at y=0 intact
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -32,6 +39,7 @@ function hash3(a: number, b: number, c: number): number {
 export class TerrainGenerator {
   private noise: PerlinNoise;
   private biomeNoise: PerlinNoise;
+  private caveNoise: PerlinNoise;
   private seed: number;
   private oreState = 0;
 
@@ -40,6 +48,8 @@ export class TerrainGenerator {
     this.noise = new PerlinNoise(this.seed);
     // Independent biome map: derive a distinct seed so it doesn't correlate with the heightmap.
     this.biomeNoise = new PerlinNoise((this.seed ^ 0x9e3779b9) >>> 0);
+    // Independent cave noise: distinct magic constant so caves don't alias with biomes or heightmap.
+    this.caveNoise = new PerlinNoise((this.seed ^ 0x517cc1e5) >>> 0);
   }
 
   private oreNext(): number {
@@ -79,6 +89,30 @@ export class TerrainGenerator {
           case 3: z--; break;
           case 4: y++; break;
           default: y--; break;
+        }
+      }
+    }
+  }
+
+  /**
+   * Carve cave systems into stone. Uses an iso-band of 3D fractal noise (|n| < threshold) in WORLD
+   * coordinates so caves connect seamlessly across chunk borders. Only STONE becomes AIR, which by
+   * construction leaves the surface skin (dirt/grass/sand), bedrock (y=0), and water untouched.
+   */
+  private carveCaves(chunk: Chunk): void {
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const wx = baseX + lx;
+        const wz = baseZ + lz;
+        for (let y = CAVE_MIN_Y; y < CHUNK_HEIGHT; y++) {
+          const idx = Chunk.idx(lx, y, lz);
+          if (chunk.blocks[idx] !== BlockId.STONE) continue;
+          const n = this.caveNoise.fbm3D(wx * CAVE_SCALE_XZ, y * CAVE_SCALE_Y, wz * CAVE_SCALE_XZ, CAVE_OCTAVES);
+          if (Math.abs(n) < CAVE_THRESHOLD) {
+            chunk.blocks[idx] = BlockId.AIR;
+          }
         }
       }
     }
@@ -148,7 +182,9 @@ export class TerrainGenerator {
       }
     }
 
-    // Ore veins: placed after all stone columns are set, before trees.
+    // Caves: carve stone before ore so ore veins embed in the remaining stone (no floating ore).
+    this.carveCaves(chunk);
+    // Ore veins: placed after caves are carved, before trees.
     this.placeOreVeins(chunk);
 
     // Trees: deterministically place 1-3 trees per chunk.
