@@ -8,7 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
-import { toolMultiplierFor, blockDropFor, itemToolDef, itemFoodDef, itemWeaponDef, foodDropForMob } from '../items/ItemRegistry';
+import { toolMultiplierFor, blockDropFor, itemToolDef, itemFoodDef, itemWeaponDef, foodDropForMob, itemArmorDef } from '../items/ItemRegistry';
 import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
@@ -69,6 +69,10 @@ import {
   STARVE_DAMAGE,
   STARVE_INTERVAL_S,
   STARVE_FLOOR_HP,
+  ARMOR_MAX_REDUCTION,
+  ARMOR_POINT_REDUCTION,
+  ARMOR_DISPLAY_MAX,
+  ARMOR_SLOT_COUNT,
   EAT_DURATION_S,
   DROPPED_ITEM_PICKUP_RADIUS,
   type INetworkAdapter,
@@ -305,6 +309,13 @@ export class GameSession {
       if (this.gameMode === GameMode.SURVIVAL && meta.inventory !== undefined) {
         this.player.inventory.deserialize(meta.inventory);
       }
+      if (this.gameMode === GameMode.SURVIVAL && meta.armor !== undefined) {
+        const src = meta.armor;
+        for (let i = 0; i < ARMOR_SLOT_COUNT; i++) {
+          const id = i < src.length ? (src[i] ?? null) : null;
+          this.player.state.armor[i] = id !== null && itemArmorDef(id) !== null ? id : null;
+        }
+      }
       this.player.state.velocity.y = 0;
       this.player.state.onGround = true;
       // Re-stream around the persisted position so chunks are ready.
@@ -340,6 +351,7 @@ export class GameSession {
     if (this.gameMode === GameMode.SURVIVAL) {
       this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
       this.hud.setAir(PLAYER_MAX_AIR_S, PLAYER_MAX_AIR_S);
+      this.hud.setArmor(this.armorPoints(), ARMOR_DISPLAY_MAX);
     }
 
     // Interaction.
@@ -398,6 +410,7 @@ export class GameSession {
           return;
         }
         this.rightHeld = true;
+        if (this.tryEquipArmor()) return;
         if (this.interaction.placeBlock()) {
           if (this.gameMode === GameMode.SURVIVAL) {
             this.player.inventory.removeOne(this.player.state.selectedSlot);
@@ -520,6 +533,7 @@ export class GameSession {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
         this.hud.setAir(this.air, PLAYER_MAX_AIR_S);
         this.hud.setHunger(this.player.state.hunger, PLAYER_MAX_HUNGER);
+        this.hud.setArmor(this.armorPoints(), ARMOR_DISPLAY_MAX);
       }
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
@@ -646,7 +660,7 @@ export class GameSession {
       playerPitch: this.player.state.pitch,
       selectedSlot: this.player.state.selectedSlot,
       ...(this.gameMode === GameMode.SURVIVAL
-        ? { inventory: this.player.inventory.serialize() }
+        ? { inventory: this.player.inventory.serialize(), armor: [...this.player.state.armor] }
         : {}),
     };
     const save: WorldSave = {
@@ -746,9 +760,11 @@ export class GameSession {
   }
 
   /** Central player-damage path shared by zombie bites and fall damage. Survival callers only. Triggers the death overlay at 0 HP. */
-  private damagePlayer(amount: number): void {
+  private damagePlayer(amount: number, bypassArmor: boolean = false): void {
     if (this.isDead) return;
-    this.player.state.health = Math.max(0, this.player.state.health - amount);
+    const applied = bypassArmor ? amount : Math.round(amount * (1 - this.armorDamageReduction()));
+    if (applied <= 0) return;
+    this.player.state.health = Math.max(0, this.player.state.health - applied);
     this.timeSinceLastDamage = 0;
     this.healthRegenAcc = 0;
     this.hud.flashDamage();
@@ -758,6 +774,40 @@ export class GameSession {
       this.controls.unlock();
       this.onDeath();
     }
+  }
+
+  /** Sum of defense points across all equipped armor pieces. */
+  private armorPoints(): number {
+    let total = 0;
+    for (const id of this.player.state.armor) {
+      if (id !== null) {
+        const def = itemArmorDef(id);
+        if (def !== null) total += def.defense;
+      }
+    }
+    return total;
+  }
+
+  /** Fraction of incoming (non-bypassing) damage absorbed by armor, capped at ARMOR_MAX_REDUCTION. */
+  private armorDamageReduction(): number {
+    return Math.min(ARMOR_MAX_REDUCTION, this.armorPoints() * ARMOR_POINT_REDUCTION);
+  }
+
+  /** Right-click equip: if the selected hotbar item is armor, move it into its body slot and swap the previously-worn piece back into the hotbar slot. Survival only. Returns true if a piece was equipped. */
+  private tryEquipArmor(): boolean {
+    if (this.gameMode !== GameMode.SURVIVAL) return false;
+    const slotIndex = this.player.state.selectedSlot;
+    const stack = this.player.inventory.getSlot(slotIndex);
+    if (stack === null) return false;
+    const def = itemArmorDef(stack.item);
+    if (def === null) return false;
+    const previous = this.player.state.armor[def.slot] ?? null;
+    if (previous === stack.item) return true;
+    this.player.state.armor[def.slot] = stack.item;
+    this.player.inventory.setSlot(slotIndex, previous !== null ? { item: previous, count: 1 } : null);
+    this.audio.playPlace();
+    this.viewModel.triggerSwing();
+    return true;
   }
 
   /** Per-fixed-step (survival only): track the fall apex while airborne; on landing, damage for blocks fallen past the safe threshold. */
@@ -797,7 +847,7 @@ export class GameSession {
       if (this.starveTimer >= STARVE_INTERVAL_S) {
         this.starveTimer = 0;
         if (st.health > STARVE_FLOOR_HP) {
-          this.damagePlayer(Math.min(STARVE_DAMAGE, st.health - STARVE_FLOOR_HP));
+          this.damagePlayer(Math.min(STARVE_DAMAGE, st.health - STARVE_FLOOR_HP), true);
         }
       }
     } else {
@@ -850,7 +900,7 @@ export class GameSession {
       if (this.air <= 0) {
         this.drownAcc += dt;
         while (this.drownAcc >= DROWN_INTERVAL_S) {
-          this.damagePlayer(DROWN_DAMAGE);
+          this.damagePlayer(DROWN_DAMAGE, true);
           this.drownAcc -= DROWN_INTERVAL_S;
           if (this.isDead) {
             this.drownAcc = 0;

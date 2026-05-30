@@ -40,6 +40,13 @@ function ensureStyle(): void {
 .mc-drumstick-fg { width: 0; white-space: nowrap; }
 .mc-drumstick-fg::before { content: ''; position: absolute; top: 3px; left: 2px; width: 10px; height: 9px; background: #c8850a; border-radius: 40% 50% 50% 40%; }
 .mc-drumstick-fg::after { content: ''; position: absolute; top: 10px; left: 9px; width: 5px; height: 4px; background: #e8b86d; border-radius: 50% 50% 40% 40%; transform: rotate(-30deg); }
+.mc-armor { position: absolute; right: 50%; bottom: 136px; transform: translateX(-4px); display: flex; gap: 2px; pointer-events: none; }
+.mc-armor[hidden] { display: none; }
+.mc-armor-icon { position: relative; width: 16px; height: 16px; }
+.mc-armor-bg, .mc-armor-fg { position: absolute; top: 0; left: 0; height: 16px; width: 16px; overflow: hidden; }
+.mc-armor-bg::before, .mc-armor-fg::before { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; clip-path: polygon(50% 0, 100% 22%, 100% 60%, 50% 100%, 0 60%, 0 22%); }
+.mc-armor-bg::before { background: #444; }
+.mc-armor-fg::before { background: #c8d2dc; }
 `;
   document.head.appendChild(style);
 }
@@ -60,6 +67,8 @@ export class HUD {
   private bubbleFills: HTMLElement[] = [];
   private hungerEl: HTMLElement;
   private hungerFills: HTMLElement[] = [];
+  private armorEl: HTMLElement;
+  private armorFills: HTMLElement[] = [];
   hotbar: Hotbar;
 
   private fpsEma: number = 0;
@@ -160,6 +169,24 @@ export class HUD {
     container.appendChild(hunger);
     this.hungerEl = hunger;
 
+    const armor = document.createElement('div');
+    armor.className = 'mc-armor';
+    armor.hidden = true;
+    for (let i = 0; i < 10; i++) {
+      const icon = document.createElement('div');
+      icon.className = 'mc-armor-icon';
+      const bg = document.createElement('span');
+      bg.className = 'mc-armor-bg';
+      const fg = document.createElement('span');
+      fg.className = 'mc-armor-fg';
+      icon.appendChild(bg);
+      icon.appendChild(fg);
+      armor.appendChild(icon);
+      this.armorFills.push(fg);
+    }
+    container.appendChild(armor);
+    this.armorEl = armor;
+
     const underwater = document.createElement('div');
     underwater.className = 'mc-underwater';
     container.appendChild(underwater);
@@ -250,6 +277,22 @@ export class HUD {
     });
   }
 
+  /** Render the armor bar from total armor points. Hidden entirely at 0. `max` is the points scale across all 10 icons (2 points each). */
+  setArmor(points: number, max: number): void {
+    if (points <= 0) {
+      this.armorEl.hidden = true;
+      return;
+    }
+    this.armorEl.hidden = false;
+    const clamped = Math.max(0, Math.min(max, points));
+    const perIcon = max / this.armorFills.length;
+    this.armorFills.forEach((fg, i) => {
+      const value = clamped - i * perIcon;
+      const fraction = Math.max(0, Math.min(1, value / perIcon));
+      fg.style.width = (fraction * 16) + 'px';
+    });
+  }
+
   /** Pulse the red damage vignette to full opacity, then fade it out over ~0.4s. Re-arms on every call. */
   flashDamage(): void {
     const el = this.damageVignetteEl;
@@ -286,7 +329,7 @@ export class HUD {
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.underwaterEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
@@ -294,5 +337,6 @@ export class HUD {
     this.heartFills = [];
     this.bubbleFills = [];
     this.hungerFills = [];
+    this.armorFills = [];
   }
 }

@@ -8,6 +8,8 @@ import {
   type ToolDef,
   type FoodDef,
   type WeaponDef,
+  ArmorSlot,
+  type ArmorDef,
 } from '../types';
 
 // === Canonical block swatch colors (copied from Hotbar.ts; integration agent will redirect Hotbar here) ===
@@ -56,6 +58,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: null,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -70,6 +73,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.PICKAXE, speedMultiplier: 3 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -84,6 +88,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.AXE, speedMultiplier: 3 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -98,6 +103,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 3 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -112,6 +118,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.PICKAXE, speedMultiplier: 5 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -126,6 +133,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.AXE, speedMultiplier: 5 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -140,27 +148,32 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 5 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
   [ItemId.RAW_BEEF, {
     id: ItemId.RAW_BEEF, name: 'Raw Beef', maxStack: 64,
     swatchColor: '#a83e3e', glyph: 'B', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 3 } satisfies FoodDef,
   }],
   [ItemId.RAW_PORKCHOP, {
     id: ItemId.RAW_PORKCHOP, name: 'Raw Porkchop', maxStack: 64,
     swatchColor: '#e6a4a4', glyph: 'O', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 3 } satisfies FoodDef,
   }],
   [ItemId.RAW_CHICKEN, {
     id: ItemId.RAW_CHICKEN, name: 'Raw Chicken', maxStack: 64,
     swatchColor: '#e8cf9a', glyph: 'C', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 2 } satisfies FoodDef,
   }],
   [ItemId.RAW_MUTTON, {
     id: ItemId.RAW_MUTTON, name: 'Raw Mutton', maxStack: 64,
     swatchColor: '#b85c4e', glyph: 'M', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 2 } satisfies FoodDef,
   }],
   [
@@ -174,6 +187,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.PICKAXE, speedMultiplier: 8 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -188,6 +202,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.AXE, speedMultiplier: 8 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
@@ -202,12 +217,13 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 8 } satisfies ToolDef,
       weapon: null,
+      armor: null,
       food: null,
     },
   ],
   [ItemId.IRON_INGOT, {
     id: ItemId.IRON_INGOT, name: 'Iron Ingot', maxStack: 64,
-    swatchColor: '#d8d8d8', glyph: 'I', placeable: null, tool: null, weapon: null, food: null,
+    swatchColor: '#d8d8d8', glyph: 'I', placeable: null, tool: null, weapon: null, armor: null, food: null,
   }],
   [
     ItemId.WOODEN_SWORD,
@@ -220,6 +236,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: null,
       weapon: { damage: 6 } satisfies WeaponDef,
+      armor: null,
       food: null,
     },
   ],
@@ -234,6 +251,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: null,
       weapon: { damage: 7 } satisfies WeaponDef,
+      armor: null,
       food: null,
     },
   ],
@@ -248,27 +266,92 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       placeable: null,
       tool: null,
       weapon: { damage: 9 } satisfies WeaponDef,
+      armor: null,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_HELMET,
+    {
+      id: ItemId.IRON_HELMET,
+      name: 'Iron Helmet',
+      maxStack: 1,
+      swatchColor: '#c4ccd4',
+      glyph: 'H',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.HEAD, defense: 2 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_CHESTPLATE,
+    {
+      id: ItemId.IRON_CHESTPLATE,
+      name: 'Iron Chestplate',
+      maxStack: 1,
+      swatchColor: '#c4ccd4',
+      glyph: 'C',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.CHEST, defense: 6 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_LEGGINGS,
+    {
+      id: ItemId.IRON_LEGGINGS,
+      name: 'Iron Leggings',
+      maxStack: 1,
+      swatchColor: '#c4ccd4',
+      glyph: 'L',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.LEGS, defense: 5 } satisfies ArmorDef,
+      food: null,
+    },
+  ],
+  [
+    ItemId.IRON_BOOTS,
+    {
+      id: ItemId.IRON_BOOTS,
+      name: 'Iron Boots',
+      maxStack: 1,
+      swatchColor: '#c4ccd4',
+      glyph: 'B',
+      placeable: null,
+      tool: null,
+      weapon: null,
+      armor: { slot: ArmorSlot.FEET, defense: 2 } satisfies ArmorDef,
       food: null,
     },
   ],
   [ItemId.COOKED_BEEF, {
     id: ItemId.COOKED_BEEF, name: 'Steak', maxStack: 64,
     swatchColor: '#7a4a2a', glyph: 'B', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 8 } satisfies FoodDef,
   }],
   [ItemId.COOKED_PORKCHOP, {
     id: ItemId.COOKED_PORKCHOP, name: 'Cooked Porkchop', maxStack: 64,
     swatchColor: '#c98a5a', glyph: 'O', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 8 } satisfies FoodDef,
   }],
   [ItemId.COOKED_CHICKEN, {
     id: ItemId.COOKED_CHICKEN, name: 'Cooked Chicken', maxStack: 64,
     swatchColor: '#caa86a', glyph: 'C', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 6 } satisfies FoodDef,
   }],
   [ItemId.COOKED_MUTTON, {
     id: ItemId.COOKED_MUTTON, name: 'Cooked Mutton', maxStack: 64,
     swatchColor: '#8a5a3a', glyph: 'M', placeable: null, tool: null, weapon: null,
+    armor: null,
     food: { hungerRestore: 6 } satisfies FoodDef,
   }],
 ]);
@@ -334,6 +417,13 @@ export function itemWeaponDef(id: ItemId): WeaponDef | null {
   return null;
 }
 
+/** ArmorDef if this item is wearable armor, else null. */
+export function itemArmorDef(id: ItemId): ArmorDef | null {
+  const def = ITEM_DEFS.get(id);
+  if (def !== undefined) return def.armor;
+  return null;
+}
+
 /**
  * Returns the static ItemDef for non-block items, or synthesizes one for
  * block items from BLOCK_SWATCH_COLORS + the reverse BlockId name map.
@@ -355,6 +445,7 @@ export function getItemDef(id: ItemId): ItemDef {
     placeable: id as BlockId,
     tool: null,
     weapon: null,
+    armor: null,
     food: null,
   };
 }

@@ -213,6 +213,62 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: ItemId.IRON_SWORD, count: 1 },
   },
+  // Iron Helmet (shaped 3x2)
+  // [I, I, I]
+  // [I, _, I]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+    ],
+    width: 3,
+    height: 2,
+    output: { item: ItemId.IRON_HELMET, count: 1 },
+  },
+  // Iron Chestplate (shaped 3x3)
+  // [I, _, I]
+  // [I, I, I]
+  // [I, I, I]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.IRON_CHESTPLATE, count: 1 },
+  },
+  // Iron Leggings (shaped 3x3)
+  // [I, I, I]
+  // [I, _, I]
+  // [I, _, I]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, ItemId.IRON_INGOT, ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.IRON_LEGGINGS, count: 1 },
+  },
+  // Iron Boots (shaped 3x2)
+  // [I, _, I]
+  // [I, _, I]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+      ItemId.IRON_INGOT, null,              ItemId.IRON_INGOT,
+    ],
+    width: 3,
+    height: 2,
+    output: { item: ItemId.IRON_BOOTS, count: 1 },
+  },
 ];
 
 // ============================================================

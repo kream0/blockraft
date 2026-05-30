@@ -9,8 +9,10 @@ import {
   type ItemStack,
   type Vec3,
   type BlockId,
+  type ItemId,
   GameMode,
   INVENTORY_SIZE,
+  ARMOR_SLOT_COUNT,
 } from '../types';
 
 /** Build the export envelope and JSON-stringify it (pretty-printed with 2-space indent). */
@@ -182,6 +184,18 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     inventoryResult = mapped;
   }
 
+  // Optional armor: ARMOR_SLOT_COUNT slots, each a positive-integer ItemId or null. Mirrors the inventory pattern.
+  let armorResult: (ItemId | null)[] | null = null;
+  if (Array.isArray(m['armor'])) {
+    const arr = m['armor'] as unknown[];
+    const mapped: (ItemId | null)[] = [];
+    for (let i = 0; i < ARMOR_SLOT_COUNT; i++) {
+      const v = i < arr.length ? arr[i] : null;
+      mapped.push(typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null);
+    }
+    armorResult = mapped;
+  }
+
   const metadata: WorldMetadata = {
     name,
     seed,
@@ -194,6 +208,7 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     selectedSlot,
     // exactOptionalPropertyTypes: spread conditionally rather than assigning undefined.
     ...(inventoryResult !== null ? { inventory: inventoryResult } : {}),
+    ...(armorResult !== null ? { armor: armorResult } : {}),
   };
 
   const overrides = toOverrides(obj['overrides']);

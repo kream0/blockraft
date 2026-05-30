@@ -220,6 +220,10 @@ export const ItemId = {
   WOODEN_SWORD: 130,
   STONE_SWORD: 131,
   IRON_SWORD: 132,
+  IRON_HELMET: 140,
+  IRON_CHESTPLATE: 141,
+  IRON_LEGGINGS: 142,
+  IRON_BOOTS: 143,
 } as const;
 /** A BlockId value (0..15) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
@@ -251,6 +255,31 @@ export interface WeaponDef {
   damage: number;
 }
 
+// === Armor ===
+/** Equippable armor body slots. Numeric so equipped armor is a length-ARMOR_SLOT_COUNT array indexed by slot. */
+export const ArmorSlot = {
+  HEAD: 0,
+  CHEST: 1,
+  LEGS: 2,
+  FEET: 3,
+} as const;
+export type ArmorSlot = typeof ArmorSlot[keyof typeof ArmorSlot];
+/** Number of equippable armor slots (head/chest/legs/feet). */
+export const ARMOR_SLOT_COUNT = 4;
+/** Fraction of incoming (non-bypassing) damage absorbed per armor point. */
+export const ARMOR_POINT_REDUCTION = 0.04;
+/** Hard cap on total armor damage reduction (classic Minecraft 80%). */
+export const ARMOR_MAX_REDUCTION = 0.8;
+/** Armor-point scale the HUD armor bar fills against (10 icons x 2 points). */
+export const ARMOR_DISPLAY_MAX = 20;
+
+/** Armor behavior: which body slot it occupies and its defense value in armor points. */
+export interface ArmorDef {
+  slot: ArmorSlot;
+  /** Armor points. Each point reduces incoming damage by ARMOR_POINT_REDUCTION, capped at ARMOR_MAX_REDUCTION total. */
+  defense: number;
+}
+
 /** Per-item metadata. Block items synthesize this from their BlockId; non-block items have static defs. */
 export interface ItemDef {
   id: ItemId;
@@ -266,6 +295,8 @@ export interface ItemDef {
   tool: ToolDef | null;
   /** Weapon behavior if this item is a melee weapon, else null. */
   weapon: WeaponDef | null;
+  /** Armor behavior if this item is wearable, else null. */
+  armor: ArmorDef | null;
   /** Food behavior if this item is edible, else null. */
   food: FoodDef | null;
 }
@@ -423,6 +454,8 @@ export interface PlayerState {
   health: number;
   /** Half-drumstick points, clamped [0, PLAYER_MAX_HUNGER]. Not persisted; resets to full each load. */
   hunger: number;
+  /** Equipped armor by ArmorSlot index; null = empty. Length ARMOR_SLOT_COUNT. Persisted (survival only). */
+  armor: (ItemId | null)[];
 }
 
 // === Texture atlas: returns UV rect for a given tile index ===
@@ -540,6 +573,8 @@ export interface WorldMetadata {
   selectedSlot: number;
   /** Persisted inventory: INVENTORY_SIZE slots, null = empty. Slots are {item,count}; legacy saves used {block,count} (numerically identical for block items, so readable by reading item ?? block). Absent on Creative worlds. */
   inventory?: (ItemStack | null)[];
+  /** Persisted equipped armor: ARMOR_SLOT_COUNT slots, null = empty. Absent on Creative / legacy saves. */
+  armor?: (ItemId | null)[];
 }
 
 /** Sparse map of player edits per chunk. Key format: `${cx},${cz}`; value is array of [linearIndex, BlockId] tuples. */
