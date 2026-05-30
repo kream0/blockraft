@@ -20,7 +20,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
 - **Ore veins**: Coal, Iron, and Diamond scatter through stone as deterministic random-walk veins — coal up to mid-depth (y≤50), iron deep only (y≤28), and **diamond** deepest of all (y≤12); only replaces stone and never touches bedrock
 - **Caves**: underground cave systems carved from a 3D fractal-noise iso-band (`|n| < threshold`) in world coordinates, so caverns connect seamlessly across chunk borders; only stone becomes air (~15–19% carved), leaving the surface skin, bedrock, water, and ore intact (deterministic per seed; carved before ore so veins stay embedded)
-- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level) and buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward). Confined to the chunk interior so a structure never spans a border (deterministic per seed; villages and loot-containers still upcoming)
+- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level), buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward), and small **villages** (clusters of 1–2 plank huts with log corner posts, glass windows, and a doorway, raised on flat dry ground). Confined to the chunk interior so a structure never spans a border (deterministic per seed; loot-containers still upcoming)
 - 17 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Diamond Ore, Furnace, Air
 - Procedurally generated 16×16 texture atlas (no external image assets)
 
@@ -116,7 +116,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Lighting**: per-block sky/torch light propagation — vertex ambient occlusion / smooth contact shading already ships (see World above)
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
 - **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
-- **Structure generation (more)**: villages and loot-containers — v1 boulders + dungeon rooms with an iron reward already ship (see World above)
+- **Structure generation (more)**: loot-containers and larger multi-chunk village layouts — v1 boulders, dungeon rooms (iron reward), and single-chunk villages already ship (see World above)
 - **Chunk LOD or async meshing**: move meshing to a Web Worker
 
 ### Long term / nice-to-haves

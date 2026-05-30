@@ -47,6 +47,17 @@ const DUNGEON_MIN_FLOOR_Y = 3;     // keep a stone buffer above bedrock (y=0)
 const DUNGEON_SURFACE_COVER = 4;   // min solid cover between the room ceiling and the surface
 const DUNGEON_IRON_REWARD = 3;     // IRON_ORE blocks embedded in the floor
 
+// Villages: rare surface hamlets of small plank huts. Deterministic per chunk; each hut is confined to the chunk interior.
+const STRUCT_SALT_VILLAGE = 0x5ee7c0de;
+const VILLAGE_CHANCE = 0.05;        // ~1 in 20 chunks anchors a village
+const HUT_HALF = 2;                 // 5x5 footprint (center ± HUT_HALF)
+const HUT_WALL_H = 3;               // wall height in blocks
+const VILLAGE_MAX_SLOPE = 2;        // max (maxH - minH) over a footprint to allow building on it
+const VILLAGE_MAX_HUTS = 2;         // up to this many huts per village chunk
+// Candidate hut centers within the chunk interior. Each 5x5 footprint (center ± 2) must stay in [0, CHUNK_SIZE)
+// and the four candidates must not overlap, so a village can place up to 2 non-touching huts.
+const HUT_CENTERS: ReadonlyArray<readonly [number, number]> = [[5, 5], [11, 11], [5, 11], [11, 5]];
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -236,10 +247,121 @@ export class TerrainGenerator {
     }
   }
 
-  /** Dispatch surface boulders and underground dungeons for this chunk. */
+  /**
+   * Build one 5x5 plank hut centered at (cxL, czL) if the ground is flat and dry enough.
+   * Bounds invariant: with HUT_CENTERS ∈ {5,11} and HUT_HALF = 2, every footprint x/z is in
+   * [3, 13] ⊆ [0, CHUNK_SIZE), and the suitability gate guarantees 1 <= floorY and
+   * roofY <= CHUNK_HEIGHT - 2, so every Chunk.idx write below is in-bounds without per-write guards.
+   */
+  private buildHut(chunk: Chunk, heights: Int16Array, cxL: number, czL: number): void {
+    // Suitability gate: measure terrain flatness and dryness over the 5x5 footprint.
+    let minH = CHUNK_HEIGHT;
+    let maxH = 0;
+    for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
+      for (let z = czL - HUT_HALF; z <= czL + HUT_HALF; z++) {
+        const h = heights[x + z * CHUNK_SIZE]!;
+        if (h < minH) minH = h;
+        if (h > maxH) maxH = h;
+      }
+    }
+    if (minH <= SEA_LEVEL) return;                        // no huts on beaches or water columns
+    if (maxH - minH > VILLAGE_MAX_SLOPE) return;          // ground too uneven
+    const floorY = maxH;
+    const roofY = floorY + HUT_WALL_H + 1;
+    if (roofY >= CHUNK_HEIGHT - 1) return;                // not enough vertical room
+
+    // Foundation fill: raise low columns with DIRT so the floor doesn't float.
+    for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
+      for (let z = czL - HUT_HALF; z <= czL + HUT_HALF; z++) {
+        const cs = heights[x + z * CHUNK_SIZE]!;
+        for (let y = cs + 1; y <= floorY - 1; y++) {
+          chunk.blocks[Chunk.idx(x, y, z)] = BlockId.DIRT;
+        }
+      }
+    }
+
+    // Floor: PLANKS across the whole 5x5 footprint.
+    for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
+      for (let z = czL - HUT_HALF; z <= czL + HUT_HALF; z++) {
+        chunk.blocks[Chunk.idx(x, floorY, z)] = BlockId.PLANKS;
+      }
+    }
+
+    // Walls: build up HUT_WALL_H layers above the floor.
+    for (let y = floorY + 1; y <= floorY + HUT_WALL_H; y++) {
+      for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
+        for (let z = czL - HUT_HALF; z <= czL + HUT_HALF; z++) {
+          const onPerimX = x === cxL - HUT_HALF || x === cxL + HUT_HALF;
+          const onPerimZ = z === czL - HUT_HALF || z === czL + HUT_HALF;
+          if (onPerimX || onPerimZ) {
+            // Perimeter cell: corner posts are WOOD, edge planks are PLANKS.
+            chunk.blocks[Chunk.idx(x, y, z)] = (onPerimX && onPerimZ) ? BlockId.WOOD : BlockId.PLANKS;
+          } else {
+            // Interior 3x3: clear to AIR.
+            chunk.blocks[Chunk.idx(x, y, z)] = BlockId.AIR;
+          }
+        }
+      }
+    }
+
+    // Windows: midpoint of each wall at y = floorY + 2 (mid-wall level).
+    const winY = floorY + 2;
+    chunk.blocks[Chunk.idx(cxL,        winY, czL - HUT_HALF)] = BlockId.GLASS; // -Z wall
+    chunk.blocks[Chunk.idx(cxL,        winY, czL + HUT_HALF)] = BlockId.GLASS; // +Z wall
+    chunk.blocks[Chunk.idx(cxL - HUT_HALF, winY, czL)]        = BlockId.GLASS; // -X wall
+    chunk.blocks[Chunk.idx(cxL + HUT_HALF, winY, czL)]        = BlockId.GLASS; // +X wall
+
+    // Door: a 2-high AIR gap on a deterministically chosen wall. Applied after windows so it
+    // cleanly overwrites the window on the chosen side.
+    const doorSide = this.oreNext() % 4;
+    let doorX: number;
+    let doorZ: number;
+    if (doorSide === 0) { doorX = cxL;            doorZ = czL - HUT_HALF; } // -Z wall
+    else if (doorSide === 1) { doorX = cxL;       doorZ = czL + HUT_HALF; } // +Z wall
+    else if (doorSide === 2) { doorX = cxL - HUT_HALF; doorZ = czL;       } // -X wall
+    else                     { doorX = cxL + HUT_HALF; doorZ = czL;       } // +X wall
+    chunk.blocks[Chunk.idx(doorX, floorY + 1, doorZ)] = BlockId.AIR;
+    chunk.blocks[Chunk.idx(doorX, floorY + 2, doorZ)] = BlockId.AIR;
+
+    // Roof: WOOD across the whole 5x5 footprint at roofY.
+    for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
+      for (let z = czL - HUT_HALF; z <= czL + HUT_HALF; z++) {
+        chunk.blocks[Chunk.idx(x, roofY, z)] = BlockId.WOOD;
+      }
+    }
+  }
+
+  /**
+   * Place a village (cluster of 1–2 plank huts) on flat, dry ground if the chunk's roll succeeds.
+   * Uses a distinct salt from boulder and dungeon so the three decisions don't correlate.
+   */
+  private placeVillage(chunk: Chunk, heights: Int16Array): void {
+    // Reseed deterministically; independent salt from boulder and dungeon so decisions don't correlate.
+    this.oreState = (hash3(chunk.cx, chunk.cz, (this.seed ^ STRUCT_SALT_VILLAGE) >>> 0) >>> 0) || 1;
+    if (this.oreNext() / 4294967296 >= VILLAGE_CHANCE) return;
+
+    const hutCount = 1 + (this.oreNext() % VILLAGE_MAX_HUTS); // 1 or 2
+
+    // Partial Fisher–Yates shuffle to choose hutCount distinct centers from HUT_CENTERS.
+    const centers: [number, number][] = HUT_CENTERS.map(([cx, cz]) => [cx, cz]);
+    for (let i = 0; i < hutCount; i++) {
+      const j = i + (this.oreNext() % (centers.length - i));
+      const tmp = centers[i]!;
+      centers[i] = centers[j]!;
+      centers[j] = tmp;
+    }
+
+    for (let i = 0; i < hutCount; i++) {
+      const [hcx, hcz] = centers[i]!;
+      this.buildHut(chunk, heights, hcx, hcz);
+    }
+  }
+
+  /** Dispatch surface boulders, underground dungeons, and villages for this chunk. */
   private placeStructures(chunk: Chunk, heights: Int16Array): void {
     this.placeBoulder(chunk, heights);
     this.placeDungeon(chunk, heights);
+    this.placeVillage(chunk, heights);
   }
 
   /** Pick a biome for a world column. Smooth low-frequency noise → large regions. */
