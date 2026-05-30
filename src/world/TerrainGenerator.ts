@@ -31,6 +31,18 @@ const CAVE_THRESHOLD = 0.04;  // iso-band half-width around the noise zero-surfa
 const CAVE_OCTAVES = 2;
 const CAVE_MIN_Y = 1;         // keep bedrock at y=0 intact
 
+// Structure generation (deterministic per chunk; confined to chunk interior so structures never span chunks).
+const STRUCT_SALT_BOULDER = 0x3b9aca07;
+const STRUCT_SALT_DUNGEON = 0x6c8e944f;
+const BOULDER_CHANCE = 0.33;       // ~1 in 3 chunks gets a surface boulder
+const BOULDER_MAX_RADIUS = 2;      // blob radius in blocks
+const DUNGEON_CHANCE = 0.08;       // ~1 in 12 chunks gets a dungeon
+const DUNGEON_HALF = 2;            // interior half-extent on X and Z → 5x5 interior footprint
+const DUNGEON_INTERIOR_H = 3;      // interior height in blocks
+const DUNGEON_MIN_FLOOR_Y = 3;     // keep a stone buffer above bedrock (y=0)
+const DUNGEON_SURFACE_COVER = 4;   // min solid cover between the room ceiling and the surface
+const DUNGEON_IRON_REWARD = 3;     // IRON_ORE blocks embedded in the floor
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -124,6 +136,107 @@ export class TerrainGenerator {
     this.scatterOre(chunk, BlockId.IRON_ORE, IRON_VEINS_PER_CHUNK, IRON_VEIN_SIZE, ORE_MIN_Y, IRON_MAX_Y, ORE_SALT_IRON);
   }
 
+  /** Place a rounded cobblestone boulder on the surface if the chunk's roll succeeds. */
+  private placeBoulder(chunk: Chunk, heights: Int16Array): void {
+    // Reseed deterministically from this chunk so the decision is independent of generation order.
+    this.oreState = (hash3(chunk.cx, chunk.cz, (this.seed ^ STRUCT_SALT_BOULDER) >>> 0) >>> 0) || 1;
+    const roll = this.oreNext() / 4294967296;
+    if (roll >= BOULDER_CHANCE) return;
+
+    // Pick an interior center so a radius-2 blob stays within [0, 16).
+    const cxL = 2 + (this.oreNext() % (CHUNK_SIZE - 4));
+    const czL = 2 + (this.oreNext() % (CHUNK_SIZE - 4));
+    const h = heights[cxL + czL * CHUNK_SIZE]!;
+    // No boulders on beaches or underwater columns.
+    if (h <= SEA_LEVEL) return;
+
+    const r = 1 + (this.oreNext() % BOULDER_MAX_RADIUS); // 1 or 2
+    const cyL = h; // center the blob at the surface
+
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dz = -r; dz <= r; dz++) {
+          if (dx * dx + dy * dy + dz * dz > r * r + 1) continue; // rounded sphere test
+          const x = cxL + dx;
+          const y = cyL + dy;
+          const z = czL + dz;
+          if (y < 1 || y >= CHUNK_HEIGHT) continue;
+          if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) continue;
+          const idx = Chunk.idx(x, y, z);
+          const cur = (chunk.blocks[idx] ?? BlockId.AIR) as BlockId;
+          // Only replace natural ground/air blocks — never WATER, WOOD, LEAVES, ores, or existing cobble.
+          if (
+            cur === BlockId.AIR ||
+            cur === BlockId.GRASS ||
+            cur === BlockId.DIRT ||
+            cur === BlockId.STONE ||
+            cur === BlockId.SAND ||
+            cur === BlockId.SNOW
+          ) {
+            chunk.blocks[idx] = BlockId.COBBLESTONE;
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Carve a hollow cobblestone-walled dungeon room underground if the chunk's roll succeeds.
+   * The room is placed as close to the surface as cover allows, with an iron-ore reward on the floor.
+   */
+  private placeDungeon(chunk: Chunk, heights: Int16Array): void {
+    // Reseed deterministically; independent salt from boulder so the two decisions don't correlate.
+    this.oreState = (hash3(chunk.cx, chunk.cz, (this.seed ^ STRUCT_SALT_DUNGEON) >>> 0) >>> 0) || 1;
+    if (this.oreNext() / 4294967296 >= DUNGEON_CHANCE) return;
+
+    // Shell half-extent = DUNGEON_HALF + 1 = 3. Center range = [3, 12] so the whole shell fits in [0, 16).
+    const range = CHUNK_SIZE - 2 * (DUNGEON_HALF + 1); // = 10
+    const cxL = (DUNGEON_HALF + 1) + (this.oreNext() % range);
+    const czL = (DUNGEON_HALF + 1) + (this.oreNext() % range);
+    // Bounds invariant: cxL,czL ∈ [DUNGEON_HALF+1, CHUNK_SIZE-(DUNGEON_HALF+1)] = [3,12], so the
+    // shell footprint (center ±(DUNGEON_HALF+1)=±3) spans [0,15] and the iron reward (center
+    // ±DUNGEON_HALF=±2) spans [1,14] — every Chunk.idx write below is in-bounds without a guard.
+
+    // Find the minimum surface height over the full shell footprint to ensure adequate cover.
+    let minH = CHUNK_HEIGHT;
+    for (let x = cxL - 3; x <= cxL + 3; x++) {
+      for (let z = czL - 3; z <= czL + 3; z++) {
+        minH = Math.min(minH, heights[x + z * CHUNK_SIZE]!);
+      }
+    }
+
+    // Place the room as high as cover allows; bail if there isn't enough vertical room.
+    const ceilingY = minH - DUNGEON_SURFACE_COVER;
+    const floorY = ceilingY - (DUNGEON_INTERIOR_H + 1);
+    if (floorY < DUNGEON_MIN_FLOOR_Y) return;
+
+    // Build the shell: cobblestone walls/floor/ceiling; air interior.
+    for (let x = cxL - 3; x <= cxL + 3; x++) {
+      for (let z = czL - 3; z <= czL + 3; z++) {
+        for (let y = floorY; y <= ceilingY; y++) {
+          const isShell =
+            x === cxL - 3 || x === cxL + 3 ||
+            z === czL - 3 || z === czL + 3 ||
+            y === floorY  || y === ceilingY;
+          chunk.blocks[Chunk.idx(x, y, z)] = isShell ? BlockId.COBBLESTONE : BlockId.AIR;
+        }
+      }
+    }
+
+    // Reward: embed IRON_ORE blocks in interior floor cells.
+    for (let i = 0; i < DUNGEON_IRON_REWARD; i++) {
+      const ix = (cxL - DUNGEON_HALF) + (this.oreNext() % (2 * DUNGEON_HALF + 1));
+      const iz = (czL - DUNGEON_HALF) + (this.oreNext() % (2 * DUNGEON_HALF + 1));
+      chunk.blocks[Chunk.idx(ix, floorY, iz)] = BlockId.IRON_ORE;
+    }
+  }
+
+  /** Dispatch surface boulders and underground dungeons for this chunk. */
+  private placeStructures(chunk: Chunk, heights: Int16Array): void {
+    this.placeBoulder(chunk, heights);
+    this.placeDungeon(chunk, heights);
+  }
+
   /** Pick a biome for a world column. Smooth low-frequency noise → large regions. */
   private biomeAt(wx: number, wz: number): number {
     const b = this.biomeNoise.noise2D(wx * BIOME_SCALE, wz * BIOME_SCALE);
@@ -186,6 +299,8 @@ export class TerrainGenerator {
     this.carveCaves(chunk);
     // Ore veins: placed after caves are carved, before trees.
     this.placeOreVeins(chunk);
+    // Structures: boulders sit on the surface; dungeons are sealed underground (after ores so they overwrite/seal whatever's there).
+    this.placeStructures(chunk, heights);
 
     // Trees: deterministically place 1-3 trees per chunk.
     const treeCountHash = hash3(chunk.cx, chunk.cz, this.seed);
