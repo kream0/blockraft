@@ -264,6 +264,43 @@ export function ensureMenuStyles(): void {
   justify-content: space-between;
   align-items: baseline;
 }
+.mc-settings-subtitle {
+  font-size: 13px;
+  font-weight: bold;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 16px;
+  margin-bottom: 4px;
+  width: 100%;
+  max-width: 460px;
+}
+.mc-keybind-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mc-keybind-label {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: #ddd;
+}
+.mc-keybind-btn {
+  min-width: 90px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-family: monospace;
+  text-align: center;
+}
+.mc-keybind-listening {
+  background: linear-gradient(#3a6a3a, #2a4a2a);
+  border-color: #5aff5a;
+  color: #5aff5a;
+}
+.mc-keybind-listening:hover:not(:disabled) {
+  background: linear-gradient(#3a6a3a, #2a4a2a);
+}
 `;
   document.head.appendChild(style);
 }

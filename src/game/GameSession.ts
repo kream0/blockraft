@@ -323,6 +323,7 @@ export class GameSession {
     this.controls.input.pitch = this.player.state.pitch;
     this.controls.setSensitivityScale(settings.mouseSensitivity);
     this.controls.setInvertY(settings.invertY);
+    this.controls.setKeybindings(settings.keybindings);
 
     // Physics.
     this.physics = new Physics(this.world);
@@ -424,9 +425,9 @@ export class GameSession {
       if (!this.controls.isLocked) { this.leftHeld = false; this.rightHeld = false; this.eatProgress = 0; }
     };
 
-    // Inventory toggle (E key, both game modes).
+    // Inventory toggle (bound inventory key, both game modes).
     this.inventoryKeyHandler = (e: KeyboardEvent): void => {
-      if (e.code !== 'KeyE') return;
+      if (e.code !== this.controls.keybindings.inventory) return;
       if (!this.started || this.isDead) return;
       if (this.furnaceScreen.isOpen) {
         this.furnaceScreen.close();
@@ -435,7 +436,7 @@ export class GameSession {
       }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
-        this.requestPointerLock();           // KeyE keydown is a user gesture → re-lock OK
+        this.requestPointerLock();           // inventory-key keydown is a user gesture → re-lock OK
       } else {
         if (!this.controls.isLocked) return; // only open from active play
         this.inventoryScreen.open();
@@ -656,13 +657,14 @@ export class GameSession {
     await this.worldStorage.saveFurnaces(this.worldName, this.furnaceManager.serialize());
   }
 
-  /** Apply settings live (FOV, mouse sensitivity, invertY, render distance, show FPS). */
+  /** Apply settings live (FOV, mouse sensitivity, invertY, keybindings, render distance, show FPS). */
   applySettings(settings: Settings): void {
     this.player.setFov(settings.fov);
     this.renderer.setFogFar(settings.renderDistance * CHUNK_SIZE);
     this.world.setRenderDistance(settings.renderDistance);
     this.controls.setSensitivityScale(settings.mouseSensitivity);
     this.controls.setInvertY(settings.invertY);
+    this.controls.setKeybindings(settings.keybindings);
     this.audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.sfxVolume);
     this.hud.setShowFps(settings.showFps);
   }

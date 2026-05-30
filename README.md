@@ -85,6 +85,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
   - Master / Music / SFX volumes
   - Invert Y axis
   - Show FPS
+  - **Rebindable controls**: remap move / jump / sprint / inventory keys — click a binding then press the new key; conflicts **swap** so no key is ever doubled or left empty, and pressing a reserved key (hotbar digits) or **Esc** cancels. Bindings persist per the usual settings store and live-apply instantly
 
 ### Persistence
 - Worlds saved to **IndexedDB** (metadata + sparse chunk overrides)
@@ -151,6 +152,8 @@ bun install
 | **1–9** | Select hotbar slot |
 | **E** | Open / close inventory & crafting |
 | **Esc** | Pause menu (release pointer) |
+
+> Movement, jump, sprint, and the inventory key are **rebindable** in Settings → Controls. Hotbar digits (1–9) and **Esc** stay fixed.
 
 ---
 

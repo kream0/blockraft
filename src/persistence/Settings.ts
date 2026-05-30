@@ -1,4 +1,4 @@
-import { type Settings, DEFAULT_SETTINGS, SETTINGS_RANGES } from '../types';
+import { type Settings, type Keybindings, type KeyBindableAction, DEFAULT_SETTINGS, DEFAULT_KEYBINDINGS, SETTINGS_RANGES, KEYBINDABLE_ACTIONS } from '../types';
 import { clamp } from '../utils/MathUtils';
 
 /** localStorage key used to persist user settings. */
@@ -25,6 +25,21 @@ export function validateSettings(input: unknown): Settings {
     return typeof raw === 'boolean' ? raw : fallback;
   };
 
+  // Validate keybindings: for each action, accept a non-empty string or fall back to default.
+  const keybindings = ((): Keybindings => {
+    const raw = obj['keybindings'];
+    const src: Record<string, unknown> =
+      raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const result = { ...DEFAULT_KEYBINDINGS };
+    for (const action of KEYBINDABLE_ACTIONS) {
+      const v = src[action];
+      if (typeof v === 'string' && v.length > 0) {
+        result[action as KeyBindableAction] = v;
+      }
+    }
+    return result;
+  })();
+
   const renderDistance = Math.round(num('renderDistance', DEFAULT_SETTINGS.renderDistance));
 
   return {
@@ -36,6 +51,7 @@ export function validateSettings(input: unknown): Settings {
     sfxVolume: num('sfxVolume', DEFAULT_SETTINGS.sfxVolume),
     invertY: bool('invertY', DEFAULT_SETTINGS.invertY),
     showFps: bool('showFps', DEFAULT_SETTINGS.showFps),
+    keybindings,
   };
 }
 
@@ -43,11 +59,11 @@ export function validateSettings(input: unknown): Settings {
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return { ...DEFAULT_SETTINGS };
+    if (raw === null) return { ...DEFAULT_SETTINGS, keybindings: { ...DEFAULT_KEYBINDINGS } };
     const parsed: unknown = JSON.parse(raw);
     return validateSettings(parsed);
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, keybindings: { ...DEFAULT_KEYBINDINGS } };
   }
 }
 

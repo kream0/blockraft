@@ -1,4 +1,4 @@
-import { InputState } from '../types';
+import { InputState, type Keybindings, type KeyBindableAction, KEYBINDABLE_ACTIONS, DEFAULT_KEYBINDINGS } from '../types';
 
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
 
@@ -12,6 +12,8 @@ export class Controls {
   sensitivityScale: number = 1;
   /** When true, vertical mouse movement increases pitch instead of decreasing it. */
   invertY: boolean = false;
+  /** Current action→code map. Swapped live via setKeybindings (usually from Settings). */
+  keybindings: Keybindings = { ...DEFAULT_KEYBINDINGS };
 
   private domElement: HTMLElement;
 
@@ -36,53 +38,15 @@ export class Controls {
     };
 
     this.onKeyDown = (e: KeyboardEvent): void => {
-      switch (e.code) {
-        case 'KeyW':
-          this.input.forward = true;
-          break;
-        case 'KeyS':
-          this.input.back = true;
-          break;
-        case 'KeyA':
-          this.input.left = true;
-          break;
-        case 'KeyD':
-          this.input.right = true;
-          break;
-        case 'Space':
-          this.input.jump = true;
-          e.preventDefault();
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.input.sprint = true;
-          break;
-      }
+      const action = this.codeToAction(e.code);
+      if (action === null) return;
+      if (this.applyAction(action, true) && action === 'jump') e.preventDefault();
     };
 
     this.onKeyUp = (e: KeyboardEvent): void => {
-      switch (e.code) {
-        case 'KeyW':
-          this.input.forward = false;
-          break;
-        case 'KeyS':
-          this.input.back = false;
-          break;
-        case 'KeyA':
-          this.input.left = false;
-          break;
-        case 'KeyD':
-          this.input.right = false;
-          break;
-        case 'Space':
-          this.input.jump = false;
-          e.preventDefault();
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          this.input.sprint = false;
-          break;
-      }
+      const action = this.codeToAction(e.code);
+      if (action === null) return;
+      if (this.applyAction(action, false) && action === 'jump') e.preventDefault();
     };
 
     this.onMouseMove = (e: MouseEvent): void => {
@@ -119,6 +83,32 @@ export class Controls {
     document.addEventListener('pointerlockchange', this.onPointerLockChange);
   }
 
+  /** Reverse lookup: which bound action (if any) owns this physical code. */
+  private codeToAction(code: string): KeyBindableAction | null {
+    for (const action of KEYBINDABLE_ACTIONS) {
+      if (this.keybindings[action] === code) return action;
+    }
+    return null;
+  }
+
+  /**
+   * Apply a pressed/released action to the input state.
+   * Returns true if this is a movement action Controls owns (so the caller knows
+   * whether to preventDefault). 'inventory' is owned by GameSession, not Controls —
+   * it is intentionally ignored here.
+   */
+  private applyAction(action: KeyBindableAction, pressed: boolean): boolean {
+    switch (action) {
+      case 'forward':   this.input.forward = pressed; return true;
+      case 'back':      this.input.back = pressed;    return true;
+      case 'left':      this.input.left = pressed;    return true;
+      case 'right':     this.input.right = pressed;   return true;
+      case 'jump':      this.input.jump = pressed;    return true;
+      case 'sprint':    this.input.sprint = pressed;  return true;
+      case 'inventory': return false;
+    }
+  }
+
   /** Set the user-tunable multiplier (usually `Settings.mouseSensitivity`). */
   setSensitivityScale(scale: number): void {
     this.sensitivityScale = scale;
@@ -127,6 +117,11 @@ export class Controls {
   /** Toggle inverted vertical look. */
   setInvertY(b: boolean): void {
     this.invertY = b;
+  }
+
+  /** Swap the active keybindings (usually from Settings). */
+  setKeybindings(kb: Keybindings): void {
+    this.keybindings = kb;
   }
 
   /** Request pointer lock on the dom element (call from a click handler). */

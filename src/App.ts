@@ -10,6 +10,7 @@ import { PauseMenu } from './ui/menu/PauseMenu';
 import { SettingsMenu } from './ui/menu/SettingsMenu';
 import { WorldsMenu } from './ui/menu/WorldsMenu';
 import {
+  DEFAULT_KEYBINDINGS,
   DEFAULT_SETTINGS,
   GameMode,
   type AppState,
@@ -218,7 +219,7 @@ export class App {
             void this._show(this.settingsReturnState);
           },
           onResetDefaults: () => {
-            this.settings = { ...DEFAULT_SETTINGS };
+            this.settings = { ...DEFAULT_SETTINGS, keybindings: { ...DEFAULT_KEYBINDINGS } };
             saveSettings(this.settings);
             if (this._settingsSaveTimer !== null) {
               window.clearTimeout(this._settingsSaveTimer);

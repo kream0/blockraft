@@ -441,6 +441,41 @@ export const GameMode = {
 } as const;
 export type GameMode = typeof GameMode[keyof typeof GameMode];
 
+// === Keybindings ===
+/** Actions whose key can be remapped in Settings. Escape + hotbar digits stay fixed. */
+export type KeyBindableAction =
+  | 'forward'
+  | 'back'
+  | 'left'
+  | 'right'
+  | 'jump'
+  | 'sprint'
+  | 'inventory';
+
+/** Maps each bindable action to a physical KeyboardEvent.code (e.g. 'KeyW', 'Space', 'ShiftLeft'). */
+export type Keybindings = Record<KeyBindableAction, string>;
+
+/** Stable iteration order for the Settings UI rows. */
+export const KEYBINDABLE_ACTIONS: readonly KeyBindableAction[] = [
+  'forward',
+  'back',
+  'left',
+  'right',
+  'jump',
+  'sprint',
+  'inventory',
+];
+
+export const DEFAULT_KEYBINDINGS: Readonly<Keybindings> = {
+  forward: 'KeyW',
+  back: 'KeyS',
+  left: 'KeyA',
+  right: 'KeyD',
+  jump: 'Space',
+  sprint: 'ShiftLeft',
+  inventory: 'KeyE',
+};
+
 // === Settings ===
 export interface Settings {
   renderDistance: number;
@@ -451,6 +486,7 @@ export interface Settings {
   sfxVolume: number;
   invertY: boolean;
   showFps: boolean;
+  keybindings: Keybindings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -462,6 +498,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 1.0,
   invertY: false,
   showFps: true,
+  keybindings: { ...DEFAULT_KEYBINDINGS },
 };
 
 export const SETTINGS_RANGES = {
