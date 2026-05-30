@@ -52,6 +52,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Items & inventory
 - **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot
 - 36-slot inventory model (9 hotbar + 27 backpack); the hotbar shows a per-block color swatch and live stack count, and the inventory persists per-world
+- **Inventory screen** (Survival): press **E** to open a grid of all 36 slots; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
 - Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts
 
 ### Day & night
@@ -94,7 +95,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
 - **Mob AI improvements**: pathfinding, smarter target tracking, cliff/edge avoidance (1-block step-climbing already ships — see Mobs & combat above)
-- **Inventory UI**: a full inventory grid screen (open/close, move/swap/split stacks) + crafting recipes — the item economy (block drops, pickup, stacking, place-to-consume) and the 36-slot inventory model already ship (see Items & inventory above)
+- **Crafting**: recipes + a crafting grid — the inventory grid screen (open with **E**; move/swap/split stacks via a held cursor) now ships too (see Items & inventory above)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
 
 ### Medium term
@@ -141,6 +142,7 @@ bun install
 | **Left click (hold)** | Mine / break block (hold to keep mining) |
 | **Right click** | Place block |
 | **1–9** | Select hotbar slot |
+| **E** | Open / close inventory (Survival) |
 | **Esc** | Pause menu (release pointer) |
 
 ---

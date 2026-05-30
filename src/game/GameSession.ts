@@ -13,6 +13,7 @@ import { Controls } from '../player/Controls';
 import { Physics } from '../player/Physics';
 import { ViewModel } from '../player/ViewModel';
 import { HUD } from '../ui/HUD';
+import { InventoryScreen } from '../ui/InventoryScreen';
 import { BlockInteraction } from '../interaction/BlockInteraction';
 import { Cow } from '../entities/Cow';
 import { Pig } from '../entities/Pig';
@@ -187,6 +188,9 @@ export class GameSession {
   /** Seconds required to break the current target (0 = instant, e.g. creative). */
   private mineTotal: number = 0;
 
+  private inventoryScreen: InventoryScreen;
+  private inventoryKeyHandler: (e: KeyboardEvent) => void;
+
   private resizeHandler: () => void;
   private slotKeyHandler: (e: KeyboardEvent) => void;
   private mouseDownHandler: (e: MouseEvent) => void;
@@ -291,6 +295,7 @@ export class GameSession {
 
     // HUD — always created/destroyed per session.
     this.hud = new HUD(this.hudContainer, this.player.inventory.hotbarSlots(), this.gameMode === GameMode.SURVIVAL);
+    this.inventoryScreen = new InventoryScreen(this.hudContainer, this.player.inventory);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -327,6 +332,7 @@ export class GameSession {
 
     // Hotbar slot selection (1-9).
     this.slotKeyHandler = (e: KeyboardEvent): void => {
+      if (this.inventoryScreen.isOpen) return;
       const code = e.code;
       if (code.length !== 6 || !code.startsWith('Digit')) return;
       const digit = Number.parseInt(code.slice(5), 10);
@@ -375,10 +381,31 @@ export class GameSession {
       if (!this.controls.isLocked) this.leftHeld = false;
     };
 
-    // ESC -> notify App. Browser releases pointer lock automatically.
+    // Inventory toggle (E key, survival only).
+    this.inventoryKeyHandler = (e: KeyboardEvent): void => {
+      if (e.code !== 'KeyE') return;
+      if (this.gameMode !== GameMode.SURVIVAL) return;
+      if (!this.started || this.isDead) return;
+      if (this.inventoryScreen.isOpen) {
+        this.inventoryScreen.close();
+        this.requestPointerLock();           // KeyE keydown is a user gesture → re-lock OK
+      } else {
+        if (!this.controls.isLocked) return; // only open from active play
+        this.inventoryScreen.open();
+        this.controls.unlock();
+        this.leftHeld = false;
+      }
+    };
+
+    // ESC -> close inventory if open, else notify App. Browser releases pointer lock automatically.
     this.escKeyHandler = (e: KeyboardEvent): void => {
       if (e.code !== 'Escape') return;
       if (!this.started) return;
+      if (this.inventoryScreen.isOpen) {
+        this.inventoryScreen.close();
+        this.requestPointerLock();
+        return;
+      }
       this.onPauseRequested();
     };
 
@@ -395,17 +422,19 @@ export class GameSession {
       this.player.state.pitch = this.controls.input.pitch;
 
       while (this.acc >= FIXED_DT) {
-        // Freeze the player in place while dead so the death cam doesn't drift/fall.
-        if (!this.isDead) {
-          const wasOnGround = this.player.state.onGround;
-          this.physics.update(this.player.state, this.controls.input, FIXED_DT);
-          this.updateFallDamage(wasOnGround);
+        if (!this.inventoryScreen.isOpen) {
+          // Freeze the player in place while dead so the death cam doesn't drift/fall.
+          if (!this.isDead) {
+            const wasOnGround = this.player.state.onGround;
+            this.physics.update(this.player.state, this.controls.input, FIXED_DT);
+            this.updateFallDamage(wasOnGround);
+          }
+          this.world.entityManager.update(FIXED_DT, this.world);
+          this.updateDroppedItems();
+          this.applyHostileContact(FIXED_DT);
+          this.updateSkeletonFire();
+          this.updateArrows();
         }
-        this.world.entityManager.update(FIXED_DT, this.world);
-        this.updateDroppedItems();
-        this.applyHostileContact(FIXED_DT);
-        this.updateSkeletonFire();
-        this.updateArrows();
         this.acc -= FIXED_DT;
       }
 
@@ -440,6 +469,7 @@ export class GameSession {
 
     window.addEventListener('resize', this.resizeHandler);
     window.addEventListener('keydown', this.slotKeyHandler);
+    window.addEventListener('keydown', this.inventoryKeyHandler);
     window.addEventListener('mousedown', this.mouseDownHandler);
     window.addEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.addEventListener(
@@ -491,6 +521,7 @@ export class GameSession {
 
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener('keydown', this.slotKeyHandler);
+    window.removeEventListener('keydown', this.inventoryKeyHandler);
     window.removeEventListener('mousedown', this.mouseDownHandler);
     window.removeEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.removeEventListener(
@@ -503,6 +534,7 @@ export class GameSession {
     this.controls.unlock();
     this.controls.dispose();
     this.hud.dispose();
+    this.inventoryScreen.dispose();
 
     // Detach canvas from DOM BEFORE disposing the renderer so a stale GL context
     // can't try to render into a still-attached canvas during dispose.

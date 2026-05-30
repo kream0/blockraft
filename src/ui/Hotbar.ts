@@ -1,6 +1,6 @@
 import { BlockId, HOTBAR_SIZE, type ItemStack } from '../types';
 
-const SWATCH_COLORS: Record<number, string> = {
+export const SWATCH_COLORS: Record<number, string> = {
   [BlockId.AIR]: '#00000000',
   [BlockId.GRASS]: '#5DAD3A',
   [BlockId.DIRT]: '#8B5A2B',
