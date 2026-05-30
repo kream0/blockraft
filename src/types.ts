@@ -120,6 +120,9 @@ export const PARTICLE_SIZE = 0.14;
 /** Max simultaneous live particles. The pool is preallocated to this size; bursts past it are dropped. */
 export const PARTICLE_POOL_MAX = 256;
 
+/** Number of progressive crack stages drawn on a block as it's mined (Minecraft-style destroy stages). */
+export const BREAK_OVERLAY_STAGES = 10;
+
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
   AIR: 0,

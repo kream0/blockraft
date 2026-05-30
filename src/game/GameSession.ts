@@ -4,6 +4,7 @@ import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
+import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
@@ -125,6 +126,7 @@ export interface GameSessionOptions {
 export class GameSession {
   private renderer: Renderer;
   private particles: ParticleSystem;
+  private breakOverlay: BreakOverlay;
   private audio: AudioManager;
   private dayNight: DayNightCycle;
   private atlas: TextureAtlas;
@@ -299,6 +301,10 @@ export class GameSession {
     // Block-break particles.
     this.particles = new ParticleSystem();
     this.renderer.scene.add(this.particles.object3D);
+
+    // Block-crack overlay.
+    this.breakOverlay = new BreakOverlay();
+    this.renderer.scene.add(this.breakOverlay.object3D);
 
     // Procedural SFX. AudioContext is created lazily on the first user gesture
     // (see requestPointerLock / mouseDownHandler), not here.
@@ -499,6 +505,8 @@ export class GameSession {
     this.renderer.scene.remove(this.player.camera);
     this.renderer.scene.remove(this.particles.object3D);
     this.particles.dispose();
+    this.renderer.scene.remove(this.breakOverlay.object3D);
+    this.breakOverlay.dispose();
     this.viewModel.dispose();
     this.audio.dispose();
     this.world.setTrackedTarget(null);
@@ -874,6 +882,9 @@ export class GameSession {
     const frac = this.mineTotal <= 0 ? 1 : Math.min(1, this.mineProgress / this.mineTotal);
     this.hud.setBreakProgress(frac);
     this.viewModel.setMining(true);
+    if (this.mineTotal > 0) {
+      this.breakOverlay.show(target.x, target.y, target.z, frac);
+    }
     if (this.mineProgress >= this.mineTotal) {
       const broken = this.interaction.breakBlockAt(target.x, target.y, target.z);
       if (broken !== null) {
@@ -886,6 +897,7 @@ export class GameSession {
       this.mineTotal = 0;
       this.mineTargetKey = null;
       this.hud.setBreakProgress(0);
+      this.breakOverlay.hide();
     }
   }
 
@@ -895,6 +907,7 @@ export class GameSession {
     this.mineTotal = 0;
     this.mineTargetKey = null;
     this.hud.setBreakProgress(0);
+    this.breakOverlay.hide();
     this.viewModel.setMining(false);
   }
 
