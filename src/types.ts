@@ -130,6 +130,10 @@ export const MAX_STACK = 64;
 export const INVENTORY_SIZE = 36;
 /** First N slots of the inventory array are the hotbar. */
 export const HOTBAR_SIZE = 9;
+/** Crafting grid is square: CRAFTING_GRID_DIM x CRAFTING_GRID_DIM. */
+export const CRAFTING_GRID_DIM = 3;
+/** Total crafting input slots (DIM*DIM). */
+export const CRAFTING_GRID_SLOTS = 9;
 /** Seconds after spawning before a dropped item can be collected (so the dropper doesn't immediately re-pick it up). */
 export const DROPPED_ITEM_PICKUP_DELAY_S = 0.5;
 /** Horizontal radius (blocks) within which a dropped item is vacuumed toward the player. */
@@ -161,6 +165,50 @@ export const BlockId = {
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
+// === Item IDs ===
+// A non-block item id starts at 100. Block items are represented by their BlockId
+// numeric value (0..14) directly, so a persisted block stack {block,count} reads
+// back as {item,count} with item === block. ItemId is therefore the numeric union
+// of "any BlockId" plus these non-block ids.
+export const ItemId = {
+  STICK: 100,
+  WOODEN_PICKAXE: 101,
+  WOODEN_AXE: 102,
+  WOODEN_SHOVEL: 103,
+} as const;
+/** A BlockId value (0..14) OR one of the ItemId.* non-block ids (>=100). */
+export type ItemId = number;
+
+// === Tools ===
+export const ToolKind = {
+  PICKAXE: 'pickaxe',
+  AXE: 'axe',
+  SHOVEL: 'shovel',
+} as const;
+export type ToolKind = (typeof ToolKind)[keyof typeof ToolKind];
+
+/** Tool behavior: which block category it speeds up, and by how much. */
+export interface ToolDef {
+  kind: ToolKind;
+  /** Mining-time divisor when used on a block in this tool's category (>1 = faster). */
+  speedMultiplier: number;
+}
+
+/** Per-item metadata. Block items synthesize this from their BlockId; non-block items have static defs. */
+export interface ItemDef {
+  id: ItemId;
+  name: string;
+  maxStack: number;
+  /** sRGB hex string (e.g. '#8a5a2b') used for the hotbar/inventory slot swatch. */
+  swatchColor: string;
+  /** 1-char label drawn on the slot for non-block items; '' for block items (which render a plain swatch). */
+  glyph: string;
+  /** Block this item places on right-click, or null if it is not placeable (sticks, tools). */
+  placeable: BlockId | null;
+  /** Tool behavior if this item is a tool, else null. */
+  tool: ToolDef | null;
+}
+
 // === Block definition (registry entry) ===
 export interface BlockDef {
   id: BlockId;
@@ -177,11 +225,16 @@ export interface BlockDef {
   hardness: number;
 }
 
-/** A stack of a single block type held in an inventory slot or carried by a dropped item. block is never AIR for a real stack; count is in [1, MAX_STACK]. */
+/** A stack of a single item type held in an inventory slot or carried by a dropped item. item is never AIR for a real stack; count is in [1, item's maxStack]. */
 export interface ItemStack {
-  block: BlockId;
+  item: ItemId;
   count: number;
 }
+
+/** A crafting recipe. Shaped recipes match a trimmed grid (with horizontal mirror); shapeless match a multiset of ingredients. */
+export type Recipe =
+  | { kind: 'shaped'; pattern: (ItemId | null)[]; width: number; height: number; output: ItemStack }
+  | { kind: 'shapeless'; ingredients: ItemId[]; output: ItemStack };
 
 // === Day/night cycle ===
 /**
@@ -278,11 +331,6 @@ export interface PlayerState {
   health: number;
 }
 
-// === Hotbar ===
-export interface HotbarSlot {
-  block: BlockId;
-}
-
 // === Texture atlas: returns UV rect for a given tile index ===
 export interface ITextureAtlas {
   /** UV rect in atlas: [u0, v0, u1, v1]. Origin bottom-left, range [0,1]. */
@@ -359,7 +407,7 @@ export interface WorldMetadata {
   playerYaw: number;
   playerPitch: number;
   selectedSlot: number;
-  /** Persisted Survival inventory: INVENTORY_SIZE slots, null = empty. Absent on legacy saves and Creative worlds. */
+  /** Persisted inventory: INVENTORY_SIZE slots, null = empty. Slots are {item,count}; legacy saves used {block,count} (numerically identical for block items, so readable by reading item ?? block). Absent on Creative worlds. */
   inventory?: (ItemStack | null)[];
 }
 

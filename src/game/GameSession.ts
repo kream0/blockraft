@@ -8,6 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
+import { toolMultiplierFor } from '../items/ItemRegistry';
 import { Player } from '../player/Player';
 import { Controls } from '../player/Controls';
 import { Physics } from '../player/Physics';
@@ -381,10 +382,9 @@ export class GameSession {
       if (!this.controls.isLocked) this.leftHeld = false;
     };
 
-    // Inventory toggle (E key, survival only).
+    // Inventory toggle (E key, both game modes).
     this.inventoryKeyHandler = (e: KeyboardEvent): void => {
       if (e.code !== 'KeyE') return;
-      if (this.gameMode !== GameMode.SURVIVAL) return;
       if (!this.started || this.isDead) return;
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
@@ -863,7 +863,7 @@ export class GameSession {
       const dy = e.position.y - cy;
       const dz = e.position.z - cz;
       if (dx * dx + dy * dy + dz * dz > r2) continue;
-      const leftover = this.player.inventory.add(e.block, e.count);
+      const leftover = this.player.inventory.add(e.item, e.count);
       if (leftover <= 0) {
         this.world.entityManager.despawn(e.id);
       } else {
@@ -953,9 +953,13 @@ export class GameSession {
     if (key !== this.mineTargetKey) {
       this.mineTargetKey = key;
       this.mineProgress = 0;
-      this.mineTotal =
-        this.gameMode === GameMode.CREATIVE ? 0 : blockRegistry.get(target.block).hardness;
     }
+    // Recompute every frame so swapping to/from a tool mid-mine updates the speed
+    // immediately. The target key is unchanged on a swap, so progress is preserved.
+    const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
+    this.mineTotal = this.gameMode === GameMode.CREATIVE
+      ? 0
+      : blockRegistry.get(target.block).hardness / toolMultiplierFor(heldItem, target.block);
     this.mineProgress += dt;
     const frac = this.mineTotal <= 0 ? 1 : Math.min(1, this.mineProgress / this.mineTotal);
     this.hud.setBreakProgress(frac);

@@ -53,9 +53,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Items & inventory
 - **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot
-- 36-slot inventory model (9 hotbar + 27 backpack); the hotbar shows a per-block color swatch and live stack count, and the inventory persists per-world
-- **Inventory screen** (Survival): press **E** to open a grid of all 36 slots; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
-- Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts
+- Items generalize beyond blocks: **sticks** and **wooden tools** (pickaxe / axe / shovel) are first-class items with their own glyphs and stack sizes
+- 36-slot inventory model (9 hotbar + 27 backpack); the hotbar shows a per-item color swatch and live stack count, and the inventory persists per-world
+- **Inventory & crafting screen** (both modes): press **E** to open a grid of all 36 slots alongside a 3×3 crafting grid; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
+- **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, and planks + sticks → tools; the result previews live in the output slot and the inputs are consumed when you take it
+- **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow)
+- Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts — but crafting works from palette items too
 
 ### Day & night
 - Continuous day/night cycle driving sky color, sun direction, ambient light, and fog (zero per-frame allocation)
@@ -97,8 +100,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
 - **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
-- **Crafting**: recipes + a crafting grid — the inventory grid screen (open with **E**; move/swap/split stacks via a held cursor) now ships too (see Items & inventory above)
-- **Tools**: pickaxe / axe / shovel with break-time speedups per material
+- **More recipes & tool tiers**: stone/iron tools, smelting, and a wider recipe book — the core crafting grid + wood-tool recipes already ship (see Items & inventory above)
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.
@@ -144,7 +146,7 @@ bun install
 | **Left click (hold)** | Mine / break block (hold to keep mining) |
 | **Right click** | Place block |
 | **1–9** | Select hotbar slot |
-| **E** | Open / close inventory (Survival) |
+| **E** | Open / close inventory & crafting |
 | **Esc** | Pause menu (release pointer) |
 
 ---

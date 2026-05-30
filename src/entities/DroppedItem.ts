@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
-import { blockRegistry } from '../world/BlockRegistry';
+import { itemSwatchColor } from '../items/ItemRegistry';
 import {
-  BlockId,
   EntityKind,
   GRAVITY,
   MAX_FALL_SPEED,
@@ -10,6 +9,7 @@ import {
   DROPPED_ITEM_ATTRACT_RADIUS,
   DROPPED_ITEM_ATTRACT_SPEED,
   DROPPED_ITEM_LIFETIME_S,
+  type ItemId,
   type IWorld,
   type Vec3,
 } from '../types';
@@ -28,7 +28,7 @@ const BOB_SPEED = 2.5;
 const SPIN_SPEED = 1.6;
 
 export class DroppedItem extends Entity {
-  readonly block: BlockId;
+  readonly item: ItemId;
   count: number;
   /** Set true on lifetime expiry (handled here) or on collection (set by GameSession). */
   dead = false;
@@ -37,9 +37,9 @@ export class DroppedItem extends Entity {
   /** Random phase offset so items spawned at the same time don't all bob in unison. */
   private bobPhase = Math.random() * Math.PI * 2;
 
-  constructor(position: Vec3, block: BlockId, count: number) {
-    super(EntityKind.DROPPED_ITEM, position, DroppedItem.buildMesh(block));
-    this.block = block;
+  constructor(position: Vec3, item: ItemId, count: number) {
+    super(EntityKind.DROPPED_ITEM, position, DroppedItem.buildMesh(item));
+    this.item = item;
     this.count = count;
     // Pop the item upward on spawn so it bounces out of the broken block face.
     this.velocity.y = SPAWN_POP;
@@ -126,16 +126,16 @@ export class DroppedItem extends Entity {
   }
 
   /**
-   * Builds a small tinted cube mesh colored with the block's particle color.
+   * Builds a small tinted cube mesh colored with the item's swatch color.
    * Each DroppedItem owns its geometry + material so the default Entity.dispose()
    * frees them correctly without extra overriding.
    *
    * Future upgrade: replace with an atlas-textured item cube for per-face block textures.
    */
-  private static buildMesh(block: BlockId): THREE.Mesh {
+  private static buildMesh(item: ItemId): THREE.Mesh {
     const geo = new THREE.BoxGeometry(ITEM_SIZE, ITEM_SIZE, ITEM_SIZE);
     const mat = new THREE.MeshLambertMaterial({
-      color: blockRegistry.get(block).particleColor,
+      color: new THREE.Color(itemSwatchColor(item)),
     });
     return new THREE.Mesh(geo, mat);
   }

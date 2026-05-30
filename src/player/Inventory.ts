@@ -1,6 +1,5 @@
-import { BlockId, ItemStack, MAX_STACK, INVENTORY_SIZE, HOTBAR_SIZE } from '../types';
-
-const VALID_BLOCK_IDS: ReadonlySet<number> = new Set<number>(Object.values(BlockId));
+import { BlockId, ItemStack, INVENTORY_SIZE, HOTBAR_SIZE, type ItemId } from '../types';
+import { itemMaxStack, itemPlaceableBlock, isKnownItem } from '../items/ItemRegistry';
 
 export class Inventory {
   private slots: (ItemStack | null)[];
@@ -25,19 +24,20 @@ export class Inventory {
   selectedBlock(slot: number): BlockId {
     if (slot < 0 || slot >= HOTBAR_SIZE) return BlockId.AIR;
     const s = this.slots[slot] ?? null;
-    return s !== null ? s.block : BlockId.AIR;
+    return s !== null ? (itemPlaceableBlock(s.item) ?? BlockId.AIR) : BlockId.AIR;
   }
 
-  add(block: BlockId, count: number): number {
-    if (block === BlockId.AIR || count <= 0) return count;
+  add(item: ItemId, count: number): number {
+    if (item === BlockId.AIR || count <= 0) return count;
 
     let remaining = count;
+    const maxStack = itemMaxStack(item);
 
-    // First pass: top up existing stacks of the same block
+    // First pass: top up existing stacks of the same item
     for (let i = 0; i < INVENTORY_SIZE; i++) {
       const s = this.slots[i] ?? null;
-      if (s !== null && s.block === block && s.count < MAX_STACK) {
-        const put = Math.min(MAX_STACK - s.count, remaining);
+      if (s !== null && s.item === item && s.count < maxStack) {
+        const put = Math.min(maxStack - s.count, remaining);
         s.count += put;
         remaining -= put;
         if (remaining === 0) return 0;
@@ -47,8 +47,8 @@ export class Inventory {
     // Second pass: fill empty slots with new stacks
     for (let i = 0; i < INVENTORY_SIZE; i++) {
       if (this.slots[i] === null) {
-        const put = Math.min(MAX_STACK, remaining);
-        this.slots[i] = { block, count: put };
+        const put = Math.min(maxStack, remaining);
+        this.slots[i] = { item, count: put };
         remaining -= put;
         if (remaining === 0) return 0;
       }
@@ -73,37 +73,43 @@ export class Inventory {
     this.slots[index] = stack;
   }
 
-  fillCreativePalette(palette: BlockId[]): void {
+  fillCreativePalette(palette: ItemId[]): void {
     this.slots = new Array<ItemStack | null>(INVENTORY_SIZE).fill(null);
     const limit = Math.min(palette.length, HOTBAR_SIZE);
     for (let i = 0; i < limit; i++) {
-      const block = palette[i];
-      if (block !== undefined) {
-        this.slots[i] = { block, count: 1 };
+      const item = palette[i];
+      if (item !== undefined) {
+        this.slots[i] = { item, count: 1 };
       }
     }
   }
 
   serialize(): (ItemStack | null)[] {
-    return this.slots.map(s => s !== null ? { block: s.block, count: s.count } : null);
+    return this.slots.map(s => s !== null ? { item: s.item, count: s.count } : null);
   }
 
   deserialize(data: (ItemStack | null)[]): void {
     const fresh = new Array<ItemStack | null>(INVENTORY_SIZE).fill(null);
     for (let i = 0; i < INVENTORY_SIZE; i++) {
       const d = data[i] ?? null;
-      if (
-        d !== null &&
-        typeof d === 'object' &&
-        VALID_BLOCK_IDS.has(d.block) &&
-        d.block !== BlockId.AIR &&
-        Number.isFinite(d.count) &&
-        d.count > 0
-      ) {
-        fresh[i] = {
-          block: d.block,
-          count: Math.max(1, Math.min(MAX_STACK, Math.floor(d.count))),
-        };
+      if (d !== null && typeof d === 'object') {
+        // Support legacy saves that stored { block, count } as well as new { item, count }.
+        const raw = d as { item?: number; block?: number; count?: number };
+        const id: number | undefined = raw.item ?? raw.block;
+        const cnt: number | undefined = raw.count;
+        if (
+          id !== undefined &&
+          isKnownItem(id) &&
+          id !== BlockId.AIR &&
+          cnt !== undefined &&
+          Number.isFinite(cnt) &&
+          cnt > 0
+        ) {
+          fresh[i] = {
+            item: id,
+            count: Math.max(1, Math.min(itemMaxStack(id), Math.floor(cnt))),
+          };
+        }
       }
     }
     this.slots = fresh;

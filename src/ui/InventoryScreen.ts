@@ -1,6 +1,10 @@
-import { INVENTORY_SIZE, HOTBAR_SIZE, MAX_STACK, type ItemStack } from '../types';
+import { INVENTORY_SIZE, HOTBAR_SIZE, CRAFTING_GRID_DIM, CRAFTING_GRID_SLOTS, type ItemStack, type ItemId } from '../types';
 import type { Inventory } from '../player/Inventory';
-import { SWATCH_COLORS } from './Hotbar';
+import { itemSwatchColor, itemGlyph, itemMaxStack } from '../items/ItemRegistry';
+import { matchRecipe } from '../crafting/Recipes';
+
+const CRAFT_INPUT_BASE = 100;   // synthetic indices 100..108 for the 3x3 inputs
+const CRAFT_OUTPUT_INDEX = 200; // synthetic index for the output slot
 
 export class InventoryScreen {
   isOpen: boolean = false;
@@ -10,6 +14,11 @@ export class InventoryScreen {
   private cursorEl: HTMLElement;
   private cursor: ItemStack | null = null;
   private onMouseMove: (e: MouseEvent) => void;
+
+  private craftGrid: (ItemStack | null)[] = new Array<ItemStack | null>(CRAFTING_GRID_SLOTS).fill(null);
+  private craftOutput: ItemStack | null = null;
+  private craftSlotEls: (HTMLElement | undefined)[] = new Array<HTMLElement | undefined>(CRAFTING_GRID_SLOTS).fill(undefined);
+  private craftOutputEl: HTMLElement;
 
   constructor(container: HTMLElement, inventory: Inventory) {
     this.inventory = inventory;
@@ -52,6 +61,40 @@ export class InventoryScreen {
     title.textContent = 'Inventory';
     title.style.cssText = 'font-size:13px;margin-bottom:6px;color:#ccc;';
     panel.appendChild(title);
+
+    // Crafting section: 3x3 grid → arrow → output slot
+    const craftRow = document.createElement('div');
+    craftRow.style.cssText = [
+      'display:flex',
+      'flex-direction:row',
+      'align-items:center',
+      'margin-bottom:8px',
+    ].join(';');
+    panel.appendChild(craftRow);
+
+    const craftGridEl = document.createElement('div');
+    craftGridEl.style.cssText = [
+      'display:grid',
+      'grid-template-columns:repeat(3, 40px)',
+      'gap:4px',
+    ].join(';');
+    craftRow.appendChild(craftGridEl);
+
+    for (let i = 0; i < CRAFTING_GRID_SLOTS; i++) {
+      const synthIndex = CRAFT_INPUT_BASE + i;
+      const cell = this.buildCraftCell(synthIndex);
+      this.craftSlotEls[i] = cell;
+      craftGridEl.appendChild(cell);
+    }
+
+    const craftArrow = document.createElement('div');
+    craftArrow.textContent = '→';
+    craftArrow.style.cssText = 'margin:0 10px;font-size:18px;color:#aaa;';
+    craftRow.appendChild(craftArrow);
+
+    const craftOutputEl = this.buildCraftCell(CRAFT_OUTPUT_INDEX);
+    craftRow.appendChild(craftOutputEl);
+    this.craftOutputEl = craftOutputEl;
 
     // Backpack grid: slots 9..35 (27 slots, 3 rows × 9)
     const backpackGrid = document.createElement('div');
@@ -114,10 +157,8 @@ export class InventoryScreen {
     };
   }
 
-  private buildSlotEl(invIndex: number): HTMLElement {
-    const el = document.createElement('div');
-    el.dataset['index'] = String(invIndex);
-    el.style.cssText = [
+  private slotCss(): string {
+    return [
       'width:40px',
       'height:40px',
       'box-sizing:border-box',
@@ -131,6 +172,12 @@ export class InventoryScreen {
       'padding:1px 3px',
       'cursor:default',
     ].join(';');
+  }
+
+  private buildSlotEl(invIndex: number): HTMLElement {
+    const el = document.createElement('div');
+    el.dataset['index'] = String(invIndex);
+    el.style.cssText = this.slotCss();
     el.addEventListener('mousedown', (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -140,13 +187,31 @@ export class InventoryScreen {
     return el;
   }
 
+  /** Build a slot element for craft input/output synthetic indices. Does NOT write to slotEls. */
+  private buildCraftCell(synthIndex: number): HTMLElement {
+    const el = document.createElement('div');
+    el.dataset['index'] = String(synthIndex);
+    el.style.cssText = this.slotCss();
+    el.addEventListener('mousedown', (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleSlotMouseDown(synthIndex, e.button);
+    });
+    return el;
+  }
+
   private paintTile(el: HTMLElement, stack: ItemStack | null): void {
     if (stack === null) {
       el.style.background = 'transparent';
       el.textContent = '';
     } else {
-      el.style.background = SWATCH_COLORS[stack.block] ?? '#444444';
-      el.textContent = stack.count > 1 ? String(stack.count) : '';
+      el.style.background = itemSwatchColor(stack.item);
+      const glyph = itemGlyph(stack.item);
+      if (glyph !== '') {
+        el.textContent = glyph;
+      } else {
+        el.textContent = stack.count > 1 ? String(stack.count) : '';
+      }
     }
   }
 
@@ -157,6 +222,11 @@ export class InventoryScreen {
       this.paintTile(el, this.inventory.getSlot(i));
     }
     this.updateCursorEl();
+    for (let i = 0; i < CRAFTING_GRID_SLOTS; i++) {
+      const el = this.craftSlotEls[i];
+      if (el !== undefined) this.paintTile(el, this.craftGrid[i] ?? null);
+    }
+    this.paintTile(this.craftOutputEl, this.craftOutput);
   }
 
   private updateCursorEl(): void {
@@ -165,48 +235,103 @@ export class InventoryScreen {
       this.cursorEl.textContent = '';
       this.cursorEl.style.display = 'none';
     } else {
-      this.cursorEl.style.background = SWATCH_COLORS[this.cursor.block] ?? '#444444';
-      this.cursorEl.textContent = this.cursor.count > 1 ? String(this.cursor.count) : '';
+      this.cursorEl.style.background = itemSwatchColor(this.cursor.item);
+      const glyph = itemGlyph(this.cursor.item);
+      if (glyph !== '') {
+        this.cursorEl.textContent = glyph;
+      } else {
+        this.cursorEl.textContent = this.cursor.count > 1 ? String(this.cursor.count) : '';
+      }
       this.cursorEl.style.display = 'flex';
     }
   }
 
+  private getCell(index: number): ItemStack | null {
+    if (index >= CRAFT_INPUT_BASE && index < CRAFT_INPUT_BASE + CRAFTING_GRID_SLOTS) {
+      return this.craftGrid[index - CRAFT_INPUT_BASE] ?? null;
+    }
+    return this.inventory.getSlot(index);
+  }
+
+  private setCell(index: number, stack: ItemStack | null): void {
+    if (index >= CRAFT_INPUT_BASE && index < CRAFT_INPUT_BASE + CRAFTING_GRID_SLOTS) {
+      this.craftGrid[index - CRAFT_INPUT_BASE] = stack;
+      return;
+    }
+    this.inventory.setSlot(index, stack);
+  }
+
+  private recomputeOutput(): void {
+    const ids: (ItemId | null)[] = this.craftGrid.map(s => (s !== null ? s.item : null));
+    this.craftOutput = matchRecipe(ids, CRAFTING_GRID_DIM);
+  }
+
+  private handleTakeResult(): void {
+    if (this.craftOutput === null) return;
+    const out = this.craftOutput;
+    if (this.cursor === null) {
+      this.cursor = { item: out.item, count: out.count };
+    } else if (this.cursor.item === out.item && this.cursor.count + out.count <= itemMaxStack(out.item)) {
+      this.cursor = { item: this.cursor.item, count: this.cursor.count + out.count };
+    } else {
+      // cursor holds a different item, or no room (e.g. tools maxStack=1) — can't take
+      return;
+    }
+    // Consume exactly one of each non-empty input cell.
+    for (let i = 0; i < this.craftGrid.length; i++) {
+      const cell = this.craftGrid[i] ?? null;
+      if (cell !== null) {
+        const left = cell.count - 1;
+        this.craftGrid[i] = left > 0 ? { item: cell.item, count: left } : null;
+      }
+    }
+  }
+
   private handleSlotMouseDown(index: number, button: number): void {
-    const slot = this.inventory.getSlot(index);
+    // Output slot: take crafted result then return early.
+    if (index === CRAFT_OUTPUT_INDEX) {
+      this.handleTakeResult();
+      this.recomputeOutput();
+      this.refresh();
+      return;
+    }
+
+    const slot = this.getCell(index);
 
     if (button === 0) {
       // Left click
       if (this.cursor === null) {
         if (slot !== null) {
           // Pick up whole stack
-          this.cursor = { block: slot.block, count: slot.count };
-          this.inventory.setSlot(index, null);
+          this.cursor = { item: slot.item, count: slot.count };
+          this.setCell(index, null);
         }
         // slot null → nothing
       } else {
         // cursor not null
         if (slot === null) {
           // Drop whole cursor
-          this.inventory.setSlot(index, { block: this.cursor.block, count: this.cursor.count });
+          this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
           this.cursor = null;
-        } else if (slot.block === this.cursor.block) {
-          // Same block type: merge up to MAX_STACK
-          const space = MAX_STACK - slot.count;
+        } else if (slot.item === this.cursor.item) {
+          // Same item type: merge up to per-item maxStack
+          const maxStack = itemMaxStack(slot.item);
+          const space = maxStack - slot.count;
           const move = Math.min(space, this.cursor.count);
           if (move > 0) {
-            this.inventory.setSlot(index, { block: slot.block, count: slot.count + move });
+            this.setCell(index, { item: slot.item, count: slot.count + move });
             const left = this.cursor.count - move;
-            this.cursor = left > 0 ? { block: this.cursor.block, count: left } : null;
+            this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
           } else {
             // Slot is already full: swap
-            const tmp: ItemStack = { block: slot.block, count: slot.count };
-            this.inventory.setSlot(index, { block: this.cursor.block, count: this.cursor.count });
+            const tmp: ItemStack = { item: slot.item, count: slot.count };
+            this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
             this.cursor = tmp;
           }
         } else {
-          // Different block type: swap
-          const tmp: ItemStack = { block: slot.block, count: slot.count };
-          this.inventory.setSlot(index, { block: this.cursor.block, count: this.cursor.count });
+          // Different item type: swap
+          const tmp: ItemStack = { item: slot.item, count: slot.count };
+          this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
           this.cursor = tmp;
         }
       }
@@ -217,27 +342,29 @@ export class InventoryScreen {
           // Take half (ceil)
           const take = Math.ceil(slot.count / 2);
           const keep = slot.count - take;
-          this.cursor = { block: slot.block, count: take };
-          this.inventory.setSlot(index, keep > 0 ? { block: slot.block, count: keep } : null);
+          this.cursor = { item: slot.item, count: take };
+          this.setCell(index, keep > 0 ? { item: slot.item, count: keep } : null);
         }
         // slot null → nothing
       } else {
         // cursor not null
         if (slot === null) {
           // Drop ONE
-          this.inventory.setSlot(index, { block: this.cursor.block, count: 1 });
+          this.setCell(index, { item: this.cursor.item, count: 1 });
           const left = this.cursor.count - 1;
-          this.cursor = left > 0 ? { block: this.cursor.block, count: left } : null;
-        } else if (slot.block === this.cursor.block && slot.count < MAX_STACK) {
+          this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
+        } else if (slot.item === this.cursor.item && slot.count < itemMaxStack(slot.item)) {
           // Same type with room: add ONE
-          this.inventory.setSlot(index, { block: slot.block, count: slot.count + 1 });
+          this.setCell(index, { item: slot.item, count: slot.count + 1 });
           const left = this.cursor.count - 1;
-          this.cursor = left > 0 ? { block: this.cursor.block, count: left } : null;
+          this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
         }
         // else → nothing
       }
     }
 
+    // Recompute output after any change (cheap, harmless on inventory-only clicks).
+    this.recomputeOutput();
     this.refresh();
   }
 
@@ -251,12 +378,25 @@ export class InventoryScreen {
   close(): void {
     if (this.cursor !== null) {
       // Return held items to the inventory (conservation invariant: always fits)
-      const leftover = this.inventory.add(this.cursor.block, this.cursor.count);
+      const leftover = this.inventory.add(this.cursor.item, this.cursor.count);
       if (leftover > 0) {
         console.error(`[InventoryScreen] close() could not return ${leftover} held item(s) — inventory full`);
       }
       this.cursor = null;
     }
+    // Return craft-grid inputs to the inventory (conservation: no item loss on close).
+    // The output slot is a computed preview — do NOT add it to the inventory.
+    for (let i = 0; i < this.craftGrid.length; i++) {
+      const cell = this.craftGrid[i] ?? null;
+      if (cell !== null) {
+        const leftover = this.inventory.add(cell.item, cell.count);
+        if (leftover > 0) {
+          console.error(`[InventoryScreen] close() could not return ${leftover} craft input(s) — inventory full`);
+        }
+        this.craftGrid[i] = null;
+      }
+    }
+    this.craftOutput = null;
     this.isOpen = false;
     this.root.style.display = 'none';
     this.updateCursorEl();
@@ -265,11 +405,12 @@ export class InventoryScreen {
 
   dispose(): void {
     // Route teardown through close() so a held cursor stack is returned to the
-    // inventory and the mousemove listener is removed via the canonical path.
+    // inventory, craft inputs are returned, and the mousemove listener is removed.
     this.close();
     if (this.root.parentNode !== null) {
       this.root.parentNode.removeChild(this.root);
     }
     this.slotEls = [];
+    this.craftSlotEls = [];
   }
 }

@@ -1,22 +1,5 @@
-import { BlockId, HOTBAR_SIZE, type ItemStack } from '../types';
-
-export const SWATCH_COLORS: Record<number, string> = {
-  [BlockId.AIR]: '#00000000',
-  [BlockId.GRASS]: '#5DAD3A',
-  [BlockId.DIRT]: '#8B5A2B',
-  [BlockId.STONE]: '#888888',
-  [BlockId.COBBLESTONE]: '#777777',
-  [BlockId.WOOD]: '#6E4923',
-  [BlockId.LEAVES]: '#3F7E2A',
-  [BlockId.PLANKS]: '#B6824A',
-  [BlockId.SAND]: '#E2D2A0',
-  [BlockId.GLASS]: '#A8D0E6',
-  [BlockId.BEDROCK]: '#4A4A4A',
-  [BlockId.SNOW]: '#EAF2F8',
-  [BlockId.WATER]: '#3B6FCB',
-  [BlockId.COAL_ORE]: '#2B2B2B',
-  [BlockId.IRON_ORE]: '#C8865A',
-};
+import { HOTBAR_SIZE, type ItemStack } from '../types';
+import { itemSwatchColor, itemGlyph } from '../items/ItemRegistry';
 
 const SLOT_COUNT = HOTBAR_SIZE;
 
@@ -85,8 +68,13 @@ export class Hotbar {
         slot.style.background = 'transparent';
         slot.textContent = '';
       } else {
-        slot.style.background = SWATCH_COLORS[stack.block] ?? '#444444';
-        slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
+        slot.style.background = itemSwatchColor(stack.item);
+        const glyph = itemGlyph(stack.item);
+        if (glyph !== '') {
+          slot.textContent = glyph;
+        } else {
+          slot.textContent = (this.showCounts && stack.count > 1) ? String(stack.count) : '';
+        }
       }
     }
   }
