@@ -13,6 +13,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### World
 - Chunked voxel world (16×96×16 chunks) with face-culled meshing
+- **Ambient occlusion**: chunk meshes bake per-vertex AO, so block crevices, ledges, and the ground beneath trees pick up soft contact shadows (the classic voxel smooth-lighting look) — opaque blocks occlude, foliage/glass/water don't, and a flip-quad split avoids the diagonal-gradient artifact
 - Procedural terrain via Perlin FBM heightmap
 - Trees placed deterministically per chunk (Plains only)
 - **Biomes**: a low-frequency biome map skins the surface into grassy **Plains**, sandy **Desert**, and snow-capped **Snowy** regions (deterministic per seed; heightmap unchanged)
@@ -112,7 +113,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.
-- **Lighting**: per-block sky/torch lightmap, smooth shading at chunk edges
+- **Lighting**: per-block sky/torch light propagation — vertex ambient occlusion / smooth contact shading already ships (see World above)
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
 - **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
 - **Structure generation (more)**: villages and loot-containers — v1 boulders + dungeon rooms with an iron reward already ship (see World above)

@@ -8,6 +8,7 @@ export function createChunkMaterial(atlas: ITextureAtlas): THREE.Material {
     side: THREE.DoubleSide,
     transparent: false,
     alphaTest: 0,
+    vertexColors: true,
   });
 }
 
@@ -20,5 +21,6 @@ export function createWaterMaterial(atlas: ITextureAtlas): THREE.Material {
     opacity: 0.7,
     depthWrite: false,
     alphaTest: 0,
+    vertexColors: true,
   });
 }

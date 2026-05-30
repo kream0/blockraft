@@ -9,6 +9,19 @@ import {
 } from '../types';
 import { Chunk } from './Chunk';
 
+/**
+ * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
+ * side1 / side2 are the two edge-adjacent blocks on the face plane; corner is the
+ * diagonal block.  Returns 0 (darkest) .. 3 (unoccluded).
+ */
+export function aoLevel(side1: boolean, side2: boolean, corner: boolean): number {
+  if (side1 && side2) return 0; // both edge neighbours solid → fully occluded
+  return 3 - ((side1 ? 1 : 0) + (side2 ? 1 : 0) + (corner ? 1 : 0));
+}
+
+/** Per-AO-level brightness multipliers: index = level (0 darkest → 3 full bright). */
+export const AO_BRIGHTNESS: readonly [number, number, number, number] = [0.5, 0.7, 0.85, 1.0];
+
 /** Face direction tag — used to pick texture (top/bottom/side) and vertices. */
 const enum Face {
   TOP = 0,
@@ -121,11 +134,13 @@ export class ChunkMesher {
     const solidPositions: number[] = [];
     const solidNormals: number[] = [];
     const solidUvs: number[] = [];
+    const solidColors: number[] = [];
     const solidIndices: number[] = [];
 
     const waterPositions: number[] = [];
     const waterNormals: number[] = [];
     const waterUvs: number[] = [];
+    const waterColors: number[] = [];
     const waterIndices: number[] = [];
 
     const baseX = chunk.cx * CHUNK_SIZE;
@@ -179,27 +194,90 @@ export class ChunkMesher {
             const positions = isWater ? waterPositions : solidPositions;
             const normals = isWater ? waterNormals : solidNormals;
             const uvs = isWater ? waterUvs : solidUvs;
+            const colors = isWater ? waterColors : solidColors;
             const indices = isWater ? waterIndices : solidIndices;
 
             const startVertex = positions.length / 3;
 
+            // --- AO: derive tangent axes from the face normal (programmatic, not hand-tabulated) ---
+            // The normal has exactly one non-zero component (±1). The other two axes are the tangents.
+            // We identify them by finding which axes are zero in the normal.
+            const normX = data.normal[0];
+            const normY = data.normal[1];
+            const normZ = data.normal[2];
+
+            // AO sampling base: the cell across the face from the current block
+            const baseAOx = lx + normX; // local coords of the cell one step in normal direction
+            const baseAOy = ly + normY;
+            const baseAOz = lz + normZ;
+
+            // Determine the two tangent axis indices (0=X, 1=Y, 2=Z) — the axes where normal=0
+            const tangentAxes: [number, number] = normX !== 0
+              ? [1, 2] // normal along X → tangents are Y and Z
+              : normY !== 0
+                ? [0, 2] // normal along Y → tangents are X and Z
+                : [0, 1]; // normal along Z → tangents are X and Y
+            const uAxis = tangentAxes[0];
+            const vAxis = tangentAxes[1];
+
+            // Compute per-vertex AO brightness and accumulate levels for flip-quad decision
+            const aoLevels: [number, number, number, number] = [0, 0, 0, 0];
+            const aoBrightness: [number, number, number, number] = [1.0, 1.0, 1.0, 1.0];
+
+            for (let c = 0; c < 4; c++) {
+              const corner = data.corners[c]!;
+              // corner[axis] is 0 or 1; map to -1 or +1 sign along each tangent axis
+              const sU = (corner[uAxis] ?? 0) === 1 ? 1 : -1;
+              const sV = (corner[vAxis] ?? 0) === 1 ? 1 : -1;
+
+              // Sample the three AO neighbors (side1, side2, corner diag) in the AO base plane
+              // Each sample offset is applied to the AO base cell along the tangent axes.
+              const s1x = baseAOx + (uAxis === 0 ? sU : 0);
+              const s1y = baseAOy + (uAxis === 1 ? sU : 0);
+              const s1z = baseAOz + (uAxis === 2 ? sU : 0);
+
+              const s2x = baseAOx + (vAxis === 0 ? sV : 0);
+              const s2y = baseAOy + (vAxis === 1 ? sV : 0);
+              const s2z = baseAOz + (vAxis === 2 ? sV : 0);
+
+              const scx = baseAOx + (uAxis === 0 ? sU : 0) + (vAxis === 0 ? sV : 0);
+              const scy = baseAOy + (uAxis === 1 ? sU : 0) + (vAxis === 1 ? sV : 0);
+              const scz = baseAOz + (uAxis === 2 ? sU : 0) + (vAxis === 2 ? sV : 0);
+
+              const occ1 = this.sampleOccludes(chunk, world, baseX, baseZ, s1x, s1y, s1z);
+              const occ2 = this.sampleOccludes(chunk, world, baseX, baseZ, s2x, s2y, s2z);
+              const occC = this.sampleOccludes(chunk, world, baseX, baseZ, scx, scy, scz);
+
+              const level = aoLevel(occ1, occ2, occC);
+              aoLevels[c] = level;
+              aoBrightness[c] = AO_BRIGHTNESS[level] ?? 1.0;
+            }
+
             for (let c = 0; c < 4; c++) {
               const corner = data.corners[c]!;
               positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
-              normals.push(data.normal[0], data.normal[1], data.normal[2]);
+              normals.push(normX, normY, normZ);
+              const b = aoBrightness[c] ?? 1.0;
+              colors.push(b, b, b);
             }
             // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
             uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
 
-            // Two triangles: (0,1,2) and (0,2,3)
-            indices.push(
-              startVertex,
-              startVertex + 1,
-              startVertex + 2,
-              startVertex,
-              startVertex + 2,
-              startVertex + 3,
-            );
+            // Flip-quad anti-interpolation fix: choose the diagonal that minimises the AO gradient.
+            // Compare sums along both diagonals: (a0+a2) vs (a1+a3). Flip when the (0,2) diagonal
+            // carries less total AO (i.e. would produce a brighter-to-darker ramp across the face).
+            const a0 = aoLevels[0] ?? 3;
+            const a1 = aoLevels[1] ?? 3;
+            const a2 = aoLevels[2] ?? 3;
+            const a3 = aoLevels[3] ?? 3;
+            const sv = startVertex;
+            if (a0 + a2 < a1 + a3) {
+              // Flipped split: (0,1,3) and (1,2,3)
+              indices.push(sv, sv + 1, sv + 3, sv + 1, sv + 2, sv + 3);
+            } else {
+              // Default split: (0,1,2) and (0,2,3)
+              indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);
+            }
           }
         }
       }
@@ -209,6 +287,7 @@ export class ChunkMesher {
     solidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(solidPositions, 3));
     solidGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(solidNormals, 3));
     solidGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(solidUvs, 2));
+    solidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(solidColors, 3));
     solidGeometry.setIndex(solidIndices);
     solidGeometry.computeBoundingSphere();
 
@@ -222,6 +301,7 @@ export class ChunkMesher {
       waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
       waterGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(waterNormals, 3));
       waterGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(waterUvs, 2));
+      waterGeometry.setAttribute('color', new THREE.Float32BufferAttribute(waterColors, 3));
       waterGeometry.setIndex(waterIndices);
       waterGeometry.computeBoundingSphere();
 
@@ -231,6 +311,36 @@ export class ChunkMesher {
     }
 
     return { solid: solidMesh, water: waterMesh };
+  }
+
+  /**
+   * Samples whether a local-coordinate cell (lx, ly, lz) occludes for AO purposes.
+   * Uses the in-chunk fast path when the cell's x/z fall inside this chunk; falls back
+   * to world.getBlock for cross-chunk cells.  Treats out-of-vertical-bounds as non-occluding
+   * (no dark seam at world top/bottom).
+   */
+  private sampleOccludes(
+    chunk: Chunk,
+    world: IWorld,
+    baseX: number,
+    baseZ: number,
+    lx: number,
+    ly: number,
+    lz: number,
+  ): boolean {
+    if (ly < 0 || ly >= CHUNK_HEIGHT) return false;
+    let sampledId: BlockId;
+    if (lx >= 0 && lx < CHUNK_SIZE && lz >= 0 && lz < CHUNK_SIZE) {
+      sampledId = chunk.getBlock(lx, ly, lz);
+    } else {
+      sampledId = world.getBlock(baseX + lx, ly, baseZ + lz);
+    }
+    return this.occludes(sampledId);
+  }
+
+  /** A block id contributes AO only when it is solid and not transparent (leaves/glass/water do not). */
+  private occludes(id: BlockId): boolean {
+    return id !== BlockId.AIR && !this.registry.isTransparent(id);
   }
 
   private shouldDrawFace(
