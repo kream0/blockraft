@@ -1,6 +1,7 @@
 import { InputState, type Keybindings, type KeyBindableAction, KEYBINDABLE_ACTIONS, DEFAULT_KEYBINDINGS } from '../types';
 
 const PITCH_LIMIT = Math.PI / 2 - 0.001;
+const DOUBLE_TAP_SPRINT_MS = 300;
 
 export class Controls {
   input: InputState;
@@ -16,6 +17,11 @@ export class Controls {
   keybindings: Keybindings = { ...DEFAULT_KEYBINDINGS };
 
   private domElement: HTMLElement;
+
+  private sprintFromKey = false;
+  private sprintFromDoubleTap = false;
+  private forwardHeld = false;
+  private lastForwardTapMs = 0;
 
   private onKeyDown: (e: KeyboardEvent) => void;
   private onKeyUp: (e: KeyboardEvent) => void;
@@ -40,12 +46,28 @@ export class Controls {
     this.onKeyDown = (e: KeyboardEvent): void => {
       const action = this.codeToAction(e.code);
       if (action === null) return;
+      if (action === 'forward') {
+        if (!this.forwardHeld) {
+          const now = performance.now();
+          if (now - this.lastForwardTapMs <= DOUBLE_TAP_SPRINT_MS) {
+            this.sprintFromDoubleTap = true;
+            this.updateSprint();
+          }
+          this.lastForwardTapMs = now;
+        }
+        this.forwardHeld = true;
+      }
       if (this.applyAction(action, true) && action === 'jump') e.preventDefault();
     };
 
     this.onKeyUp = (e: KeyboardEvent): void => {
       const action = this.codeToAction(e.code);
       if (action === null) return;
+      if (action === 'forward') {
+        this.forwardHeld = false;
+        this.sprintFromDoubleTap = false;
+        this.updateSprint();
+      }
       if (this.applyAction(action, false) && action === 'jump') e.preventDefault();
     };
 
@@ -73,6 +95,10 @@ export class Controls {
         this.input.right = false;
         this.input.jump = false;
         this.input.sprint = false;
+        this.sprintFromKey = false;
+        this.sprintFromDoubleTap = false;
+        this.forwardHeld = false;
+        this.lastForwardTapMs = 0;
       }
     };
 
@@ -81,6 +107,11 @@ export class Controls {
     window.addEventListener('mousemove', this.onMouseMove);
     this.domElement.addEventListener('click', this.onClick);
     document.addEventListener('pointerlockchange', this.onPointerLockChange);
+  }
+
+  /** Compose both sprint sources into the shared input flag. */
+  private updateSprint(): void {
+    this.input.sprint = this.sprintFromKey || this.sprintFromDoubleTap;
   }
 
   /** Reverse lookup: which bound action (if any) owns this physical code. */
@@ -104,7 +135,7 @@ export class Controls {
       case 'left':      this.input.left = pressed;    return true;
       case 'right':     this.input.right = pressed;   return true;
       case 'jump':      this.input.jump = pressed;    return true;
-      case 'sprint':    this.input.sprint = pressed;  return true;
+      case 'sprint':    this.sprintFromKey = pressed; this.updateSprint(); return true;
       case 'inventory': return false;
     }
   }

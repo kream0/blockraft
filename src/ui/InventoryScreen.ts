@@ -193,7 +193,7 @@ export class InventoryScreen {
     el.addEventListener('mousedown', (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotMouseDown(invIndex, e.button);
+      this.handleSlotMouseDown(invIndex, e.button, e.shiftKey);
     });
     this.slotEls[invIndex] = el;
     return el;
@@ -207,7 +207,7 @@ export class InventoryScreen {
     el.addEventListener('mousedown', (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotMouseDown(synthIndex, e.button);
+      this.handleSlotMouseDown(synthIndex, e.button, e.shiftKey);
     });
     return el;
   }
@@ -293,7 +293,57 @@ export class InventoryScreen {
     }
   }
 
-  private handleSlotMouseDown(index: number, button: number): void {
+  private handleShiftClick(index: number): void {
+    if (index === CRAFT_OUTPUT_INDEX) {
+      // Craft output: repeatedly craft-and-collect into main inventory until full or no output.
+      for (let iter = 0; iter < 256; iter++) {
+        const result = this.getCell(CRAFT_OUTPUT_INDEX);
+        if (result === null) break;
+        // Fill main inventory (9..35) first, then spill to hotbar — but only craft if it fully fits somewhere.
+        if (!this.inventory.canAccept(result.item, result.count)) break; // would only partially fit anywhere — don't craft
+
+        const leftover = this.inventory.addToRange(result.item, result.count, HOTBAR_SIZE, INVENTORY_SIZE);
+        if (leftover > 0) this.inventory.add(result.item, leftover); // main full — spill remainder into hotbar
+
+        // Consume exactly one of each non-empty input cell.
+        for (let i = 0; i < CRAFTING_GRID_SLOTS; i++) {
+          const ci = CRAFT_INPUT_BASE + i;
+          const cell = this.getCell(ci);
+          if (cell !== null) {
+            const left = cell.count - 1;
+            this.setCell(ci, left > 0 ? { item: cell.item, count: left } : null);
+          }
+        }
+
+        this.recomputeOutput();
+      }
+    } else if (index >= CRAFT_INPUT_BASE && index < CRAFT_INPUT_BASE + CRAFTING_GRID_SLOTS) {
+      // Craft input: move whole stack into the player inventory (full 0..35).
+      const cell = this.getCell(index);
+      if (cell === null) return;
+      const leftover = this.inventory.add(cell.item, cell.count);
+      this.setCell(index, leftover > 0 ? { item: cell.item, count: leftover } : null);
+      this.recomputeOutput();
+    } else if (index < HOTBAR_SIZE) {
+      // Hotbar (0..8): move whole stack into main inventory (9..35).
+      const cell = this.getCell(index);
+      if (cell === null) return;
+      const leftover = this.inventory.addToRange(cell.item, cell.count, HOTBAR_SIZE, INVENTORY_SIZE);
+      this.setCell(index, leftover > 0 ? { item: cell.item, count: leftover } : null);
+    } else {
+      // Main inventory (9..35): move whole stack into hotbar (0..8).
+      const cell = this.getCell(index);
+      if (cell === null) return;
+      const leftover = this.inventory.addToRange(cell.item, cell.count, 0, HOTBAR_SIZE);
+      this.setCell(index, leftover > 0 ? { item: cell.item, count: leftover } : null);
+    }
+
+    this.refresh();
+  }
+
+  private handleSlotMouseDown(index: number, button: number, shiftKey: boolean): void {
+    if (shiftKey) { this.handleShiftClick(index); return; }
+
     // Output slot: take crafted result then return early.
     if (index === CRAFT_OUTPUT_INDEX) {
       this.handleTakeResult();

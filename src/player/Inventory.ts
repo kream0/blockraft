@@ -27,14 +27,22 @@ export class Inventory {
     return s !== null ? (itemPlaceableBlock(s.item) ?? BlockId.AIR) : BlockId.AIR;
   }
 
-  add(item: ItemId, count: number): number {
+  /**
+   * Like add(), but only fills slots in [start, end). Merges into existing
+   * same-item partial stacks first, then empty slots. Returns leftover count.
+   */
+  addToRange(item: ItemId, count: number, start: number, end: number): number {
     if (item === BlockId.AIR || count <= 0) return count;
+
+    const lo = Math.max(0, start);
+    const hi = Math.min(INVENTORY_SIZE, end);
+    if (lo >= hi) return count;
 
     let remaining = count;
     const maxStack = itemMaxStack(item);
 
-    // First pass: top up existing stacks of the same item
-    for (let i = 0; i < INVENTORY_SIZE; i++) {
+    // First pass: top up existing stacks of the same item within range
+    for (let i = lo; i < hi; i++) {
       const s = this.slots[i] ?? null;
       if (s !== null && s.item === item && s.count < maxStack) {
         const put = Math.min(maxStack - s.count, remaining);
@@ -44,8 +52,8 @@ export class Inventory {
       }
     }
 
-    // Second pass: fill empty slots with new stacks
-    for (let i = 0; i < INVENTORY_SIZE; i++) {
+    // Second pass: fill empty slots within range with new stacks
+    for (let i = lo; i < hi; i++) {
       if (this.slots[i] === null) {
         const put = Math.min(maxStack, remaining);
         this.slots[i] = { item, count: put };
@@ -55,6 +63,27 @@ export class Inventory {
     }
 
     return remaining;
+  }
+
+  add(item: ItemId, count: number): number {
+    return this.addToRange(item, count, 0, INVENTORY_SIZE);
+  }
+
+  /** True if `count` of `item` fully fits in slots [start, end) (merging into partials + empty slots). */
+  canAccept(item: ItemId, count: number, start = 0, end = INVENTORY_SIZE): boolean {
+    if (item === BlockId.AIR) return false;
+    if (count <= 0) return true;
+    const lo = Math.max(0, start);
+    const hi = Math.min(INVENTORY_SIZE, end);
+    const maxStack = itemMaxStack(item);
+    let capacity = 0;
+    for (let i = lo; i < hi; i++) {
+      const s = this.slots[i] ?? null;
+      if (s === null) capacity += maxStack;
+      else if (s.item === item && s.count < maxStack) capacity += maxStack - s.count;
+      if (capacity >= count) return true;
+    }
+    return capacity >= count;
   }
 
   removeOne(slot: number): boolean {

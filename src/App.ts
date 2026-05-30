@@ -38,6 +38,7 @@ export class App {
   private settingsReturnState: AppState = 'main_menu';
   /** Pending debounced settings save. window.setTimeout returns number in browsers. */
   private _settingsSaveTimer: number | null = null;
+  private escKeyHandler!: (e: KeyboardEvent) => void;
 
   constructor() {
     this.settings = { ...DEFAULT_SETTINGS };
@@ -75,6 +76,33 @@ export class App {
       // Continue with the in-memory worldStorage object as-is; subsequent calls
       // will fail and toast individually, but the menu UI remains usable.
     }
+
+    this.escKeyHandler = (e: KeyboardEvent): void => {
+      if (e.code !== 'Escape') return;
+      switch (this.state) {
+        case 'worlds':
+          e.stopImmediatePropagation();
+          void this._show('main_menu');
+          break;
+        case 'create_world':
+          e.stopImmediatePropagation();
+          void this._show('worlds');
+          break;
+        case 'settings':
+          e.stopImmediatePropagation();
+          this._flushSettingsSave();
+          void this._show(this.settingsReturnState);
+          break;
+        case 'paused':
+          // stopImmediatePropagation prevents GameSession's later-registered window
+          // keydown handler from re-pausing immediately after we resume.
+          e.stopImmediatePropagation();
+          this._resumeSession();
+          break;
+        // main_menu / in_game / dead: do nothing (in_game ESC -> GameSession pauses; dead has its own buttons).
+      }
+    };
+    window.addEventListener('keydown', this.escKeyHandler);
 
     void this._show('main_menu');
   }
