@@ -152,6 +152,8 @@ export interface BlockDef {
   textures: { top: number; bottom: number; side: number };
   /** sRGB hex tint used for the break-particle burst of this block. */
   particleColor: number;
+  /** Seconds to mine this block by hand at base speed. Infinity = unbreakable (bedrock). AIR/WATER unused. */
+  hardness: number;
 }
 
 // === Day/night cycle ===

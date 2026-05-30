@@ -36,6 +36,36 @@ export class BlockInteraction {
     return { x: hit.block.x, y: hit.block.y, z: hit.block.z, block: current };
   }
 
+  /** Break the block at exact integer voxel coords (used by hold-to-mine, which already tracked this target by coordinate). Bedrock- and air-guarded. Sets it to AIR and returns the broken voxel + its prior id, or null. */
+  breakBlockAt(
+    x: number,
+    y: number,
+    z: number,
+  ): { x: number; y: number; z: number; block: BlockId } | null {
+    const current = this.world.getBlock(x, y, z);
+    if (current === BlockId.BEDROCK || current === BlockId.AIR) return null;
+    this.world.setBlock(x, y, z, BlockId.AIR);
+    return { x, y, z, block: current };
+  }
+
+  /** Raycast from the camera and return the targeted block's integer coords + current id WITHOUT modifying the world. Null on miss. */
+  getTargetedBlock(): { x: number; y: number; z: number; block: BlockId } | null {
+    const origin = this.player.camera.getWorldPosition(new THREE.Vector3());
+    const direction = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(this.player.camera.quaternion)
+      .normalize();
+
+    const hit = this.world.raycast(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: direction.x, y: direction.y, z: direction.z },
+      REACH,
+    );
+    if (hit === null) return null;
+
+    const block = this.world.getBlock(hit.block.x, hit.block.y, hit.block.z);
+    return { x: hit.block.x, y: hit.block.y, z: hit.block.z, block };
+  }
+
   /** Raycast; if hit, place selected block at hit.block + hit.normal, but only if that target is currently AIR AND wouldn't overlap the player. Returns true iff a block was placed. */
   placeBlock(): boolean {
     const selected = this.player.getSelectedBlock();

@@ -10,6 +10,7 @@ import { blockRegistry } from '../world/BlockRegistry';
 import { Player } from '../player/Player';
 import { Controls } from '../player/Controls';
 import { Physics } from '../player/Physics';
+import { ViewModel } from '../player/ViewModel';
 import { HUD } from '../ui/HUD';
 import { BlockInteraction } from '../interaction/BlockInteraction';
 import { Cow } from '../entities/Cow';
@@ -171,6 +172,17 @@ export class GameSession {
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
 
+  private viewModel: ViewModel;
+  private mouseUpHandler: (e: MouseEvent) => void;
+  /** True while the left mouse button is held (drives hold-to-mine). */
+  private leftHeld: boolean = false;
+  /** "x,y,z" of the block currently being mined, or null. Progress resets when this changes. */
+  private mineTargetKey: string | null = null;
+  /** Seconds of mining accumulated on the current target. */
+  private mineProgress: number = 0;
+  /** Seconds required to break the current target (0 = instant, e.g. creative). */
+  private mineTotal: number = 0;
+
   private resizeHandler: () => void;
   private slotKeyHandler: (e: KeyboardEvent) => void;
   private mouseDownHandler: (e: MouseEvent) => void;
@@ -222,6 +234,10 @@ export class GameSession {
     // Player at high Y; physics resolves when chunks load.
     this.player = new Player(0, CHUNK_HEIGHT - 1, 0, settings.fov);
     this.renderer.scene.add(this.player.camera);
+
+    // First-person hand, parented to the camera so it always tracks the view.
+    this.viewModel = new ViewModel();
+    this.player.camera.add(this.viewModel.object3D);
 
     // Pre-stream chunks around (0,0) so we can find a real spawn.
     for (let i = 0; i < PRELOAD_TICKS; i++) {
@@ -309,25 +325,29 @@ export class GameSession {
       this.hud.hotbar.setSelectedSlot(slot);
     };
 
-    // Mouse input for break/place (only when pointer-locked).
+    // Mouse input (only when pointer-locked). Left = hold-to-mine / melee; right = place.
     this.mouseDownHandler = (e: MouseEvent): void => {
       if (!this.controls.isLocked) return;
       // A locked-canvas mousedown is a user gesture — safe to (idempotently) start audio.
       this.audio.resume();
       if (e.button === 0) {
-        if (!this.tryMeleeAttack()) {
-          const broken = this.interaction.breakBlock();
-          if (broken !== null) {
-            const color = blockRegistry.get(broken.block).particleColor;
-            this.particles.spawnBurst(broken.x + 0.5, broken.y + 0.5, broken.z + 0.5, color);
-            this.audio.playBreak();
-          }
+        this.leftHeld = true;
+        // Melee takes priority over mining when a mob is in the attack cone.
+        if (this.tryMeleeAttack()) {
+          this.viewModel.triggerSwing();
         }
+        // Block mining itself is handled per-frame in updateMining().
       } else if (e.button === 2) {
         if (this.interaction.placeBlock()) {
           this.audio.playPlace();
+          this.viewModel.triggerSwing();
         }
       }
+    };
+
+    // Release stops hold-to-mine.
+    this.mouseUpHandler = (e: MouseEvent): void => {
+      if (e.button === 0) this.leftHeld = false;
     };
 
     // Suppress browser context menu on canvas (right-click is "place block").
@@ -338,6 +358,7 @@ export class GameSession {
     // Reflect pointer-lock state into HUD ("Click to play" hint).
     this.pointerLockChangeHandler = (): void => {
       this.hud.setLocked(this.controls.isLocked);
+      if (!this.controls.isLocked) this.leftHeld = false;
     };
 
     // ESC -> notify App. Browser releases pointer lock automatically.
@@ -377,6 +398,8 @@ export class GameSession {
       this.updateHostiles(dt);
       this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
       this.player.syncCamera();
+      this.updateMining(dt);
+      this.viewModel.update(dt);
       this.hud.update(this.player.state, dtMs);
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
@@ -402,6 +425,7 @@ export class GameSession {
     window.addEventListener('resize', this.resizeHandler);
     window.addEventListener('keydown', this.slotKeyHandler);
     window.addEventListener('mousedown', this.mouseDownHandler);
+    window.addEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.addEventListener(
       'contextmenu',
       this.contextMenuHandler,
@@ -452,6 +476,7 @@ export class GameSession {
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener('keydown', this.slotKeyHandler);
     window.removeEventListener('mousedown', this.mouseDownHandler);
+    window.removeEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.removeEventListener(
       'contextmenu',
       this.contextMenuHandler,
@@ -474,6 +499,7 @@ export class GameSession {
     this.renderer.scene.remove(this.player.camera);
     this.renderer.scene.remove(this.particles.object3D);
     this.particles.dispose();
+    this.viewModel.dispose();
     this.audio.dispose();
     this.world.setTrackedTarget(null);
     this.world.dispose();
@@ -815,6 +841,61 @@ export class GameSession {
       return { x: sx, y: sy, z: sz };
     }
     return null;
+  }
+
+  /**
+   * Per-frame hold-to-mine. Accumulates time on the crosshair-targeted block and breaks it
+   * once progress reaches its hardness. Survival mines by hardness; creative breaks instantly
+   * (mineTotal 0). Resets when the pointer unlocks, the button is released, the target changes,
+   * or a mob is in melee reach (melee takes priority). Keeps mining the next block while held.
+   */
+  private updateMining(dt: number): void {
+    if (this.isDead || !this.controls.isLocked || !this.leftHeld) {
+      this.resetMining();
+      return;
+    }
+    if (this.findMeleeTarget() !== null) {
+      this.resetMining();
+      return;
+    }
+    const target = this.interaction.getTargetedBlock();
+    if (target === null || target.block === BlockId.BEDROCK || target.block === BlockId.AIR) {
+      this.resetMining();
+      return;
+    }
+    const key = target.x + ',' + target.y + ',' + target.z;
+    if (key !== this.mineTargetKey) {
+      this.mineTargetKey = key;
+      this.mineProgress = 0;
+      this.mineTotal =
+        this.gameMode === GameMode.CREATIVE ? 0 : blockRegistry.get(target.block).hardness;
+    }
+    this.mineProgress += dt;
+    const frac = this.mineTotal <= 0 ? 1 : Math.min(1, this.mineProgress / this.mineTotal);
+    this.hud.setBreakProgress(frac);
+    this.viewModel.setMining(true);
+    if (this.mineProgress >= this.mineTotal) {
+      const broken = this.interaction.breakBlockAt(target.x, target.y, target.z);
+      if (broken !== null) {
+        const color = blockRegistry.get(broken.block).particleColor;
+        this.particles.spawnBurst(broken.x + 0.5, broken.y + 0.5, broken.z + 0.5, color);
+        this.audio.playBreak();
+      }
+      // Reset progress; keep mining the next block under the crosshair while still held.
+      this.mineProgress = 0;
+      this.mineTotal = 0;
+      this.mineTargetKey = null;
+      this.hud.setBreakProgress(0);
+    }
+  }
+
+  /** Clear mining progress + hide the HUD disc + stop the continuous arm swing. */
+  private resetMining(): void {
+    this.mineProgress = 0;
+    this.mineTotal = 0;
+    this.mineTargetKey = null;
+    this.hud.setBreakProgress(0);
+    this.viewModel.setMining(false);
   }
 
   /**

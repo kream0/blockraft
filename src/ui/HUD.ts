@@ -29,6 +29,7 @@ function ensureStyle(): void {
 .mc-bubble-fg { color: #7ec8ff; overflow: hidden; white-space: nowrap; text-shadow: 1px 1px 1px black; }
 .mc-underwater { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s ease-out; background: rgba(30,90,170,0.35); }
 .mc-damage-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out; box-shadow: inset 0 0 120px 50px rgba(170,0,0,0.65); }
+.mc-break { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; opacity: 0; }
 `;
   document.head.appendChild(style);
 }
@@ -44,6 +45,7 @@ export class HUD {
   private airEl: HTMLElement;
   private damageVignetteEl: HTMLElement;
   private underwaterEl: HTMLElement;
+  private breakEl: HTMLElement;
   private heartFills: HTMLElement[] = [];
   private bubbleFills: HTMLElement[] = [];
   hotbar: Hotbar;
@@ -59,6 +61,11 @@ export class HUD {
     crosshair.className = 'mc-crosshair';
     container.appendChild(crosshair);
     this.crosshairEl = crosshair;
+
+    const breakEl = document.createElement('div');
+    breakEl.className = 'mc-break';
+    container.appendChild(breakEl);
+    this.breakEl = breakEl;
 
     const readout = document.createElement('div');
     readout.className = 'mc-readout';
@@ -220,9 +227,22 @@ export class HUD {
     this.clickHintEl.hidden = locked;
   }
 
+  /** Show mining progress as a filling disc over the crosshair. frac in [0,1]; values <= 0 hide it. */
+  setBreakProgress(frac: number): void {
+    const f = Math.max(0, Math.min(1, frac));
+    if (f <= 0) {
+      this.breakEl.style.opacity = '0';
+      return;
+    }
+    const deg = f * 360;
+    this.breakEl.style.opacity = '1';
+    this.breakEl.style.background =
+      'conic-gradient(rgba(255,255,255,0.55) ' + deg + 'deg, rgba(0,0,0,0.30) ' + deg + 'deg)';
+  }
+
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.underwaterEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.underwaterEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
