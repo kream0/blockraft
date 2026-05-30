@@ -92,6 +92,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Settings saved to **LocalStorage** (debounced writes)
 - Per-world deterministic seed derived from world name (FNV-1a hash + xorshift mix)
 - Auto-save every 30s and on quit-to-menu
+- **World import/export**: from the world list, **Export** any world to a downloadable `*.blockraft.json` file (metadata + chunk overrides + furnace contents) or **Import** one back from disk. The file is validated at the boundary — malformed or foreign files are rejected, recoverable fields fall back to safe defaults — and an import is auto-renamed on name collision so it never overwrites an existing world
 
 ### Foundations (in place, not yet user-facing)
 - **Network adapter**: `INetworkAdapter` interface + `LocalAdapter` no-op stub; typed message protocol (entity spawn/despawn/state, block set, chat, hello/welcome handshake)
@@ -117,7 +118,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Long term / nice-to-haves
 - **Custom resource packs**: swap the procedural texture atlas for user-supplied PNGs
 - **Shaders**: ambient occlusion, screen-space fog, post-processing
-- **Save/load JSON export**: import/export world files outside of IndexedDB
 - **Mobile / touch controls**
 - **WebGPU renderer path** when Three.js's WebGPU backend stabilizes
 

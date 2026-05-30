@@ -20,6 +20,7 @@ import {
   type WorldMetadata,
   type WorldSave,
 } from './types';
+import { serializeWorld, validateWorldExport } from './persistence/WorldSerializer';
 import { deriveSeed } from './utils/Hash';
 
 const TOAST_DURATION_MS = 2000;
@@ -144,6 +145,12 @@ export class App {
           },
           onDelete: (name: string) => {
             void this._deleteWorld(name);
+          },
+          onExport: (name: string) => {
+            void this._exportWorld(name);
+          },
+          onImport: () => {
+            this._importWorld();
           },
           onBack: () => {
             void this._show('main_menu');
@@ -354,6 +361,122 @@ export class App {
       return;
     }
     this._startSession(save);
+  }
+
+  private async _exportWorld(name: string): Promise<void> {
+    let save: WorldSave | null;
+    try {
+      save = await this.worldStorage.getWorld(name);
+    } catch (err) {
+      console.error('Export failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      this._toast('Export failed: ' + msg);
+      return;
+    }
+    if (save === null) {
+      this._toast('World not found');
+      return;
+    }
+    let furnaces: Record<string, FurnaceState> = {};
+    try {
+      furnaces = await this.worldStorage.loadFurnaces(name);
+    } catch (err) {
+      console.error('Export: loadFurnaces failed (continuing without furnaces):', err);
+    }
+    const json = serializeWorld(save, furnaces);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = this._exportFileName(name);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoke later: the download is async, and revoking synchronously cancels it on Firefox.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    this._toast('Exported "' + name + '"');
+  }
+
+  private _exportFileName(name: string): string {
+    const safe = name.replace(/[^\w.\-]+/g, '_').replace(/^[._]+|[._]+$/g, '');
+    return (safe.length > 0 ? safe : 'world') + '.blockraft.json';
+  }
+
+  private _importWorld(): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      const file = input.files !== null && input.files.length > 0 ? input.files[0] : null;
+      input.remove();
+      if (file === undefined || file === null) return;
+      const reader = new FileReader();
+      reader.onload = (): void => {
+        const text = typeof reader.result === 'string' ? reader.result : '';
+        void this._finishImport(text);
+      };
+      reader.onerror = (): void => {
+        this._toast('Could not read file');
+      };
+      reader.readAsText(file);
+    });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  private async _finishImport(text: string): Promise<void> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      this._toast('Import failed: not valid JSON');
+      return;
+    }
+    const exp = validateWorldExport(parsed);
+    if (exp === null) {
+      this._toast('Import failed: not a Blockraft world file');
+      return;
+    }
+    let existing: string[];
+    try {
+      existing = (await this.worldStorage.listWorlds()).map((w) => w.name);
+    } catch (err) {
+      console.error('Import: listWorlds failed:', err);
+      this._toast('Import failed: could not read world list');
+      return;
+    }
+    const uniqueName = this._uniqueWorldName(exp.metadata.name, existing);
+    const metadata: WorldMetadata = { ...exp.metadata, name: uniqueName };
+    try {
+      await this.worldStorage.saveWorld({ metadata, overrides: exp.overrides });
+    } catch (err) {
+      console.error('Import save failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      this._toast('Import failed: ' + msg);
+      return;
+    }
+    try {
+      await this.worldStorage.saveFurnaces(uniqueName, exp.furnaces);
+    } catch (err) {
+      // World is already persisted; report partial success so the user can still find it.
+      console.error('Import: saveFurnaces failed (world imported without furnace state):', err);
+      this._toast('Imported "' + uniqueName + '" (furnace data lost)');
+      void this._show('worlds');
+      return;
+    }
+    this._toast('Imported "' + uniqueName + '"');
+    void this._show('worlds');
+  }
+
+  private _uniqueWorldName(base: string, existing: string[]): string {
+    const taken = new Set(existing);
+    if (!taken.has(base)) return base;
+    const first = base + ' (imported)';
+    if (!taken.has(first)) return first;
+    let n = 2;
+    while (taken.has(base + ' (imported ' + n + ')')) n++;
+    return base + ' (imported ' + n + ')';
   }
 
   private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}): void {

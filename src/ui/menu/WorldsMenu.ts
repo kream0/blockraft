@@ -5,6 +5,8 @@ export interface WorldsMenuCallbacks {
   onCreate(): void;
   onLoad(name: string): void;
   onDelete(name: string): void;
+  onExport(name: string): void;
+  onImport(): void;
   onBack(): void;
 }
 
@@ -67,6 +69,7 @@ export class WorldsMenu extends MenuScreen {
     const panel = document.createElement('div');
     panel.className = 'mc-menu-panel';
     panel.appendChild(this.makeButton('Create New World', () => this.callbacks.onCreate()));
+    panel.appendChild(this.makeButton('Import World', () => this.callbacks.onImport()));
     panel.appendChild(this.makeButton('Back', () => this.callbacks.onBack()));
     this.root.appendChild(panel);
   }
@@ -116,7 +119,17 @@ export class WorldsMenu extends MenuScreen {
       this.replaceWithConfirm(item, meta.name);
     });
 
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button';
+    exportBtn.className = 'mc-btn mc-btn-small';
+    exportBtn.textContent = 'Export';
+    exportBtn.addEventListener('click', (ev: MouseEvent) => {
+      ev.stopPropagation();
+      this.callbacks.onExport(meta.name);
+    });
+
     actions.appendChild(loadBtn);
+    actions.appendChild(exportBtn);
     actions.appendChild(deleteBtn);
     item.appendChild(actions);
 

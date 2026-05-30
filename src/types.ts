@@ -539,6 +539,25 @@ export interface WorldSave {
   overrides: ChunkOverrides;
 }
 
+// === World import/export ===
+/** Magic string identifying a Blockraft world-export file. */
+export const WORLD_EXPORT_FORMAT = 'blockraft-world';
+/** Current export schema version. Bump when the envelope shape changes incompatibly. */
+export const WORLD_EXPORT_VERSION = 1;
+
+/**
+ * Self-contained, JSON-serializable snapshot of one world: metadata + block overrides +
+ * furnace states. This is the on-disk format produced by Export and consumed by Import.
+ * `furnaces` is keyed by world-position string (e.g. "12,64,-3"), matching WorldStorage.
+ */
+export interface WorldExport {
+  format: typeof WORLD_EXPORT_FORMAT;
+  version: number;
+  metadata: WorldMetadata;
+  overrides: ChunkOverrides;
+  furnaces: Record<string, FurnaceState>;
+}
+
 // === Entity system ===
 export const EntityKind = {
   LOCAL_PLAYER: 'local_player',
