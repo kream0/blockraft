@@ -175,6 +175,9 @@ export const ItemId = {
   WOODEN_PICKAXE: 101,
   WOODEN_AXE: 102,
   WOODEN_SHOVEL: 103,
+  STONE_PICKAXE: 104,
+  STONE_AXE: 105,
+  STONE_SHOVEL: 106,
 } as const;
 /** A BlockId value (0..14) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;

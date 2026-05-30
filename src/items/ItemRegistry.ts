@@ -89,6 +89,42 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 3 } satisfies ToolDef,
     },
   ],
+  [
+    ItemId.STONE_PICKAXE,
+    {
+      id: ItemId.STONE_PICKAXE,
+      name: 'Stone Pickaxe',
+      maxStack: 1,
+      swatchColor: '#9a9a9a',
+      glyph: 'P',
+      placeable: null,
+      tool: { kind: ToolKind.PICKAXE, speedMultiplier: 5 } satisfies ToolDef,
+    },
+  ],
+  [
+    ItemId.STONE_AXE,
+    {
+      id: ItemId.STONE_AXE,
+      name: 'Stone Axe',
+      maxStack: 1,
+      swatchColor: '#9a9a9a',
+      glyph: 'A',
+      placeable: null,
+      tool: { kind: ToolKind.AXE, speedMultiplier: 5 } satisfies ToolDef,
+    },
+  ],
+  [
+    ItemId.STONE_SHOVEL,
+    {
+      id: ItemId.STONE_SHOVEL,
+      name: 'Stone Shovel',
+      maxStack: 1,
+      swatchColor: '#9a9a9a',
+      glyph: 'S',
+      placeable: null,
+      tool: { kind: ToolKind.SHOVEL, speedMultiplier: 5 } satisfies ToolDef,
+    },
+  ],
 ]);
 
 /** True if id refers to any known item (block or non-block). */
@@ -187,4 +223,13 @@ export function toolMultiplierFor(heldItem: ItemId, target: BlockId): number {
   if (tool === null) return 1;
   const cat = BLOCK_TOOL_CATEGORY[target];
   return cat === tool.kind ? tool.speedMultiplier : 1;
+}
+
+/**
+ * The block item that drops when `block` is mined. Stone drops cobblestone
+ * (so cobblestone is obtainable and stone tools are craftable); every other
+ * block drops itself. Ore-specific drops (coal/raw iron items) are future work.
+ */
+export function blockDropFor(block: BlockId): BlockId {
+  return block === BlockId.STONE ? BlockId.COBBLESTONE : block;
 }

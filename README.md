@@ -52,12 +52,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Creative mode is damage-free
 
 ### Items & inventory
-- **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot
-- Items generalize beyond blocks: **sticks** and **wooden tools** (pickaxe / axe / shovel) are first-class items, each rendered from its own **3D mesh model**, with their own stack sizes
+- **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot. **Mining stone yields cobblestone** (as in Minecraft), making it gatherable and feeding stone-tool crafting
+- Items generalize beyond blocks: **sticks** and **tools in two tiers** — **wooden + stone** (pickaxe / axe / shovel each) — are first-class items, each rendered from its own **3D mesh model** (stone tools share the wood silhouette with a grey head), with their own stack sizes
 - 36-slot inventory model (9 hotbar + 27 backpack); every slot renders a **live 3D item icon** (blocks as isometric cubes, tools as their 3D models) with stack count, and the inventory persists per-world
 - **Inventory & crafting screen** (both modes): press **E** to open a grid of all 36 slots alongside a 3×3 crafting grid; rearrange with a held cursor stack — left-click picks up / drops / merges / swaps, right-click splits a stack in half or drops one; close with **E** or **Esc** (gameplay soft-pauses while it's open)
-- **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, and planks + sticks → tools; the result previews live in the output slot and the inputs are consumed when you take it
-- **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow)
+- **Crafting**: fill the 3×3 grid to match a recipe (shaped or shapeless) — wood → planks, planks → sticks, planks + sticks → wooden tools, and **cobblestone + sticks → stone tools**; the result previews live in the output slot and the inputs are consumed when you take it
+- **Tools speed up mining**: holding the right tool shortens break time per material (pickaxe for stone/ore, axe for wood/planks, shovel for dirt/grass/sand/snow), and **stone tools mine faster than wooden ones**
 - Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts — but crafting works from palette items too
 
 ### Day & night
@@ -100,7 +100,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
 - **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
-- **More recipes & tool tiers**: stone/iron tools, smelting, and a wider recipe book — the core crafting grid + wood-tool recipes already ship (see Items & inventory above)
+- **More recipes & tool tiers**: iron tools, smelting, and a wider recipe book — the crafting grid, wooden tools, and **stone tools** already ship (see Items & inventory above)
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.

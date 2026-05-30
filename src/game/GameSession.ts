@@ -8,7 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
-import { toolMultiplierFor } from '../items/ItemRegistry';
+import { toolMultiplierFor, blockDropFor } from '../items/ItemRegistry';
 import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
@@ -989,7 +989,7 @@ export class GameSession {
           this.world.entityManager.spawn(
             new DroppedItem(
               { x: broken.x + 0.5, y: broken.y + 0.3, z: broken.z + 0.5 },
-              broken.block,
+              blockDropFor(broken.block),
               1,
             ),
           );

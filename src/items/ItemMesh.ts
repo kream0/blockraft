@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BlockId, ItemId, type ITextureAtlas } from '../types';
 import { isBlockItem } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
-import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh } from './ToolMeshes';
+import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh } from './ToolMeshes';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -21,6 +21,9 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
       case ItemId.WOODEN_PICKAXE:  return buildPickaxeMesh();
       case ItemId.WOODEN_AXE:      return buildAxeMesh();
       case ItemId.WOODEN_SHOVEL:   return buildShovelMesh();
+      case ItemId.STONE_PICKAXE:   return buildStonePickaxeMesh();
+      case ItemId.STONE_AXE:       return buildStoneAxeMesh();
+      case ItemId.STONE_SHOVEL:    return buildStoneShovelMesh();
       default:
         // Unknown non-block item — fall through to a plain cube as fallback.
         return new THREE.Mesh(

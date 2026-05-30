@@ -63,6 +63,51 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: ItemId.WOODEN_SHOVEL, count: 1 },
   },
+  // Stone Pickaxe (shaped 3x3)
+  // [C, C, C]
+  // [_, S, _]
+  // [_, S, _]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE, BlockId.COBBLESTONE, BlockId.COBBLESTONE,
+      null,                ItemId.STICK,         null,
+      null,                ItemId.STICK,         null,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.STONE_PICKAXE, count: 1 },
+  },
+  // Stone Axe (shaped 2x3)
+  // [C, C]
+  // [C, S]
+  // [_, S]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE, BlockId.COBBLESTONE,
+      BlockId.COBBLESTONE, ItemId.STICK,
+      null,                ItemId.STICK,
+    ],
+    width: 2,
+    height: 3,
+    output: { item: ItemId.STONE_AXE, count: 1 },
+  },
+  // Stone Shovel (shaped 1x3)
+  // [C]
+  // [S]
+  // [S]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE,
+      ItemId.STICK,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 3,
+    output: { item: ItemId.STONE_SHOVEL, count: 1 },
+  },
 ];
 
 // ============================================================

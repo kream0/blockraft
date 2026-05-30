@@ -7,9 +7,10 @@ import * as THREE from 'three';
 // Size budget: max ≈ 0.8 in any axis after rotation, centered near origin.
 
 // Wooden tool colors
-const HANDLE_COLOR = 0x6e4923; // dark wood
-const HEAD_COLOR   = 0xb6824a; // light wood / planks tan
-const STICK_COLOR  = 0x8a5a2b; // stick
+const HANDLE_COLOR     = 0x6e4923; // dark wood
+const HEAD_COLOR       = 0xb6824a; // light wood / planks tan
+const STICK_COLOR      = 0x8a5a2b; // stick
+const STONE_HEAD_COLOR = 0x9a9a9a; // grey stone tool head
 
 /** Returns a new THREE.Group with the stick mesh. Each Mesh owns its own geometry + material. */
 export function buildStickMesh(): THREE.Group {
@@ -30,7 +31,7 @@ export function buildStickMesh(): THREE.Group {
 }
 
 /** Returns a new THREE.Group with the pickaxe mesh. */
-export function buildPickaxeMesh(): THREE.Group {
+export function buildPickaxeMesh(headColor: number = HEAD_COLOR): THREE.Group {
   const group = new THREE.Group();
 
   // Handle: slim vertical bar
@@ -44,7 +45,7 @@ export function buildPickaxeMesh(): THREE.Group {
   // Pick head: wide thin horizontal bar near the top
   const head = new THREE.Mesh(
     new THREE.BoxGeometry(0.46, 0.1, 0.12),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   head.position.set(0, 0.28, 0);
   group.add(head);
@@ -52,7 +53,7 @@ export function buildPickaxeMesh(): THREE.Group {
   // Left prong: angled slightly downward
   const prongL = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.14, 0.1),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   prongL.position.set(-0.22, 0.18, 0);
   prongL.rotation.z = 0.35;
@@ -61,7 +62,7 @@ export function buildPickaxeMesh(): THREE.Group {
   // Right prong
   const prongR = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.14, 0.1),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   prongR.position.set(0.22, 0.18, 0);
   prongR.rotation.z = -0.35;
@@ -73,8 +74,10 @@ export function buildPickaxeMesh(): THREE.Group {
   return group;
 }
 
+export function buildStonePickaxeMesh(): THREE.Group { return buildPickaxeMesh(STONE_HEAD_COLOR); }
+
 /** Returns a new THREE.Group with the axe mesh. */
-export function buildAxeMesh(): THREE.Group {
+export function buildAxeMesh(headColor: number = HEAD_COLOR): THREE.Group {
   const group = new THREE.Group();
 
   // Handle
@@ -88,7 +91,7 @@ export function buildAxeMesh(): THREE.Group {
   // Main head: blocky rectangle on one side (right) near the top
   const headMain = new THREE.Mesh(
     new THREE.BoxGeometry(0.28, 0.3, 0.12),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   headMain.position.set(0.17, 0.24, 0);
   group.add(headMain);
@@ -96,7 +99,7 @@ export function buildAxeMesh(): THREE.Group {
   // Smaller angled secondary box for depth
   const headBack = new THREE.Mesh(
     new THREE.BoxGeometry(0.14, 0.16, 0.1),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   headBack.position.set(0.08, 0.36, 0);
   headBack.rotation.z = 0.2;
@@ -108,8 +111,10 @@ export function buildAxeMesh(): THREE.Group {
   return group;
 }
 
+export function buildStoneAxeMesh(): THREE.Group { return buildAxeMesh(STONE_HEAD_COLOR); }
+
 /** Returns a new THREE.Group with the shovel mesh. */
-export function buildShovelMesh(): THREE.Group {
+export function buildShovelMesh(headColor: number = HEAD_COLOR): THREE.Group {
   const group = new THREE.Group();
 
   // Handle
@@ -123,7 +128,7 @@ export function buildShovelMesh(): THREE.Group {
   // Flat square blade at the top end
   const blade = new THREE.Mesh(
     new THREE.BoxGeometry(0.22, 0.22, 0.08),
-    new THREE.MeshLambertMaterial({ color: HEAD_COLOR }),
+    new THREE.MeshLambertMaterial({ color: headColor }),
   );
   blade.position.set(0, 0.32, 0);
   group.add(blade);
@@ -133,3 +138,5 @@ export function buildShovelMesh(): THREE.Group {
 
   return group;
 }
+
+export function buildStoneShovelMesh(): THREE.Group { return buildShovelMesh(STONE_HEAD_COLOR); }
