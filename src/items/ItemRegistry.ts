@@ -2,9 +2,11 @@ import {
   BlockId,
   ItemId,
   ToolKind,
+  EntityKind,
   MAX_STACK,
   type ItemDef,
   type ToolDef,
+  type FoodDef,
 } from '../types';
 
 // === Canonical block swatch colors (copied from Hotbar.ts; integration agent will redirect Hotbar here) ===
@@ -51,6 +53,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: '/',
       placeable: null,
       tool: null,
+      food: null,
     },
   ],
   [
@@ -63,6 +66,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'P',
       placeable: null,
       tool: { kind: ToolKind.PICKAXE, speedMultiplier: 3 } satisfies ToolDef,
+      food: null,
     },
   ],
   [
@@ -75,6 +79,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'A',
       placeable: null,
       tool: { kind: ToolKind.AXE, speedMultiplier: 3 } satisfies ToolDef,
+      food: null,
     },
   ],
   [
@@ -87,6 +92,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'S',
       placeable: null,
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 3 } satisfies ToolDef,
+      food: null,
     },
   ],
   [
@@ -99,6 +105,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'P',
       placeable: null,
       tool: { kind: ToolKind.PICKAXE, speedMultiplier: 5 } satisfies ToolDef,
+      food: null,
     },
   ],
   [
@@ -111,6 +118,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'A',
       placeable: null,
       tool: { kind: ToolKind.AXE, speedMultiplier: 5 } satisfies ToolDef,
+      food: null,
     },
   ],
   [
@@ -123,8 +131,29 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
       glyph: 'S',
       placeable: null,
       tool: { kind: ToolKind.SHOVEL, speedMultiplier: 5 } satisfies ToolDef,
+      food: null,
     },
   ],
+  [ItemId.RAW_BEEF, {
+    id: ItemId.RAW_BEEF, name: 'Raw Beef', maxStack: 64,
+    swatchColor: '#a83e3e', glyph: 'B', placeable: null, tool: null,
+    food: { hungerRestore: 3 } satisfies FoodDef,
+  }],
+  [ItemId.RAW_PORKCHOP, {
+    id: ItemId.RAW_PORKCHOP, name: 'Raw Porkchop', maxStack: 64,
+    swatchColor: '#e6a4a4', glyph: 'O', placeable: null, tool: null,
+    food: { hungerRestore: 3 } satisfies FoodDef,
+  }],
+  [ItemId.RAW_CHICKEN, {
+    id: ItemId.RAW_CHICKEN, name: 'Raw Chicken', maxStack: 64,
+    swatchColor: '#e8cf9a', glyph: 'C', placeable: null, tool: null,
+    food: { hungerRestore: 2 } satisfies FoodDef,
+  }],
+  [ItemId.RAW_MUTTON, {
+    id: ItemId.RAW_MUTTON, name: 'Raw Mutton', maxStack: 64,
+    swatchColor: '#b85c4e', glyph: 'M', placeable: null, tool: null,
+    food: { hungerRestore: 2 } satisfies FoodDef,
+  }],
 ]);
 
 /** True if id refers to any known item (block or non-block). */
@@ -174,6 +203,13 @@ export function itemToolDef(id: ItemId): ToolDef | null {
   return null;
 }
 
+/** FoodDef if this item is edible, else null. */
+export function itemFoodDef(id: ItemId): FoodDef | null {
+  const def = ITEM_DEFS.get(id);
+  if (def !== undefined) return def.food;
+  return null;
+}
+
 /**
  * Returns the static ItemDef for non-block items, or synthesizes one for
  * block items from BLOCK_SWATCH_COLORS + the reverse BlockId name map.
@@ -194,6 +230,7 @@ export function getItemDef(id: ItemId): ItemDef {
     glyph: '',
     placeable: id as BlockId,
     tool: null,
+    food: null,
   };
 }
 
@@ -232,4 +269,13 @@ export function toolMultiplierFor(heldItem: ItemId, target: BlockId): number {
  */
 export function blockDropFor(block: BlockId): BlockId {
   return block === BlockId.STONE ? BlockId.COBBLESTONE : block;
+}
+
+/** The food item a passive animal drops on death, or null for non-food mobs. */
+export function foodDropForMob(kind: EntityKind): ItemId | null {
+  if (kind === EntityKind.COW)     return ItemId.RAW_BEEF;
+  if (kind === EntityKind.PIG)     return ItemId.RAW_PORKCHOP;
+  if (kind === EntityKind.CHICKEN) return ItemId.RAW_CHICKEN;
+  if (kind === EntityKind.SHEEP)   return ItemId.RAW_MUTTON;
+  return null;
 }

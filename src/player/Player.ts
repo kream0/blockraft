@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PlayerState, BlockId, GameMode, PLAYER_EYE, PLAYER_MAX_HEALTH } from '../types';
+import { PlayerState, BlockId, GameMode, PLAYER_EYE, PLAYER_MAX_HEALTH, PLAYER_MAX_HUNGER } from '../types';
 import { Inventory } from './Inventory';
 
 export class Player {
@@ -18,6 +18,7 @@ export class Player {
       onGround: false,
       selectedSlot: 0,
       health: PLAYER_MAX_HEALTH,
+      hunger: PLAYER_MAX_HUNGER,
     };
 
     this.inventory = new Inventory();

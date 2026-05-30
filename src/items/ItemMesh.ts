@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BlockId, ItemId, type ITextureAtlas } from '../types';
-import { isBlockItem } from './ItemRegistry';
+import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
 import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh } from './ToolMeshes';
 
@@ -24,12 +24,13 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
       case ItemId.STONE_PICKAXE:   return buildStonePickaxeMesh();
       case ItemId.STONE_AXE:       return buildStoneAxeMesh();
       case ItemId.STONE_SHOVEL:    return buildStoneShovelMesh();
-      default:
-        // Unknown non-block item — fall through to a plain cube as fallback.
+      default: {
+        const color = new THREE.Color(itemSwatchColor(item));
         return new THREE.Mesh(
-          new THREE.BoxGeometry(1, 1, 1),
-          new THREE.MeshLambertMaterial({ color: 0xffffff }),
+          new THREE.BoxGeometry(0.55, 0.55, 0.55),
+          new THREE.MeshLambertMaterial({ color }),
         );
+      }
     }
   }
 

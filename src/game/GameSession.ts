@@ -8,7 +8,7 @@ import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
 import { blockRegistry } from '../world/BlockRegistry';
-import { toolMultiplierFor, blockDropFor, itemToolDef } from '../items/ItemRegistry';
+import { toolMultiplierFor, blockDropFor, itemToolDef, itemFoodDef, foodDropForMob } from '../items/ItemRegistry';
 import { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { buildItemMesh } from '../items/ItemMesh';
 import { Player } from '../player/Player';
@@ -56,6 +56,18 @@ import {
   FALL_DAMAGE_PER_BLOCK,
   HEALTH_REGEN_DELAY_S,
   HEALTH_REGEN_INTERVAL_S,
+  PLAYER_MAX_HUNGER,
+  HUNGER_REGEN_THRESHOLD,
+  EXHAUSTION_PER_HUNGER,
+  EXHAUSTION_IDLE_PER_S,
+  EXHAUSTION_WALK_PER_BLOCK,
+  EXHAUSTION_SPRINT_PER_BLOCK,
+  EXHAUSTION_JUMP,
+  EXHAUSTION_PER_HEAL,
+  STARVE_DAMAGE,
+  STARVE_INTERVAL_S,
+  STARVE_FLOOR_HP,
+  EAT_DURATION_S,
   DROPPED_ITEM_PICKUP_RADIUS,
   type INetworkAdapter,
   type IWorld,
@@ -182,6 +194,15 @@ export class GameSession {
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   private wasNight: boolean = false;
+
+  /** Accumulated activity exhaustion; each EXHAUSTION_PER_HUNGER converts to -1 hunger. */
+  private exhaustion = 0;
+  /** Seconds since the last starvation damage tick (only counts while hunger is 0). */
+  private starveTimer = 0;
+  /** True while the right mouse button is held (drives hold-to-eat). */
+  private rightHeld = false;
+  /** Seconds spent eating the currently-held food. */
+  private eatProgress = 0;
 
   private viewModel: ViewModel;
   private mouseUpHandler: (e: MouseEvent) => void;
@@ -362,6 +383,7 @@ export class GameSession {
         }
         // Block mining itself is handled per-frame in updateMining().
       } else if (e.button === 2) {
+        this.rightHeld = true;
         if (this.interaction.placeBlock()) {
           if (this.gameMode === GameMode.SURVIVAL) {
             this.player.inventory.removeOne(this.player.state.selectedSlot);
@@ -372,9 +394,10 @@ export class GameSession {
       }
     };
 
-    // Release stops hold-to-mine.
+    // Release stops hold-to-mine and hold-to-eat.
     this.mouseUpHandler = (e: MouseEvent): void => {
       if (e.button === 0) this.leftHeld = false;
+      if (e.button === 2) { this.rightHeld = false; this.eatProgress = 0; }
     };
 
     // Suppress browser context menu on canvas (right-click is "place block").
@@ -385,7 +408,7 @@ export class GameSession {
     // Reflect pointer-lock state into HUD ("Click to play" hint).
     this.pointerLockChangeHandler = (): void => {
       this.hud.setLocked(this.controls.isLocked);
-      if (!this.controls.isLocked) this.leftHeld = false;
+      if (!this.controls.isLocked) { this.leftHeld = false; this.rightHeld = false; this.eatProgress = 0; }
     };
 
     // Inventory toggle (E key, both game modes).
@@ -400,6 +423,7 @@ export class GameSession {
         this.inventoryScreen.open();
         this.controls.unlock();
         this.leftHeld = false;
+        this.rightHeld = false; this.eatProgress = 0;
       }
     };
 
@@ -434,6 +458,7 @@ export class GameSession {
             const wasOnGround = this.player.state.onGround;
             this.physics.update(this.player.state, this.controls.input, FIXED_DT);
             this.updateFallDamage(wasOnGround);
+            if (this.gameMode === GameMode.SURVIVAL) this.updateHunger(wasOnGround);
           }
           this.world.entityManager.update(FIXED_DT, this.world);
           this.updateDroppedItems();
@@ -449,6 +474,7 @@ export class GameSession {
       this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
       this.player.syncCamera();
       this.updateMining(dt);
+      this.updateEating(dt);
       this.viewModel.update(dt);
       const selItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? null;
       if (selItem !== this.heldItemId) {
@@ -467,6 +493,7 @@ export class GameSession {
       if (this.gameMode === GameMode.SURVIVAL) {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
         this.hud.setAir(this.air, PLAYER_MAX_AIR_S);
+        this.hud.setHunger(this.player.state.hunger, PLAYER_MAX_HUNGER);
       }
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
@@ -704,6 +731,33 @@ export class GameSession {
     this.fallPeakY = st.position.y;
   }
 
+  /** Per-fixed-step (survival only): accumulate activity exhaustion, convert to hunger loss, and apply starvation damage at 0 hunger (never below STARVE_FLOOR_HP). */
+  private updateHunger(wasOnGround: boolean): void {
+    if (this.isDead) return;
+    const st = this.player.state;
+    this.exhaustion += EXHAUSTION_IDLE_PER_S * FIXED_DT;
+    const dist = Math.hypot(st.velocity.x, st.velocity.z) * FIXED_DT;
+    const rate = this.controls.input.sprint ? EXHAUSTION_SPRINT_PER_BLOCK : EXHAUSTION_WALK_PER_BLOCK;
+    this.exhaustion += dist * rate;
+    if (wasOnGround && !st.onGround && st.velocity.y > 0) this.exhaustion += EXHAUSTION_JUMP;
+    while (this.exhaustion >= EXHAUSTION_PER_HUNGER) {
+      this.exhaustion -= EXHAUSTION_PER_HUNGER;
+      if (st.hunger > 0) st.hunger -= 1;
+    }
+    if (st.hunger <= 0) {
+      st.hunger = 0;
+      this.starveTimer += FIXED_DT;
+      if (this.starveTimer >= STARVE_INTERVAL_S) {
+        this.starveTimer = 0;
+        if (st.health > STARVE_FLOOR_HP) {
+          this.damagePlayer(Math.min(STARVE_DAMAGE, st.health - STARVE_FLOOR_HP));
+        }
+      }
+    } else {
+      this.starveTimer = 0;
+    }
+  }
+
   /** Per-frame (survival only): after HEALTH_REGEN_DELAY_S without damage, restore one half-heart per HEALTH_REGEN_INTERVAL_S up to full. */
   private updateHealthRegen(dt: number): void {
     if (this.gameMode !== GameMode.SURVIVAL) return;
@@ -715,10 +769,15 @@ export class GameSession {
       return;
     }
     if (this.timeSinceLastDamage < HEALTH_REGEN_DELAY_S) return;
+    if (st.health < PLAYER_MAX_HEALTH && this.player.state.hunger < HUNGER_REGEN_THRESHOLD) {
+      this.healthRegenAcc = 0;
+      return;
+    }
     this.healthRegenAcc += dt;
     while (this.healthRegenAcc >= HEALTH_REGEN_INTERVAL_S && st.health < PLAYER_MAX_HEALTH) {
       st.health += 1;
       this.healthRegenAcc -= HEALTH_REGEN_INTERVAL_S;
+      this.exhaustion += EXHAUSTION_PER_HEAL;
     }
     if (st.health >= PLAYER_MAX_HEALTH) this.healthRegenAcc = 0;
   }
@@ -799,6 +858,10 @@ export class GameSession {
     v.z = 0;
     this.player.state.onGround = true;
     this.player.state.health = PLAYER_MAX_HEALTH;
+    this.player.state.hunger = PLAYER_MAX_HUNGER;
+    this.exhaustion = 0;
+    this.starveTimer = 0;
+    this.eatProgress = 0;
     this.respawnInvuln = PLAYER_RESPAWN_INVULN_S;
   }
 
@@ -1005,6 +1068,28 @@ export class GameSession {
     }
   }
 
+  /** Per-frame (survival only): hold right-click on a food item to eat it after EAT_DURATION_S, restoring hunger and consuming one. */
+  private updateEating(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL || this.isDead || this.inventoryScreen.isOpen) {
+      this.eatProgress = 0;
+      return;
+    }
+    const slot = this.player.state.selectedSlot;
+    const item = this.player.inventory.getSlot(slot)?.item ?? null;
+    const food = item === null ? null : itemFoodDef(item);
+    if (!this.rightHeld || food === null || this.player.state.hunger >= PLAYER_MAX_HUNGER) {
+      this.eatProgress = 0;
+      return;
+    }
+    this.eatProgress += dt;
+    if (this.eatProgress >= EAT_DURATION_S) {
+      this.eatProgress = 0;
+      this.player.state.hunger = Math.min(PLAYER_MAX_HUNGER, this.player.state.hunger + food.hungerRestore);
+      this.player.inventory.removeOne(slot);
+      this.viewModel.triggerSwing();
+    }
+  }
+
   /** Clear mining progress + hide the HUD disc + stop the continuous arm swing. */
   private resetMining(): void {
     this.mineProgress = 0;
@@ -1062,6 +1147,13 @@ export class GameSession {
     const p = this.player.state.position;
     const killed = target.takeDamage(PLAYER_ATTACK_DAMAGE, p.x, p.z);
     if (killed) {
+      if (this.gameMode === GameMode.SURVIVAL) {
+        const drop = foodDropForMob(target.kind);
+        if (drop !== null) {
+          const mp = target.position;
+          this.world.entityManager.spawn(new DroppedItem({ x: mp.x, y: mp.y + 0.3, z: mp.z }, drop, 1));
+        }
+      }
       this.world.entityManager.despawn(target.id);
     }
     return true;

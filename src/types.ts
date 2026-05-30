@@ -82,6 +82,32 @@ export const PASSIVE_FLEE_SPEED = 3.5;
 /** Seconds a passive mob keeps fleeing from the last hit source. */
 export const PASSIVE_FLEE_DURATION_S = 4;
 
+// === Hunger system (survival only) ===
+/** Player max hunger in half-drumstick points (20 = 10 drumsticks), mirrors PLAYER_MAX_HEALTH. */
+export const PLAYER_MAX_HUNGER = 20;
+/** Passive health regeneration only activates when hunger is at or above this value. */
+export const HUNGER_REGEN_THRESHOLD = 18;
+/** Exhaustion units required to drain 1 hunger point. */
+export const EXHAUSTION_PER_HUNGER = 4.0;
+/** Passive exhaustion accumulated per second while alive. */
+export const EXHAUSTION_IDLE_PER_S = 0.005;
+/** Exhaustion accumulated per block of horizontal movement while walking. */
+export const EXHAUSTION_WALK_PER_BLOCK = 0.01;
+/** Exhaustion accumulated per block of horizontal movement while sprinting. */
+export const EXHAUSTION_SPRINT_PER_BLOCK = 0.1;
+/** Exhaustion added per jump. */
+export const EXHAUSTION_JUMP = 0.2;
+/** Exhaustion added per half-heart passively regenerated. */
+export const EXHAUSTION_PER_HEAL = 6.0;
+/** Damage (half-heart points) dealt per starvation tick at 0 hunger. */
+export const STARVE_DAMAGE = 1;
+/** Seconds between consecutive starvation ticks when hunger is 0. */
+export const STARVE_INTERVAL_S = 4.0;
+/** Starvation never reduces HP below this value (player cannot starve to death). */
+export const STARVE_FLOOR_HP = 1;
+/** Seconds of holding right-click required to finish eating a food item. */
+export const EAT_DURATION_S = 1.6;
+
 // === Skeleton (ranged hostile) ===
 /** Max simultaneous live skeletons at night (separate cap from zombies). */
 export const SKELETON_MAX_COUNT = 4;
@@ -178,6 +204,11 @@ export const ItemId = {
   STONE_PICKAXE: 104,
   STONE_AXE: 105,
   STONE_SHOVEL: 106,
+  // 107-109 reserved for future tools
+  RAW_BEEF: 110,
+  RAW_PORKCHOP: 111,
+  RAW_CHICKEN: 112,
+  RAW_MUTTON: 113,
 } as const;
 /** A BlockId value (0..14) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
@@ -197,6 +228,12 @@ export interface ToolDef {
   speedMultiplier: number;
 }
 
+/** Food behavior: how much hunger is restored when the item is fully eaten. */
+export interface FoodDef {
+  /** Half-hunger points restored when eaten. */
+  hungerRestore: number;
+}
+
 /** Per-item metadata. Block items synthesize this from their BlockId; non-block items have static defs. */
 export interface ItemDef {
   id: ItemId;
@@ -210,6 +247,8 @@ export interface ItemDef {
   placeable: BlockId | null;
   /** Tool behavior if this item is a tool, else null. */
   tool: ToolDef | null;
+  /** Food behavior if this item is edible, else null. */
+  food: FoodDef | null;
 }
 
 // === Block definition (registry entry) ===
@@ -332,6 +371,8 @@ export interface PlayerState {
   selectedSlot: number;
   /** Current health in half-heart points, clamped to [0, PLAYER_MAX_HEALTH]. Not persisted; resets to full each load. */
   health: number;
+  /** Half-drumstick points, clamped [0, PLAYER_MAX_HUNGER]. Not persisted; resets to full each load. */
+  hunger: number;
 }
 
 // === Texture atlas: returns UV rect for a given tile index ===

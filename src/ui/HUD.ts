@@ -16,7 +16,7 @@ function ensureStyle(): void {
 .mc-readout { position: absolute; top: 8px; left: 8px; color: white; text-shadow: 1px 1px 2px black; font-family: monospace; font-size: 12px; line-height: 1.4; pointer-events: none; }
 .mc-clickhint { position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%); color: white; text-shadow: 1px 1px 2px black; font-family: monospace; font-size: 14px; padding: 6px 12px; background: rgba(0,0,0,0.4); border-radius: 4px; pointer-events: none; }
 .mc-clickhint[hidden] { display: none; }
-.mc-health { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; }
+.mc-health { position: absolute; right: 50%; bottom: 96px; transform: translateX(-4px); display: flex; gap: 2px; pointer-events: none; }
 .mc-health[hidden] { display: none; }
 .mc-heart { position: relative; width: 16px; height: 16px; }
 .mc-heart-bg, .mc-heart-fg { position: absolute; top: 0; left: 0; height: 16px; font-size: 16px; line-height: 16px; }
@@ -31,6 +31,15 @@ function ensureStyle(): void {
 .mc-underwater { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s ease-out; background: rgba(30,90,170,0.35); }
 .mc-damage-vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s ease-out; box-shadow: inset 0 0 120px 50px rgba(170,0,0,0.65); }
 .mc-break { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; opacity: 0; }
+.mc-hunger { position: absolute; left: 50%; bottom: 96px; transform: translateX(4px); display: flex; flex-direction: row-reverse; gap: 2px; pointer-events: none; }
+.mc-hunger[hidden] { display: none; }
+.mc-drumstick { position: relative; width: 16px; height: 16px; }
+.mc-drumstick-bg, .mc-drumstick-fg { position: absolute; top: 0; left: 0; width: 16px; height: 16px; overflow: hidden; }
+.mc-drumstick-bg::before { content: ''; position: absolute; top: 3px; left: 2px; width: 10px; height: 9px; background: #4a4a4a; border-radius: 40% 50% 50% 40%; }
+.mc-drumstick-bg::after { content: ''; position: absolute; top: 10px; left: 9px; width: 5px; height: 4px; background: #4a4a4a; border-radius: 50% 50% 40% 40%; transform: rotate(-30deg); }
+.mc-drumstick-fg { width: 0; white-space: nowrap; }
+.mc-drumstick-fg::before { content: ''; position: absolute; top: 3px; left: 2px; width: 10px; height: 9px; background: #c8850a; border-radius: 40% 50% 50% 40%; }
+.mc-drumstick-fg::after { content: ''; position: absolute; top: 10px; left: 9px; width: 5px; height: 4px; background: #e8b86d; border-radius: 50% 50% 40% 40%; transform: rotate(-30deg); }
 `;
   document.head.appendChild(style);
 }
@@ -49,6 +58,8 @@ export class HUD {
   private breakEl: HTMLElement;
   private heartFills: HTMLElement[] = [];
   private bubbleFills: HTMLElement[] = [];
+  private hungerEl: HTMLElement;
+  private hungerFills: HTMLElement[] = [];
   hotbar: Hotbar;
 
   private fpsEma: number = 0;
@@ -131,6 +142,24 @@ export class HUD {
     container.appendChild(air);
     this.airEl = air;
 
+    const hunger = document.createElement('div');
+    hunger.className = 'mc-hunger';
+    hunger.hidden = true;
+    for (let i = 0; i < 10; i++) {
+      const drumstick = document.createElement('div');
+      drumstick.className = 'mc-drumstick';
+      const bg = document.createElement('span');
+      bg.className = 'mc-drumstick-bg';
+      const fg = document.createElement('span');
+      fg.className = 'mc-drumstick-fg';
+      drumstick.appendChild(bg);
+      drumstick.appendChild(fg);
+      hunger.appendChild(drumstick);
+      this.hungerFills.push(fg);
+    }
+    container.appendChild(hunger);
+    this.hungerEl = hunger;
+
     const underwater = document.createElement('div');
     underwater.className = 'mc-underwater';
     container.appendChild(underwater);
@@ -211,6 +240,16 @@ export class HUD {
     });
   }
 
+  setHunger(hunger: number, max: number): void {
+    const clamped = Math.max(0, Math.min(max, hunger));
+    this.hungerEl.hidden = false;
+    this.hungerFills.forEach((fg, i) => {
+      const drumstickValue = clamped - i * 2;           // points for THIS drumstick
+      const fraction = Math.max(0, Math.min(1, drumstickValue / 2)); // 0, 0.5, or 1
+      fg.style.width = (fraction * 16) + 'px';
+    });
+  }
+
   /** Pulse the red damage vignette to full opacity, then fade it out over ~0.4s. Re-arms on every call. */
   flashDamage(): void {
     const el = this.damageVignetteEl;
@@ -247,12 +286,13 @@ export class HUD {
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.underwaterEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.underwaterEl, this.damageVignetteEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
     }
     this.heartFills = [];
     this.bubbleFills = [];
+    this.hungerFills = [];
   }
 }
