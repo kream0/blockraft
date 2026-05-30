@@ -49,6 +49,11 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Death overlay with respawn at a fresh dry spawn (brief post-respawn invulnerability)
 - Creative mode is damage-free
 
+### Items & inventory
+- **Item economy** (Survival): mining a block drops a collectible item that pops out, settles, then magnetically vacuums to you and stacks into your inventory; placing a block consumes one from the selected hotbar slot
+- 36-slot inventory model (9 hotbar + 27 backpack); the hotbar shows a per-block color swatch and live stack count, and the inventory persists per-world
+- Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts
+
 ### Day & night
 - Continuous day/night cycle driving sky color, sun direction, ambient light, and fog (zero per-frame allocation)
 - HUD time-of-day indicator; nightfall brings out the hostiles (time of day is not persisted — each load starts in the morning)
@@ -89,7 +94,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### Short term
 - **Hunger system**: a hunger/saturation bar that drains over time and gates health regen (health, day/night cycle, and mob damage are already shipped — see Survival / Day & night above)
 - **Mob AI improvements**: pathfinding, smarter target tracking, cliff/edge avoidance (1-block step-climbing already ships — see Mobs & combat above)
-- **Inventory UI**: full inventory grid + crafting (recipes for planks, sticks, tools)
+- **Inventory UI**: a full inventory grid screen (open/close, move/swap/split stacks) + crafting recipes — the item economy (block drops, pickup, stacking, place-to-consume) and the 36-slot inventory model already ship (see Items & inventory above)
 - **Tools**: pickaxe / axe / shovel with break-time speedups per material
 
 ### Medium term

@@ -1,14 +1,15 @@
 import * as THREE from 'three';
-import { PlayerState, BlockId, PLAYER_EYE, PLAYER_MAX_HEALTH } from '../types';
+import { PlayerState, BlockId, GameMode, PLAYER_EYE, PLAYER_MAX_HEALTH } from '../types';
+import { Inventory } from './Inventory';
 
 export class Player {
   state: PlayerState;
   /** The Three.js camera the integration code adds to the scene. */
   camera: THREE.PerspectiveCamera;
-  /** Hotbar with 9 slots. Default population set in constructor. */
-  hotbar: BlockId[];
+  /** 36-slot inventory (first 9 are hotbar). */
+  inventory: Inventory;
 
-  constructor(spawnX: number, spawnY: number, spawnZ: number, fov: number = 75) {
+  constructor(spawnX: number, spawnY: number, spawnZ: number, fov: number = 75, gameMode: GameMode = GameMode.SURVIVAL) {
     this.state = {
       position: { x: spawnX, y: spawnY, z: spawnZ },
       velocity: { x: 0, y: 0, z: 0 },
@@ -19,17 +20,20 @@ export class Player {
       health: PLAYER_MAX_HEALTH,
     };
 
-    this.hotbar = [
-      BlockId.GRASS,
-      BlockId.DIRT,
-      BlockId.STONE,
-      BlockId.COBBLESTONE,
-      BlockId.WOOD,
-      BlockId.LEAVES,
-      BlockId.PLANKS,
-      BlockId.SAND,
-      BlockId.GLASS,
-    ];
+    this.inventory = new Inventory();
+    if (gameMode === GameMode.CREATIVE) {
+      this.inventory.fillCreativePalette([
+        BlockId.GRASS,
+        BlockId.DIRT,
+        BlockId.STONE,
+        BlockId.COBBLESTONE,
+        BlockId.WOOD,
+        BlockId.LEAVES,
+        BlockId.PLANKS,
+        BlockId.SAND,
+        BlockId.GLASS,
+      ]);
+    }
 
     this.camera = new THREE.PerspectiveCamera(
       fov,
@@ -48,8 +52,7 @@ export class Player {
 
   /** Convenience: returns the BlockId currently selected for placement. */
   getSelectedBlock(): BlockId {
-    const block = this.hotbar[this.state.selectedSlot];
-    return block ?? BlockId.AIR;
+    return this.inventory.selectedBlock(this.state.selectedSlot);
   }
 
   /** 0..8 */

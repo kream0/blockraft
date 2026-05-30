@@ -22,6 +22,7 @@ import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
 import { Skeleton } from '../entities/Skeleton';
 import { Arrow } from '../entities/Arrow';
+import { DroppedItem } from '../entities/DroppedItem';
 import { Mob } from '../entities/Mob';
 import { WorldStorage } from '../persistence/WorldStorage';
 import {
@@ -50,6 +51,7 @@ import {
   FALL_DAMAGE_PER_BLOCK,
   HEALTH_REGEN_DELAY_S,
   HEALTH_REGEN_INTERVAL_S,
+  DROPPED_ITEM_PICKUP_RADIUS,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -234,7 +236,7 @@ export class GameSession {
     this.renderer.scene.add(this.world.group);
 
     // Player at high Y; physics resolves when chunks load.
-    this.player = new Player(0, CHUNK_HEIGHT - 1, 0, settings.fov);
+    this.player = new Player(0, CHUNK_HEIGHT - 1, 0, settings.fov, this.gameMode);
     this.renderer.scene.add(this.player.camera);
 
     // First-person hand, parented to the camera so it always tracks the view.
@@ -262,6 +264,9 @@ export class GameSession {
       this.player.state.yaw = meta.playerYaw;
       this.player.state.pitch = meta.playerPitch;
       this.player.setSelectedSlot(meta.selectedSlot);
+      if (this.gameMode === GameMode.SURVIVAL && meta.inventory !== undefined) {
+        this.player.inventory.deserialize(meta.inventory);
+      }
       this.player.state.velocity.y = 0;
       this.player.state.onGround = true;
       // Re-stream around the persisted position so chunks are ready.
@@ -285,7 +290,7 @@ export class GameSession {
     this.physics = new Physics(this.world);
 
     // HUD — always created/destroyed per session.
-    this.hud = new HUD(this.hudContainer, this.player.hotbar);
+    this.hud = new HUD(this.hudContainer, this.player.inventory.hotbarSlots(), this.gameMode === GameMode.SURVIVAL);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -345,6 +350,9 @@ export class GameSession {
         // Block mining itself is handled per-frame in updateMining().
       } else if (e.button === 2) {
         if (this.interaction.placeBlock()) {
+          if (this.gameMode === GameMode.SURVIVAL) {
+            this.player.inventory.removeOne(this.player.state.selectedSlot);
+          }
           this.audio.playPlace();
           this.viewModel.triggerSwing();
         }
@@ -394,6 +402,7 @@ export class GameSession {
           this.updateFallDamage(wasOnGround);
         }
         this.world.entityManager.update(FIXED_DT, this.world);
+        this.updateDroppedItems();
         this.applyHostileContact(FIXED_DT);
         this.updateSkeletonFire();
         this.updateArrows();
@@ -407,6 +416,7 @@ export class GameSession {
       this.updateMining(dt);
       this.viewModel.update(dt);
       this.hud.update(this.player.state, dtMs);
+      this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
       this.dayNight.update(dt);
       this.renderer.applySky(this.dayNight.getSkyState());
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -535,6 +545,9 @@ export class GameSession {
       playerYaw: this.player.state.yaw,
       playerPitch: this.player.state.pitch,
       selectedSlot: this.player.state.selectedSlot,
+      ...(this.gameMode === GameMode.SURVIVAL
+        ? { inventory: this.player.inventory.serialize() }
+        : {}),
     };
     const save: WorldSave = {
       metadata,
@@ -794,6 +807,39 @@ export class GameSession {
     }
   }
 
+  /**
+   * Per-fixed-step (survival only): collect dropped items. Despawns items flagged dead
+   * (lifetime expired). For pickup-eligible items within DROPPED_ITEM_PICKUP_RADIUS of the
+   * player's chest, funnels the stack into the inventory; fully-absorbed items despawn,
+   * partially-absorbed items keep the leftover count (inventory full).
+   */
+  private updateDroppedItems(): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    const p = this.player.state.position;
+    const cx = p.x;
+    const cy = p.y + 0.8;
+    const cz = p.z;
+    const r2 = DROPPED_ITEM_PICKUP_RADIUS * DROPPED_ITEM_PICKUP_RADIUS;
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof DroppedItem)) continue;
+      if (e.dead) {
+        this.world.entityManager.despawn(e.id);
+        continue;
+      }
+      if (!e.canPickup()) continue;
+      const dx = e.position.x - cx;
+      const dy = e.position.y - cy;
+      const dz = e.position.z - cz;
+      if (dx * dx + dy * dy + dz * dz > r2) continue;
+      const leftover = this.player.inventory.add(e.block, e.count);
+      if (leftover <= 0) {
+        this.world.entityManager.despawn(e.id);
+      } else {
+        e.count = leftover;
+      }
+    }
+  }
+
   /** Frame-rate, throttled: spawn zombies + skeletons at night near the player up to their caps; despawn all hostiles + arrows at dawn. */
   private updateHostiles(dt: number): void {
     if (!this.dayNight.isNight) {
@@ -891,6 +937,15 @@ export class GameSession {
         const color = blockRegistry.get(broken.block).particleColor;
         this.particles.spawnBurst(broken.x + 0.5, broken.y + 0.5, broken.z + 0.5, color);
         this.audio.playBreak();
+        if (this.gameMode === GameMode.SURVIVAL) {
+          this.world.entityManager.spawn(
+            new DroppedItem(
+              { x: broken.x + 0.5, y: broken.y + 0.3, z: broken.z + 0.5 },
+              broken.block,
+              1,
+            ),
+          );
+        }
       }
       // Reset progress; keep mining the next block under the crosshair while still held.
       this.mineProgress = 0;

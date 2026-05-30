@@ -1,4 +1,4 @@
-import type { BlockId, PlayerState } from '../types';
+import type { PlayerState, ItemStack } from '../types';
 import { Hotbar } from './Hotbar';
 
 const STYLE_ID = 'mc-hud-style';
@@ -54,7 +54,7 @@ export class HUD {
   private fpsInitialized: boolean = false;
   private showFps: boolean = true;
 
-  constructor(container: HTMLElement, hotbarBlocks: BlockId[]) {
+  constructor(container: HTMLElement, hotbarStacks: ReadonlyArray<ItemStack | null>, showCounts: boolean) {
     ensureStyle();
 
     const crosshair = document.createElement('div');
@@ -140,7 +140,7 @@ export class HUD {
     container.appendChild(vignette);
     this.damageVignetteEl = vignette;
 
-    this.hotbar = new Hotbar(container, hotbarBlocks);
+    this.hotbar = new Hotbar(container, hotbarStacks, showCounts);
   }
 
   update(player: PlayerState, dtMs: number): void {
@@ -165,6 +165,10 @@ export class HUD {
     if (this.hotbar.selectedSlot !== player.selectedSlot) {
       this.hotbar.setSelectedSlot(player.selectedSlot);
     }
+  }
+
+  setHotbarStacks(stacks: ReadonlyArray<ItemStack | null>): void {
+    this.hotbar.setStacks(stacks);
   }
 
   /** Show or hide the FPS readout line (wired to the Show FPS setting). */

@@ -122,6 +122,22 @@ export const PARTICLE_POOL_MAX = 256;
 
 /** Number of progressive crack stages drawn on a block as it's mined (Minecraft-style destroy stages). */
 export const BREAK_OVERLAY_STAGES = 10;
+/** Max items in one inventory stack. */
+export const MAX_STACK = 64;
+/** Total inventory slots: 9 hotbar + 27 main grid. */
+export const INVENTORY_SIZE = 36;
+/** First N slots of the inventory array are the hotbar. */
+export const HOTBAR_SIZE = 9;
+/** Seconds after spawning before a dropped item can be collected (so the dropper doesn't immediately re-pick it up). */
+export const DROPPED_ITEM_PICKUP_DELAY_S = 0.5;
+/** Horizontal radius (blocks) within which a dropped item is vacuumed toward the player. */
+export const DROPPED_ITEM_ATTRACT_RADIUS = 3.5;
+/** Radius (blocks) within which a vacuuming item is actually collected into the inventory. */
+export const DROPPED_ITEM_PICKUP_RADIUS = 1.0;
+/** Speed (blocks/s) at which an item moves toward the player while being attracted. */
+export const DROPPED_ITEM_ATTRACT_SPEED = 6;
+/** Seconds before an uncollected dropped item despawns. */
+export const DROPPED_ITEM_LIFETIME_S = 300;
 
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
@@ -157,6 +173,12 @@ export interface BlockDef {
   particleColor: number;
   /** Seconds to mine this block by hand at base speed. Infinity = unbreakable (bedrock). AIR/WATER unused. */
   hardness: number;
+}
+
+/** A stack of a single block type held in an inventory slot or carried by a dropped item. block is never AIR for a real stack; count is in [1, MAX_STACK]. */
+export interface ItemStack {
+  block: BlockId;
+  count: number;
 }
 
 // === Day/night cycle ===
@@ -335,6 +357,8 @@ export interface WorldMetadata {
   playerYaw: number;
   playerPitch: number;
   selectedSlot: number;
+  /** Persisted Survival inventory: INVENTORY_SIZE slots, null = empty. Absent on legacy saves and Creative worlds. */
+  inventory?: (ItemStack | null)[];
 }
 
 /** Sparse map of player edits per chunk. Key format: `${cx},${cz}`; value is array of [linearIndex, BlockId] tuples. */
@@ -357,6 +381,7 @@ export const EntityKind = {
   CHICKEN: 'chicken',
   SKELETON: 'skeleton',
   ARROW: 'arrow',
+  DROPPED_ITEM: 'dropped_item',
 } as const;
 export type EntityKind = typeof EntityKind[keyof typeof EntityKind];
 
