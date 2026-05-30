@@ -192,6 +192,32 @@ function drawSnow(ctx: CanvasRenderingContext2D, col: number, row: number, rng: 
   speckle(ctx, col, row, '#CFE0EC', 14, rng);
 }
 
+function drawCoalOre(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  drawStone(ctx, col, row, rng);
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rng() * (TILE - 3));
+    const y = Math.floor(rng() * (TILE - 3));
+    const w = 2 + Math.floor(rng() * 2);
+    const h = 2 + Math.floor(rng() * 2);
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(col * TILE + x, row * TILE + y, w, h);
+  }
+  speckle(ctx, col, row, '#000000', 10, rng);
+}
+
+function drawIronOre(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  drawStone(ctx, col, row, rng);
+  for (let i = 0; i < 5; i++) {
+    const x = Math.floor(rng() * (TILE - 3));
+    const y = Math.floor(rng() * (TILE - 3));
+    const w = 2 + Math.floor(rng() * 2);
+    const h = 2 + Math.floor(rng() * 2);
+    ctx.fillStyle = '#C8865A';
+    ctx.fillRect(col * TILE + x, row * TILE + y, w, h);
+  }
+  speckle(ctx, col, row, '#A8703E', 10, rng);
+}
+
 function drawGlass(ctx: CanvasRenderingContext2D, col: number, row: number, _rng: Rng): void {
   // Mostly transparent-looking pale tint
   ctx.fillStyle = '#C5DDED';
@@ -263,7 +289,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 4x4 grid: index = row * COLS + col
-    // Tile 0..13 are real; 14..15 blank.
+    // Tile 0..15 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -279,6 +305,8 @@ export class TextureAtlas implements ITextureAtlas {
       drawBedrock,
       drawWater,
       drawSnow,
+      drawCoalOre,
+      drawIronOre,
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

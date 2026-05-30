@@ -105,6 +105,22 @@ const defs: Record<number, BlockDef> = {
     textures: { top: 13, bottom: 13, side: 13 },
     particleColor: 0xEAF2F8,
   },
+  [BlockId.COAL_ORE]: {
+    id: BlockId.COAL_ORE,
+    name: 'Coal Ore',
+    solid: true,
+    transparent: false,
+    textures: { top: 14, bottom: 14, side: 14 },
+    particleColor: 0x2B2B2B,
+  },
+  [BlockId.IRON_ORE]: {
+    id: BlockId.IRON_ORE,
+    name: 'Iron Ore',
+    solid: true,
+    transparent: false,
+    textures: { top: 15, bottom: 15, side: 15 },
+    particleColor: 0xC8865A,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

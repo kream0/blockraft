@@ -13,6 +13,17 @@ const BIOME_PLAINS = 0;
 const BIOME_DESERT = 1;
 const BIOME_SNOWY = 2;
 
+// Ore generation tuning. Iron is rarer and deeper than coal.
+const ORE_MIN_Y = 2;            // never touch bedrock (y=0) or just above it
+const COAL_MAX_Y = 50;
+const IRON_MAX_Y = 28;
+const COAL_VEINS_PER_CHUNK = 8;
+const IRON_VEINS_PER_CHUNK = 5;
+const COAL_VEIN_SIZE = 7;       // random-walk steps (ore blocks attempted)
+const IRON_VEIN_SIZE = 5;
+const ORE_SALT_COAL = 0x1f1f1f1f;
+const ORE_SALT_IRON = 0x2e2e2e2e;
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -22,12 +33,61 @@ export class TerrainGenerator {
   private noise: PerlinNoise;
   private biomeNoise: PerlinNoise;
   private seed: number;
+  private oreState = 0;
 
   constructor(seed: number) {
     this.seed = seed >>> 0;
     this.noise = new PerlinNoise(this.seed);
     // Independent biome map: derive a distinct seed so it doesn't correlate with the heightmap.
     this.biomeNoise = new PerlinNoise((this.seed ^ 0x9e3779b9) >>> 0);
+  }
+
+  private oreNext(): number {
+    this.oreState = (Math.imul(this.oreState, 1664525) + 1013904223) >>> 0;
+    return this.oreState;
+  }
+
+  /** Scatter `veinCount` random-walk veins of `ore`, replacing ONLY stone within [minY, maxY]. */
+  private scatterOre(
+    chunk: Chunk,
+    ore: BlockId,
+    veinCount: number,
+    veinSize: number,
+    minY: number,
+    maxY: number,
+    salt: number,
+  ): void {
+    if (maxY < minY) return;
+    const span = maxY - minY + 1;
+    for (let i = 0; i < veinCount; i++) {
+      // Reseed the LCG per vein so each vein is deterministic from (cx, cz, seed).
+      this.oreState = (hash3(chunk.cx, chunk.cz, (this.seed ^ salt) + Math.imul(i, 2654435761)) >>> 0) || 1;
+      let x = this.oreNext() % CHUNK_SIZE;
+      let z = this.oreNext() % CHUNK_SIZE;
+      let y = minY + (this.oreNext() % span);
+      for (let step = 0; step < veinSize; step++) {
+        if (x >= 0 && x < CHUNK_SIZE && z >= 0 && z < CHUNK_SIZE && y >= minY && y <= maxY) {
+          const idx = Chunk.idx(x, y, z);
+          if (chunk.blocks[idx] === BlockId.STONE) {
+            chunk.blocks[idx] = ore;
+          }
+        }
+        switch (this.oreNext() % 6) {
+          case 0: x++; break;
+          case 1: x--; break;
+          case 2: z++; break;
+          case 3: z--; break;
+          case 4: y++; break;
+          default: y--; break;
+        }
+      }
+    }
+  }
+
+  /** Place all ore veins for a chunk. Coal: common, up to mid-depth. Iron: rarer, deep only. */
+  private placeOreVeins(chunk: Chunk): void {
+    this.scatterOre(chunk, BlockId.COAL_ORE, COAL_VEINS_PER_CHUNK, COAL_VEIN_SIZE, ORE_MIN_Y, COAL_MAX_Y, ORE_SALT_COAL);
+    this.scatterOre(chunk, BlockId.IRON_ORE, IRON_VEINS_PER_CHUNK, IRON_VEIN_SIZE, ORE_MIN_Y, IRON_MAX_Y, ORE_SALT_IRON);
   }
 
   /** Pick a biome for a world column. Smooth low-frequency noise → large regions. */
@@ -87,6 +147,9 @@ export class TerrainGenerator {
         }
       }
     }
+
+    // Ore veins: placed after all stone columns are set, before trees.
+    this.placeOreVeins(chunk);
 
     // Trees: deterministically place 1-3 trees per chunk.
     const treeCountHash = hash3(chunk.cx, chunk.cz, this.seed);
