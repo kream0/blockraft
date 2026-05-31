@@ -9,6 +9,17 @@ export const CHUNK_HEIGHT = 96;
 export const RENDER_DISTANCE = 6;
 /** Master world seed; deterministic generation. */
 export const WORLD_SEED = 1337;
+/** Maximum sky-light level; the light engine uses 0..MAX_SKY_LIGHT for sky light propagation. */
+export const MAX_SKY_LIGHT = 15;
+/**
+ * Sky-light → brightness multiplier LUT (index = light level 0..15).
+ * 0 = deep shadow (a non-zero floor so caves aren't pure black), 15 = full daylight.
+ * The mesher multiplies this into the per-vertex AO brightness when baking chunk colors.
+ */
+export const SKY_LIGHT_BRIGHTNESS: readonly number[] = [
+  0.10, 0.13, 0.16, 0.20, 0.24, 0.29, 0.34, 0.40,
+  0.46, 0.53, 0.60, 0.68, 0.76, 0.85, 0.93, 1.0,
+];
 /** Gravity acceleration in blocks/s^2 (negative = downward). */
 export const GRAVITY = -28;
 /** Total player height in blocks (feet to top of head). */
@@ -431,6 +442,8 @@ export interface IWorld {
   setBlock(x: number, y: number, z: number, id: BlockId): void;
   /** True if the block at integer coords is solid (per BlockDef.solid). Out-of-bounds: false. */
   isSolid(x: number, y: number, z: number): boolean;
+  /** Sky-light level 0..15 at world coords. Returns 0 for unloaded chunks / out of vertical range. */
+  getSkyLight(x: number, y: number, z: number): number;
   /** DDA raycast through the voxel grid. Returns null if no solid block hit within maxDistance. */
   raycast(origin: Vec3, direction: Vec3, maxDistance: number): BlockHit | null;
   /** The current chase target for hostile mobs (the local player's FEET position), or null if none set. The returned object is a LIVE reference that mutates each tick — read it, do not retain across ticks expecting a snapshot. */
@@ -440,6 +453,21 @@ export interface IWorld {
   update(playerPos: Vec3): void;
   /** Three.js group containing all chunk meshes. Add this to the scene once. */
   readonly group: THREE.Group;
+}
+
+/**
+ * Narrow world-space accessor the LightEngine uses for cross-chunk sky-light
+ * propagation. World implements this. Coordinates are world (not chunk-local).
+ */
+export interface ISkyLightAccess {
+  /** Block id at world coords; unloaded chunk / out of range => BlockId.AIR. */
+  getBlock(x: number, y: number, z: number): BlockId;
+  /** Sky-light 0..15 at world coords; unloaded / out of range => 0. */
+  getSkyLight(x: number, y: number, z: number): number;
+  /** Write sky-light 0..15 at world coords; no-op if the chunk isn't loaded. */
+  setSkyLight(x: number, y: number, z: number, level: number): void;
+  /** True iff the chunk containing these world coords is currently loaded. */
+  isChunkLoaded(x: number, y: number, z: number): boolean;
 }
 
 // === Block registry helper (world implements; others read) ===
@@ -765,6 +793,12 @@ export interface ChunkMeshRequest {
   cz: number;
   version: number;
   halo: Uint8Array;
+  /**
+   * Parallel sky-light halo: same 18×18×96 shape & indexing as `halo`, but each
+   * element is the sky-light level (0..15) of the corresponding cell. The worker
+   * reads it per face to bake lighting into vertex colors. Transferred zero-copy.
+   */
+  lightHalo: Uint8Array;
 }
 
 /** Geometry buffers for one mesh. All arrays are typed and Transferable. */

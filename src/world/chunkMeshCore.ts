@@ -2,6 +2,8 @@ import {
   BlockId,
   CHUNK_HEIGHT,
   CHUNK_SIZE,
+  MAX_SKY_LIGHT,
+  SKY_LIGHT_BRIGHTNESS,
   type WorkerBlockTable,
   type WorkerAtlasParams,
   type MeshBuffers,
@@ -142,6 +144,22 @@ function sampleOccludes(t: WorkerBlockTable, halo: Uint8Array, lx: number, ly: n
   return occludes(t, haloGet(halo, lx, ly, lz));
 }
 
+/**
+ * Sample the sky-light level for the AO base cell from the lightHalo array.
+ * `lx/ly/lz` are the LOCAL AO base cell coords (same coordinate space as haloGet).
+ * - Y >= CHUNK_HEIGHT → open sky → MAX_SKY_LIGHT (15)
+ * - Y < 0 → underground → 0
+ * - otherwise: read from lightHalo at the same halo index as haloGet
+ */
+function sampleSkyLight(lightHalo: Uint8Array, lx: number, ly: number, lz: number): number {
+  if (ly >= CHUNK_HEIGHT) return MAX_SKY_LIGHT;
+  if (ly < 0) return 0;
+  const hx = lx + 1;
+  const hz = lz + 1;
+  if (hx < 0 || hx >= HALO || hz < 0 || hz >= HALO) return 0;
+  return lightHalo[hx + hz * HALO + ly * HALO * HALO] ?? 0;
+}
+
 /** Face-draw test, mirrors ChunkMesher.shouldDrawFace exactly. */
 function shouldDrawFace(t: WorkerBlockTable, currentId: BlockId, currentTransparent: boolean, neighborId: BlockId): boolean {
   if (neighborId === BlockId.AIR) return true;
@@ -177,6 +195,7 @@ export function buildChunkMeshBuffers(
   cx: number,
   cz: number,
   halo: Uint8Array,
+  lightHalo: Uint8Array,
   blockTable: WorkerBlockTable,
   atlasParams: WorkerAtlasParams,
 ): { solid: MeshBuffers; water: MeshBuffers | null } {
@@ -263,6 +282,10 @@ export function buildChunkMeshBuffers(
           const uAxis = tangentAxes[0];
           const vAxis = tangentAxes[1];
 
+          // Sky-light bake: one value per face (the AO base cell is the exposed air cell)
+          const faceLight = sampleSkyLight(lightHalo, baseAOx, baseAOy, baseAOz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[faceLight] ?? 1.0;
+
           // Compute per-vertex AO brightness and accumulate levels for flip-quad decision
           const aoLevels: [number, number, number, number] = [0, 0, 0, 0];
           const aoBrightness: [number, number, number, number] = [1.0, 1.0, 1.0, 1.0];
@@ -300,7 +323,7 @@ export function buildChunkMeshBuffers(
             const corner = data.corners[c]!;
             positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
             normals.push(normX, normY, normZ);
-            const b = aoBrightness[c] ?? 1.0;
+            const b = (aoBrightness[c] ?? 1.0) * skyMul;
             colors.push(b, b, b);
           }
           // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)

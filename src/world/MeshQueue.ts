@@ -50,7 +50,7 @@ export class MeshQueue {
     while (this.inFlight < MESH_WORKER_CONCURRENCY && this.queue.length > 0) {
       const req = this.queue.shift()!;
       this.inFlight++;
-      this.worker.postMessage(req, [req.halo.buffer]);
+      this.worker.postMessage(req, [req.halo.buffer, req.lightHalo.buffer]);
     }
 
     let uploaded = 0;

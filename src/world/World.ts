@@ -8,6 +8,7 @@ import {
   type BlockHit,
   type ChunkOverrides,
   type IBlockRegistry,
+  type ISkyLightAccess,
   type ITextureAtlas,
   type IWorld,
   type Vec3,
@@ -20,6 +21,7 @@ import {
 import { floorDiv, mod } from '../utils/MathUtils';
 import { Chunk } from './Chunk';
 import { ChunkMesher } from './ChunkMesher';
+import { LightEngine } from './LightEngine';
 import { MeshQueue, buildGeometryFromBuffers } from './MeshQueue';
 import { ATLAS_TILE_PIXELS, ATLAS_COLS, ATLAS_SIZE } from '../rendering/TextureAtlas';
 import { TerrainGenerator } from './TerrainGenerator';
@@ -40,13 +42,14 @@ const MAX_RENDER_DISTANCE = 16;
  */
 const LEAF_DECAY_DISTANCE = 6;
 
-export class World implements IWorld {
+export class World implements IWorld, ISkyLightAccess {
   readonly group: THREE.Group;
   readonly entityManager: EntityManager;
   private chunks = new Map<string, Chunk>();
   private dirtyChunks = new Set<Chunk>();
   private terrainGen: TerrainGenerator;
   private mesher: ChunkMesher;
+  private readonly lightEngine: LightEngine;
   private material: THREE.Material;
   private waterMaterial: THREE.Material;
   private registry: IBlockRegistry;
@@ -122,6 +125,7 @@ export class World implements IWorld {
     this.registry = registry;
     this.terrainGen = new TerrainGenerator(seed);
     this.mesher = new ChunkMesher(atlas, registry);
+    this.lightEngine = new LightEngine(registry);
     this.group = new THREE.Group();
     this.group.name = 'WorldChunks';
     this.renderDistance = this.clampRenderDistance(renderDistance);
@@ -361,6 +365,36 @@ export class World implements IWorld {
 
   isSolid(x: number, y: number, z: number): boolean {
     return this.registry.isSolid(this.getBlock(x, y, z));
+  }
+
+  // --- ISkyLightAccess + IWorld.getSkyLight ---
+
+  getSkyLight(x: number, y: number, z: number): number {
+    if (y < 0 || y >= CHUNK_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE);
+    const cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.getChunk(cx, cz);
+    if (!chunk) return 0;
+    const lx = mod(x, CHUNK_SIZE);
+    const lz = mod(z, CHUNK_SIZE);
+    return chunk.skyLight[Chunk.idx(lx, y, lz)] ?? 0;
+  }
+
+  setSkyLight(x: number, y: number, z: number, level: number): void {
+    if (y < 0 || y >= CHUNK_HEIGHT) return;
+    const cx = floorDiv(x, CHUNK_SIZE);
+    const cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.getChunk(cx, cz);
+    if (!chunk) return;
+    const lx = mod(x, CHUNK_SIZE);
+    const lz = mod(z, CHUNK_SIZE);
+    chunk.skyLight[Chunk.idx(lx, y, lz)] = level;
+  }
+
+  isChunkLoaded(x: number, _y: number, z: number): boolean {
+    const cx = floorDiv(x, CHUNK_SIZE);
+    const cz = floorDiv(z, CHUNK_SIZE);
+    return this.chunks.has(World.key(cx, cz));
   }
 
   getTrackedTarget(): Vec3 | null {
@@ -609,13 +643,55 @@ export class World implements IWorld {
     return halo;
   }
 
+  /**
+   * Build a padded sky-light halo for chunk (cx, cz). Mirrors gatherNeighbourHalo exactly
+   * but reads sky-light levels (0..15) instead of block ids.
+   * Dimensions: HALO = CHUNK_SIZE+2 in X and Z, CHUNK_HEIGHT in Y.
+   * Index of halo cell (hx, y, hz): hx + hz*HALO + y*HALO*HALO.
+   * Interior block (lx, ly, lz) lives at halo cell (lx+1, ly, lz+1).
+   */
+  private gatherLightHalo(cx: number, cz: number): Uint8Array {
+    const HALO = CHUNK_SIZE + 2;
+    const lightHalo = new Uint8Array(HALO * HALO * CHUNK_HEIGHT);
+    const baseX = cx * CHUNK_SIZE;
+    const baseZ = cz * CHUNK_SIZE;
+    const chunk = this.getChunk(cx, cz);
+    // Interior: copy this chunk's own sky-light directly. hx=lx+1, hz=lz+1.
+    if (chunk) {
+      for (let y = 0; y < CHUNK_HEIGHT; y++) {
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            const hx = lx + 1;
+            const hz = lz + 1;
+            lightHalo[hx + hz * HALO + y * HALO * HALO] = chunk.skyLight[Chunk.idx(lx, y, lz)] ?? 0;
+          }
+        }
+      }
+    }
+    // Ring (incl. diagonals): border cells filled via getSkyLight.
+    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+      for (let hz = 0; hz < HALO; hz++) {
+        for (let hx = 0; hx < HALO; hx++) {
+          if (hx !== 0 && hx !== HALO - 1 && hz !== 0 && hz !== HALO - 1) continue; // interior already filled
+          lightHalo[hx + hz * HALO + y * HALO * HALO] = this.getSkyLight(baseX + hx - 1, y, baseZ + hz - 1);
+        }
+      }
+    }
+    return lightHalo;
+  }
+
   private remeshChunk(chunk: Chunk): void {
+    // Recompute sky-light before building the halo / mesh so both the worker path
+    // and the sync fallback see fresh, neighbor-aware light values.
+    this.lightEngine.recomputeChunkLight(chunk, this);
+
     if (this.meshQueue !== null) {
       const key = World.key(chunk.cx, chunk.cz);
       const version = this.nextMeshVersion++;
       this.liveMeshVersion.set(key, version);
       const halo = this.gatherNeighbourHalo(chunk.cx, chunk.cz);
-      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo };
+      const lightHalo = this.gatherLightHalo(chunk.cx, chunk.cz);
+      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo, lightHalo };
       this.meshQueue.enqueue(req);
       chunk.dirty = false;
       this.dirtyChunks.delete(chunk);

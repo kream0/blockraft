@@ -3,6 +3,8 @@ import {
   BlockId,
   CHUNK_HEIGHT,
   CHUNK_SIZE,
+  MAX_SKY_LIGHT,
+  SKY_LIGHT_BRIGHTNESS,
   type IBlockRegistry,
   type ITextureAtlas,
   type IWorld,
@@ -21,6 +23,27 @@ export function aoLevel(side1: boolean, side2: boolean, corner: boolean): number
 
 /** Per-AO-level brightness multipliers: index = level (0 darkest → 3 full bright). */
 export const AO_BRIGHTNESS: readonly [number, number, number, number] = [0.5, 0.7, 0.85, 1.0];
+
+/**
+ * Sample the sky-light level for the AO base cell (one step in face-normal direction from the
+ * current block). `lx/ly/lz` are the LOCAL AO base cell coords (may be outside [0, CHUNK_SIZE)
+ * on X/Z for cross-chunk faces; Y is absolute world-Y here, NOT chunk-local).
+ * - Y >= CHUNK_HEIGHT → open sky → MAX_SKY_LIGHT (15)
+ * - Y < 0 → underground → 0
+ * - otherwise: delegate to world.getSkyLight with world coords
+ */
+function sampleSkyLight(
+  world: IWorld,
+  baseX: number,
+  baseZ: number,
+  lx: number,
+  ly: number,
+  lz: number,
+): number {
+  if (ly >= CHUNK_HEIGHT) return MAX_SKY_LIGHT;
+  if (ly < 0) return 0;
+  return world.getSkyLight(baseX + lx, ly, baseZ + lz);
+}
 
 /** Face direction tag — used to pick texture (top/bottom/side) and vertices. */
 const enum Face {
@@ -220,6 +243,10 @@ export class ChunkMesher {
             const uAxis = tangentAxes[0];
             const vAxis = tangentAxes[1];
 
+            // Sky-light bake: one value per face (the AO base cell is the exposed air cell)
+            const faceLight = sampleSkyLight(world, baseX, baseZ, baseAOx, baseAOy, baseAOz);
+            const skyMul = SKY_LIGHT_BRIGHTNESS[faceLight] ?? 1.0;
+
             // Compute per-vertex AO brightness and accumulate levels for flip-quad decision
             const aoLevels: [number, number, number, number] = [0, 0, 0, 0];
             const aoBrightness: [number, number, number, number] = [1.0, 1.0, 1.0, 1.0];
@@ -257,7 +284,7 @@ export class ChunkMesher {
               const corner = data.corners[c]!;
               positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
               normals.push(normX, normY, normZ);
-              const b = aoBrightness[c] ?? 1.0;
+              const b = (aoBrightness[c] ?? 1.0) * skyMul;
               colors.push(b, b, b);
             }
             // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
