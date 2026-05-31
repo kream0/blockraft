@@ -284,6 +284,14 @@ export const DROPPED_ITEM_ATTRACT_SPEED = 6;
 /** Seconds before an uncollected dropped item despawns. */
 export const DROPPED_ITEM_LIFETIME_S = 300;
 
+// === Minimap (HUD top-down terrain overview) ===
+/** Radius in blocks the minimap samples around the player; the sampled grid is (2R+1) cells square. */
+export const MINIMAP_RADIUS_BLOCKS = 24;
+/** On-screen edge length (px) of the square minimap canvas. */
+export const MINIMAP_SIZE_PX = 132;
+/** Seconds between terrain rescans — the expensive top-down column scan is throttled to this cadence. */
+export const MINIMAP_REBUILD_INTERVAL_S = 0.3;
+
 // === Block IDs (numeric for TypedArray storage) ===
 export const BlockId = {
   AIR: 0,

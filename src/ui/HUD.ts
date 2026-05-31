@@ -1,5 +1,6 @@
-import type { PlayerState, ItemStack } from '../types';
+import type { PlayerState, ItemStack, IWorld } from '../types';
 import { Hotbar } from './Hotbar';
+import { Minimap } from './Minimap';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 
 const STYLE_ID = 'mc-hud-style';
@@ -71,6 +72,7 @@ export class HUD {
   private armorEl: HTMLElement;
   private armorFills: HTMLElement[] = [];
   hotbar: Hotbar;
+  private minimap: Minimap;
 
   private fpsEma: number = 0;
   private fpsInitialized: boolean = false;
@@ -218,6 +220,7 @@ export class HUD {
     this.damageVignetteEl = vignette;
 
     this.hotbar = new Hotbar(container, hotbarStacks, showCounts, iconRenderer);
+    this.minimap = new Minimap(container);
   }
 
   update(player: PlayerState, dtMs: number): void {
@@ -249,6 +252,10 @@ export class HUD {
     if (this.hotbar.selectedSlot !== player.selectedSlot) {
       this.hotbar.setSelectedSlot(player.selectedSlot);
     }
+  }
+
+  updateMinimap(world: IWorld, px: number, pz: number, yaw: number, dtMs: number): void {
+    this.minimap.update(world, px, pz, yaw, dtMs);
   }
 
   setHotbarStacks(stacks: ReadonlyArray<ItemStack | null>): void {
@@ -382,6 +389,7 @@ export class HUD {
 
   dispose(): void {
     this.hotbar.dispose();
+    this.minimap.dispose();
     for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);

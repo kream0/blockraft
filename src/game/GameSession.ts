@@ -644,6 +644,7 @@ export class GameSession {
         this.viewModel.setHeldItem(selItem === null ? null : buildItemMesh(selItem, this.atlas), isTool);
       }
       this.hud.update(this.player.state, dtMs);
+      this.hud.updateMinimap(this.world, this.player.state.position.x, this.player.state.position.z, this.player.state.yaw, dtMs);
       this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
       this.skyAcc += dt;
       if (this.skyAcc >= SKY_UPDATE_INTERVAL_S) {
