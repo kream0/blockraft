@@ -189,3 +189,87 @@ export function buildWoodenSwordMesh(): THREE.Group { return buildSwordMesh(HEAD
 export function buildStoneSwordMesh(): THREE.Group { return buildSwordMesh(STONE_HEAD_COLOR); }
 export function buildIronSwordMesh(): THREE.Group { return buildSwordMesh(IRON_HEAD_COLOR); }
 export function buildDiamondSwordMesh(): THREE.Group { return buildSwordMesh(DIAMOND_HEAD_COLOR); }
+
+const BOW_STAVE_COLOR  = 0x6e4923; // dark wood stave
+const BOW_STRING_COLOR = 0xe8e0c8; // pale string
+
+/**
+ * Returns a new THREE.Group shaped like a bow: a backwards-C stave made from
+ * three angled dark-wood box segments, with a thin pale string box spanning
+ * the two tips. Centered near the origin, within roughly a unit cube.
+ */
+export function buildBowMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  // Center segment (horizontal middle bar of the backwards-C)
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.08), new THREE.MeshLambertMaterial({ color: BOW_STAVE_COLOR }));
+  mid.position.set(-0.20, 0, 0);
+  group.add(mid);
+
+  // Top arm — angled upper-right
+  const topArm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.34, 0.08), new THREE.MeshLambertMaterial({ color: BOW_STAVE_COLOR }));
+  topArm.position.set(-0.08, 0.24, 0);
+  topArm.rotation.z = -0.55; // tilt right + up
+  group.add(topArm);
+
+  // Bottom arm — angled lower-right (mirror of top)
+  const botArm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.34, 0.08), new THREE.MeshLambertMaterial({ color: BOW_STAVE_COLOR }));
+  botArm.position.set(-0.08, -0.24, 0);
+  botArm.rotation.z = 0.55;
+  group.add(botArm);
+
+  // String: thin vertical box connecting the two stave tips on the right side
+  const string = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.70, 0.04),
+    new THREE.MeshLambertMaterial({ color: BOW_STRING_COLOR }),
+  );
+  string.position.set(0.10, 0, 0);
+  group.add(string);
+
+  return group;
+}
+
+const ARROW_SHAFT_COLOR    = 0x6b5436; // wood shaft
+const ARROW_HEAD_COLOR     = 0x3a3a3a; // dark-gray arrowhead
+const ARROW_FLETCH_COLOR   = 0xd8d2c0; // pale fletching
+
+/**
+ * Returns a new THREE.Group shaped like an arrow item icon: a diagonal shaft
+ * with a small arrowhead at the tip and two tiny fletching fins at the tail.
+ * Centered near the origin, within roughly a unit cube.
+ */
+export function buildArrowItemMesh(): THREE.Group {
+  const group = new THREE.Group();
+
+  // Long thin shaft along a slight diagonal
+  const shaft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.70, 0.06),
+    new THREE.MeshLambertMaterial({ color: ARROW_SHAFT_COLOR }),
+  );
+  shaft.rotation.z = Math.PI / 6; // ~30° tilt
+  group.add(shaft);
+
+  // Small arrowhead at the upper-right tip
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(0.10, 0.14, 0.10),
+    new THREE.MeshLambertMaterial({ color: ARROW_HEAD_COLOR }),
+  );
+  head.position.set(0.18, 0.32, 0);
+  head.rotation.z = Math.PI / 6;
+  group.add(head);
+
+  // Two tiny fletching fins at the lower-left tail (offset perpendicular to shaft)
+  const fletchMat = new THREE.MeshLambertMaterial({ color: ARROW_FLETCH_COLOR });
+
+  const fletchA = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.04), fletchMat);
+  fletchA.position.set(-0.20, -0.28, 0.04);
+  fletchA.rotation.z = Math.PI / 6;
+  group.add(fletchA);
+
+  const fletchB = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.04), fletchMat);
+  fletchB.position.set(-0.20, -0.28, -0.04);
+  fletchB.rotation.z = Math.PI / 6;
+  group.add(fletchB);
+
+  return group;
+}

@@ -454,6 +454,34 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: BlockId.GLOWSTONE, count: 1 },
   },
+  // Bow — six sticks in a bow curve (shaped 3x3) -> 1 bow
+  // [_, S, S]
+  // [S, _, S]
+  // [_, S, S]
+  {
+    kind: 'shaped',
+    pattern: [
+      null,         ItemId.STICK, ItemId.STICK,
+      ItemId.STICK, null,         ItemId.STICK,
+      null,         ItemId.STICK, ItemId.STICK,
+    ],
+    width: 3,
+    height: 3,
+    output: { item: ItemId.BOW, count: 1 },
+  },
+  // Arrow — stone tip on a stick (shaped 1x2) -> 4 arrows
+  // [Cobblestone]
+  // [Stick]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COBBLESTONE,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 2,
+    output: { item: ItemId.ARROW, count: 4 },
+  },
 ];
 
 // ============================================================

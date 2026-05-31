@@ -491,6 +491,14 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
     swatchColor: '#9e7140', glyph: 'D', placeable: null, tool: null, weapon: null,
     armor: null, food: null,
   }],
+  [ItemId.BOW, {
+    id: ItemId.BOW, name: 'Bow', maxStack: 1, swatchColor: '#6E4923', glyph: ')',
+    placeable: null, tool: null, weapon: null, armor: null, food: null,
+  }],
+  [ItemId.ARROW, {
+    id: ItemId.ARROW, name: 'Arrow', maxStack: 64, swatchColor: '#8A7A5A', glyph: '>',
+    placeable: null, tool: null, weapon: null, armor: null, food: null,
+  }],
 ]);
 
 /** True if id refers to any known item (block or non-block). */

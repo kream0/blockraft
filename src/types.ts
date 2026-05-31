@@ -161,6 +161,20 @@ export const ARROW_LIFETIME_S = 3;
 /** Collision half-extent (blocks) added around the player AABB for the arrow point-hit test. */
 export const ARROW_HIT_RADIUS = 0.25;
 
+// === Player bow ===
+/** Damage (half-heart points) a player-fired arrow deals to a mob on hit. */
+export const BOW_DAMAGE = 5;
+/** Minimum seconds between player bow shots. */
+export const BOW_COOLDOWN_S = 0.5;
+/** Point-vs-mob-center hit distance (blocks) for a player-fired arrow. */
+export const BOW_ARROW_HIT_RADIUS = 0.6;
+/** Forward offset from the player eye so the spawned arrow clears the player AABB. */
+export const BOW_ARROW_SPAWN_OFFSET = 0.6;
+/** Min arrows a skeleton drops on death (inclusive). */
+export const SKELETON_ARROW_DROP_MIN = 1;
+/** Max arrows a skeleton drops on death (inclusive). */
+export const SKELETON_ARROW_DROP_MAX = 2;
+
 // === Block-break particles ===
 /** Particles spawned per block break. */
 export const PARTICLE_BURST_COUNT = 12;
@@ -278,6 +292,8 @@ export const ItemId = {
   DIAMOND_LEGGINGS: 146,
   DIAMOND_BOOTS: 147,
   DOOR: 150,            // places a 2-tall oriented door; non-block item (renders via swatch+glyph)
+  BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
+  ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
 /** A BlockId value (0..27) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;

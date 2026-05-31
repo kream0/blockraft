@@ -8,10 +8,16 @@ export class Arrow extends Entity {
   private life = ARROW_LIFETIME_S;
   /** Normalized flight direction — constant (straight-line). Reused for the per-tick raycast (zero allocation). */
   private readonly dir: THREE.Vector3;
+  /**
+   * True when this arrow was fired by the player (hits mobs), false when fired by a mob (hits the player).
+   * Kept here so the two independent damage sweeps in GameSession never cross-fire.
+   */
+  readonly fromPlayer: boolean;
 
-  constructor(origin: Vec3, dir: Vec3) {
+  constructor(origin: Vec3, dir: Vec3, fromPlayer = false) {
     const mesh = Arrow.buildMesh();
     super(EntityKind.ARROW, origin, mesh);
+    this.fromPlayer = fromPlayer;
     const d = new THREE.Vector3(dir.x, dir.y, dir.z);
     if (d.lengthSq() < 1e-8) d.set(0, 0, -1); // degenerate-direction guard
     d.normalize();

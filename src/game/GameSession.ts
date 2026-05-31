@@ -55,6 +55,13 @@ import {
   HOSTILE_SPAWN_MAX_LIGHT,
   ARROW_DAMAGE,
   ARROW_HIT_RADIUS,
+  BOW_DAMAGE,
+  BOW_COOLDOWN_S,
+  BOW_ARROW_HIT_RADIUS,
+  BOW_ARROW_SPAWN_OFFSET,
+  SKELETON_ARROW_DROP_MIN,
+  SKELETON_ARROW_DROP_MAX,
+  EntityKind,
   PLAYER_RADIUS,
   PLAYER_HEIGHT,
   FALL_DAMAGE_SAFE_BLOCKS,
@@ -214,6 +221,8 @@ export class GameSession {
   private drownAcc: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
+  /** Wall-clock seconds remaining until the player's next bow shot is allowed. */
+  private bowCooldown: number = 0;
   private wasNight: boolean = false;
   // Initialized to the interval so the very first frame applies the sky immediately (no black-sky flash).
   private skyAcc: number = SKY_UPDATE_INTERVAL_S;
@@ -443,8 +452,9 @@ export class GameSession {
           return;
         }
         this.rightHeld = true;
-        if (this.tryEquipArmor()) return;
         const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
+        if (heldItem === ItemId.BOW) { this.fireBow(); return; }
+        if (this.tryEquipArmor()) return;
         if (heldItem === ItemId.DOOR) {
           if (this.interaction.placeDoor()) {
             if (this.gameMode === GameMode.SURVIVAL) this.player.inventory.removeOne(this.player.state.selectedSlot);
@@ -565,6 +575,7 @@ export class GameSession {
       if (this.chestScreen.isOpen) this.chestScreen.refresh();
       this.updateHostiles(dt);
       this.playerAttackCooldown = Math.max(0, this.playerAttackCooldown - dt);
+      this.bowCooldown = Math.max(0, this.bowCooldown - dt);
       this.player.syncCamera();
       this.updateMining(dt);
       this.updateEating(dt);
@@ -1081,15 +1092,33 @@ export class GameSession {
     const minZ = p.z - PLAYER_RADIUS - ARROW_HIT_RADIUS;
     const maxZ = p.z + PLAYER_RADIUS + ARROW_HIT_RADIUS;
     const canHurt = this.gameMode === GameMode.SURVIVAL && !this.isDead && this.respawnInvuln <= 0;
+    const r2bow = BOW_ARROW_HIT_RADIUS * BOW_ARROW_HIT_RADIUS;
 
     for (const e of this.world.entityManager.all) {
       if (!(e instanceof Arrow)) continue;
       if (!e.dead) {
-        const a = e.position;
-        if (a.x >= minX && a.x <= maxX && a.y >= minY && a.y <= maxY && a.z >= minZ && a.z <= maxZ) {
-          e.dead = true; // arrow is consumed on impact regardless of game mode
-          if (canHurt) {
-            this.damagePlayer(ARROW_DAMAGE);
+        if (e.fromPlayer) {
+          // Player arrow: test against mob vertical centers.
+          for (const m of this.world.entityManager.all) {
+            if (!(m instanceof Mob)) continue;
+            const dx = e.position.x - m.position.x;
+            const dy = e.position.y - (m.position.y + m.height * 0.5);
+            const dz = e.position.z - m.position.z;
+            if (dx * dx + dy * dy + dz * dz <= r2bow) {
+              e.dead = true;
+              const killed = m.takeDamage(BOW_DAMAGE, e.position.x, e.position.z);
+              if (killed) this.killMob(m);
+              break;
+            }
+          }
+        } else {
+          // Mob arrow: test against player AABB (existing behaviour).
+          const a = e.position;
+          if (a.x >= minX && a.x <= maxX && a.y >= minY && a.y <= maxY && a.z >= minZ && a.z <= maxZ) {
+            e.dead = true; // arrow is consumed on impact regardless of game mode
+            if (canHurt) {
+              this.damagePlayer(ARROW_DAMAGE);
+            }
           }
         }
       }
@@ -1383,16 +1412,57 @@ export class GameSession {
     const weapon = itemWeaponDef(heldItem);
     const damage = weapon !== null ? weapon.damage : PLAYER_ATTACK_DAMAGE;
     const killed = target.takeDamage(damage, p.x, p.z);
-    if (killed) {
-      if (this.gameMode === GameMode.SURVIVAL) {
-        const drop = foodDropForMob(target.kind);
-        if (drop !== null) {
-          const mp = target.position;
-          this.world.entityManager.spawn(new DroppedItem({ x: mp.x, y: mp.y + 0.3, z: mp.z }, drop, 1));
-        }
-      }
-      this.world.entityManager.despawn(target.id);
-    }
+    if (killed) this.killMob(target);
     return true;
+  }
+
+  /**
+   * Handles drops and despawn for a freshly-killed mob. Called by both melee and bow damage paths
+   * so food drops + skeleton arrow drops are always consistent.
+   */
+  private killMob(mob: Mob): void {
+    if (this.gameMode === GameMode.SURVIVAL) {
+      const mp = mob.position;
+      const food = foodDropForMob(mob.kind);
+      if (food !== null) {
+        this.world.entityManager.spawn(new DroppedItem({ x: mp.x, y: mp.y + 0.3, z: mp.z }, food, 1));
+      }
+      if (mob.kind === EntityKind.SKELETON) {
+        const span = SKELETON_ARROW_DROP_MAX - SKELETON_ARROW_DROP_MIN + 1;
+        const n = SKELETON_ARROW_DROP_MIN + Math.floor(Math.random() * span);
+        this.world.entityManager.spawn(new DroppedItem({ x: mp.x, y: mp.y + 0.3, z: mp.z }, ItemId.ARROW, n));
+      }
+    }
+    this.world.entityManager.despawn(mob.id);
+  }
+
+  /**
+   * Fires one player arrow in the look direction, gated by bow cooldown and ammo (Survival).
+   * Dry-fire (no ammo in Survival) is silent — no cooldown consumed.
+   */
+  private fireBow(): void {
+    if (this.bowCooldown > 0) return;
+    // Ammo: Survival consumes one ARROW from anywhere in the inventory; Creative is unlimited.
+    let arrowSlot = -1;
+    if (this.gameMode === GameMode.SURVIVAL) {
+      const slots = this.player.inventory.allSlots;
+      for (let i = 0; i < slots.length; i++) {
+        const s = slots[i] ?? null;
+        if (s !== null && s.item === ItemId.ARROW) { arrowSlot = i; break; }
+      }
+      if (arrowSlot < 0) return; // no ammo — dry fire (no shot, no cooldown)
+    }
+    this.bowCooldown = BOW_COOLDOWN_S;
+    const eye = this.player.camera.getWorldPosition(new THREE.Vector3());
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.player.camera.quaternion).normalize();
+    const origin = {
+      x: eye.x + fwd.x * BOW_ARROW_SPAWN_OFFSET,
+      y: eye.y + fwd.y * BOW_ARROW_SPAWN_OFFSET,
+      z: eye.z + fwd.z * BOW_ARROW_SPAWN_OFFSET,
+    };
+    this.world.entityManager.spawn(new Arrow(origin, { x: fwd.x, y: fwd.y, z: fwd.z }, true));
+    if (arrowSlot >= 0) this.player.inventory.removeOne(arrowSlot);
+    this.audio.playAttack();
+    this.viewModel.triggerSwing();
   }
 }
