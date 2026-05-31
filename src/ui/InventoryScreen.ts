@@ -297,7 +297,7 @@ export class InventoryScreen {
     if (index === CRAFT_OUTPUT_INDEX) {
       // Craft output: repeatedly craft-and-collect into main inventory until full or no output.
       for (let iter = 0; iter < 256; iter++) {
-        const result = this.getCell(CRAFT_OUTPUT_INDEX);
+        const result = this.craftOutput;
         if (result === null) break;
         // Fill main inventory (9..35) first, then spill to hotbar — but only craft if it fully fits somewhere.
         if (!this.inventory.canAccept(result.item, result.count)) break; // would only partially fit anywhere — don't craft
