@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ItemId, type ITextureAtlas } from '../types';
+import { BlockId, ItemId, type ITextureAtlas } from '../types';
 import { isBlockItem } from '../items/ItemRegistry';
 import { buildItemMesh } from '../items/ItemMesh';
 
@@ -61,7 +61,7 @@ export class ItemIconRenderer {
     const mesh = buildItemMesh(item, this.atlas);
 
     // Choose camera framing depending on item type.
-    if (isBlockItem(item)) {
+    if (isBlockItem(item) && item !== BlockId.TORCH) {
       // Corner/isometric view: top + two sides visible.
       this.camera.position.set(2, 2, 2);
       const d = 0.92;

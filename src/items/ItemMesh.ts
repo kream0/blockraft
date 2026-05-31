@@ -3,6 +3,7 @@ import { BlockId, ItemId, type ITextureAtlas } from '../types';
 import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
 import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh, buildDiamondPickaxeMesh, buildDiamondAxeMesh, buildDiamondShovelMesh, buildDiamondSwordMesh } from './ToolMeshes';
+import { TORCH_TILE } from '../world/Torch';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -14,6 +15,8 @@ import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildS
  * Do NOT dispose atlas.texture — it is shared and must outlive this mesh.
  */
 export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3D {
+  if (item === BlockId.TORCH) return buildTorchItemMesh(atlas);
+
   if (!isBlockItem(item)) {
     // Non-block item — return the appropriate tool mesh.
     switch (item) {
@@ -67,6 +70,29 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
   }
   uv.needsUpdate = true;
 
+  const mat = new THREE.MeshLambertMaterial({ map: atlas.texture });
+  return new THREE.Mesh(geo, mat);
+}
+
+/**
+ * Torch item mesh: a slim vertical post (not a full cube) textured with the torch
+ * tile, so the hotbar/inventory icon and the in-hand model both read as a thin torch
+ * with empty (transparent) space around it. Centered at the origin like other item meshes.
+ */
+function buildTorchItemMesh(atlas: ITextureAtlas): THREE.Object3D {
+  const w = 0.2;   // post cross-section (slim)
+  const h = 0.78;  // post height (tall, fills the icon vertically)
+  const geo = new THREE.BoxGeometry(w, h, w);
+  const [u0, v0, u1, v1] = atlas.getUV(TORCH_TILE);
+  const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  for (let f = 0; f < 6; f++) {
+    const base = f * 4;
+    uv.setXY(base + 0, u0, v1);
+    uv.setXY(base + 1, u1, v1);
+    uv.setXY(base + 2, u0, v0);
+    uv.setXY(base + 3, u1, v0);
+  }
+  uv.needsUpdate = true;
   const mat = new THREE.MeshLambertMaterial({ map: atlas.texture });
   return new THREE.Mesh(geo, mat);
 }
