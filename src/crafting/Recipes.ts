@@ -441,6 +441,19 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: BlockId.TORCH, count: 4 },
   },
+  // Glowstone — 4 torches in a 2x2 compress into a glowing block (shaped 2x2)
+  // [T, T]
+  // [T, T]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.TORCH, BlockId.TORCH,
+      BlockId.TORCH, BlockId.TORCH,
+    ],
+    width: 2,
+    height: 2,
+    output: { item: BlockId.GLOWSTONE, count: 1 },
+  },
 ];
 
 // ============================================================

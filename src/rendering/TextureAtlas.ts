@@ -401,6 +401,18 @@ function drawTorch(ctx: CanvasRenderingContext2D, col: number, row: number, rng:
   speckle(ctx, col, row, '#FFE680', 3, rng);
 }
 
+function drawGlowstone(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  fillTile(ctx, col, row, '#C99A2E');                 // warm gold base
+  speckle(ctx, col, row, '#9C7320', 26, rng);         // darker amber grains
+  speckle(ctx, col, row, '#F2C84B', 30, rng);         // bright gold grains
+  speckle(ctx, col, row, '#FFF0A8', 14, rng);         // hot near-white highlights
+  // A few darker "cell" cracks dividing the block into glowstone-like cells.
+  ctx.fillStyle = '#7A5616';
+  ctx.fillRect(col * TILE, row * TILE + 6, TILE, 1);
+  ctx.fillRect(col * TILE + 6, row * TILE, 1, 7);
+  ctx.fillRect(col * TILE + 10, row * TILE + 7, 1, TILE - 7);
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -446,7 +458,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 5x5 grid: index = row * COLS + col
-    // Tiles 0..21 are real.
+    // Tiles 0..23 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -471,6 +483,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawDoorLower,     // tile 20 — door lower half
       drawDoorUpper,     // tile 21 — door upper half
       drawTorch,         // tile 22 — torch (wooden post + flame)
+      drawGlowstone,     // tile 23 — glowstone (warm gold glowing cells)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

@@ -13,6 +13,8 @@ export const WORLD_SEED = 1337;
 export const MAX_SKY_LIGHT = 15;
 /** Light emission level of a torch block (0..15). */
 export const TORCH_LIGHT = 14;
+/** Light emission level of a glowstone block (0..15). Brighter than a torch — full strength. */
+export const GLOWSTONE_LIGHT = 15;
 /**
  * Sky-light → brightness multiplier LUT (index = light level 0..15).
  * 0 = deep shadow (a non-zero floor so caves aren't pure black), 15 = full daylight.
@@ -229,12 +231,13 @@ export const BlockId = {
   DOOR_W_CLOSED: 24,
   DOOR_W_OPEN: 25,
   TORCH: 26,
+  GLOWSTONE: 27,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..16) directly, so a persisted block stack {block,count} reads
+// numeric value (0..27) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -276,7 +279,7 @@ export const ItemId = {
   DIAMOND_BOOTS: 147,
   DOOR: 150,            // places a 2-tall oriented door; non-block item (renders via swatch+glyph)
 } as const;
-/** A BlockId value (0..26) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..27) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===
