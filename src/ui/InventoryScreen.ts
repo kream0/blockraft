@@ -17,6 +17,11 @@ export class InventoryScreen {
   private cursorEl: HTMLElement;
   private cursor: ItemStack | null = null;
   private onMouseMove: (e: MouseEvent) => void;
+  private dragging = false;
+  private dragStartIndex = -1;
+  private dragMoved = false;
+  private dragSlots: number[] = [];
+  private onMouseUp: (e: MouseEvent) => void;
 
   private craftGrid: (ItemStack | null)[] = new Array<ItemStack | null>(CRAFTING_GRID_SLOTS).fill(null);
   private craftOutput: ItemStack | null = null;
@@ -167,6 +172,12 @@ export class InventoryScreen {
       this.cursorEl.style.left = (e.clientX - 17) + 'px';
       this.cursorEl.style.top = (e.clientY - 17) + 'px';
     };
+
+    // Mouse-up handler: finalizes a left-drag when button 0 is released
+    this.onMouseUp = (e: MouseEvent): void => {
+      if (e.button !== 0) return;
+      if (this.dragging) this.finalizeDrag();
+    };
   }
 
   private slotCss(): string {
@@ -199,6 +210,7 @@ export class InventoryScreen {
       this.handleSlotMouseDown(invIndex, e.button, e.shiftKey);
     });
     el.addEventListener('mousemove', (e: MouseEvent) => {
+      this.onDragMove(invIndex);
       const stack = this.getCell(invIndex);
       if (stack !== null) {
         this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
@@ -224,6 +236,7 @@ export class InventoryScreen {
       this.handleSlotMouseDown(synthIndex, e.button, e.shiftKey);
     });
     el.addEventListener('mousemove', (e: MouseEvent) => {
+      this.onDragMove(synthIndex);
       const stack = synthIndex === CRAFT_OUTPUT_INDEX ? this.craftOutput : this.getCell(synthIndex);
       if (stack !== null) {
         this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
@@ -367,6 +380,7 @@ export class InventoryScreen {
   }
 
   private handleSlotMouseDown(index: number, button: number, shiftKey: boolean): void {
+    if (this.dragging) return; // ignore extra presses while a drag is in progress
     if (shiftKey) { this.handleShiftClick(index); return; }
 
     // Output slot: take crafted result then return early.
@@ -377,76 +391,150 @@ export class InventoryScreen {
       return;
     }
 
-    const slot = this.getCell(index);
+    // Left-press while holding a stack → begin a distribute-drag (deposit is deferred to mouseup).
+    if (button === 0 && this.cursor !== null) {
+      this.beginDrag(index);
+      return;
+    }
 
+    const slot = this.getCell(index);
     if (button === 0) {
-      // Left click
-      if (this.cursor === null) {
-        if (slot !== null) {
-          // Pick up whole stack
-          this.cursor = { item: slot.item, count: slot.count };
-          this.setCell(index, null);
-        }
-        // slot null → nothing
-      } else {
-        // cursor not null
-        if (slot === null) {
-          // Drop whole cursor
-          this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
-          this.cursor = null;
-        } else if (slot.item === this.cursor.item) {
-          // Same item type: merge up to per-item maxStack
-          const maxStack = itemMaxStack(slot.item);
-          const space = maxStack - slot.count;
-          const move = Math.min(space, this.cursor.count);
-          if (move > 0) {
-            this.setCell(index, { item: slot.item, count: slot.count + move });
-            const left = this.cursor.count - move;
-            this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
-          } else {
-            // Slot is already full: swap
-            const tmp: ItemStack = { item: slot.item, count: slot.count };
-            this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
-            this.cursor = tmp;
-          }
+      this.applyLeftClick(index, slot);
+    } else if (button === 2) {
+      this.applyRightClick(index, slot);
+    }
+
+    this.recomputeOutput();
+    this.refresh();
+  }
+
+  private applyLeftClick(index: number, slot: ItemStack | null): void {
+    if (this.cursor === null) {
+      if (slot !== null) {
+        // Pick up whole stack
+        this.cursor = { item: slot.item, count: slot.count };
+        this.setCell(index, null);
+      }
+      // slot null → nothing
+    } else {
+      // cursor not null
+      if (slot === null) {
+        // Drop whole cursor
+        this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
+        this.cursor = null;
+      } else if (slot.item === this.cursor.item) {
+        // Same item type: merge up to per-item maxStack
+        const maxStack = itemMaxStack(slot.item);
+        const space = maxStack - slot.count;
+        const move = Math.min(space, this.cursor.count);
+        if (move > 0) {
+          this.setCell(index, { item: slot.item, count: slot.count + move });
+          const left = this.cursor.count - move;
+          this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
         } else {
-          // Different item type: swap
+          // Slot is already full: swap
           const tmp: ItemStack = { item: slot.item, count: slot.count };
           this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
           this.cursor = tmp;
         }
-      }
-    } else if (button === 2) {
-      // Right click
-      if (this.cursor === null) {
-        if (slot !== null) {
-          // Take half (ceil)
-          const take = Math.ceil(slot.count / 2);
-          const keep = slot.count - take;
-          this.cursor = { item: slot.item, count: take };
-          this.setCell(index, keep > 0 ? { item: slot.item, count: keep } : null);
-        }
-        // slot null → nothing
       } else {
-        // cursor not null
-        if (slot === null) {
-          // Drop ONE
-          this.setCell(index, { item: this.cursor.item, count: 1 });
-          const left = this.cursor.count - 1;
-          this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
-        } else if (slot.item === this.cursor.item && slot.count < itemMaxStack(slot.item)) {
-          // Same type with room: add ONE
-          this.setCell(index, { item: slot.item, count: slot.count + 1 });
-          const left = this.cursor.count - 1;
-          this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
-        }
-        // else → nothing
+        // Different item type: swap
+        const tmp: ItemStack = { item: slot.item, count: slot.count };
+        this.setCell(index, { item: this.cursor.item, count: this.cursor.count });
+        this.cursor = tmp;
       }
     }
+  }
 
-    // Recompute output after any change (cheap, harmless on inventory-only clicks).
+  private applyRightClick(index: number, slot: ItemStack | null): void {
+    if (this.cursor === null) {
+      if (slot !== null) {
+        // Take half (ceil)
+        const take = Math.ceil(slot.count / 2);
+        const keep = slot.count - take;
+        this.cursor = { item: slot.item, count: take };
+        this.setCell(index, keep > 0 ? { item: slot.item, count: keep } : null);
+      }
+      // slot null → nothing
+    } else {
+      // cursor not null
+      if (slot === null) {
+        // Drop ONE
+        this.setCell(index, { item: this.cursor.item, count: 1 });
+        const left = this.cursor.count - 1;
+        this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
+      } else if (slot.item === this.cursor.item && slot.count < itemMaxStack(slot.item)) {
+        // Same type with room: add ONE
+        this.setCell(index, { item: slot.item, count: slot.count + 1 });
+        const left = this.cursor.count - 1;
+        this.cursor = left > 0 ? { item: this.cursor.item, count: left } : null;
+      }
+      // else → nothing
+    }
+  }
+
+  private isEligibleDragSlot(index: number): boolean {
+    if (this.cursor === null) return false;
+    if (index === CRAFT_OUTPUT_INDEX) return false;
+    const cell = this.getCell(index);
+    if (cell === null) return true;
+    return cell.item === this.cursor.item && cell.count < itemMaxStack(cell.item);
+  }
+
+  private beginDrag(startIndex: number): void {
+    this.dragging = true;
+    this.dragStartIndex = startIndex;
+    this.dragMoved = false;
+    this.dragSlots = [];
+    if (this.isEligibleDragSlot(startIndex)) this.dragSlots.push(startIndex);
+  }
+
+  /** Called from slot mousemove listeners while a drag is active. */
+  private onDragMove(index: number): void {
+    if (!this.dragging) return;
+    if (index === CRAFT_OUTPUT_INDEX) return;
+    if (index !== this.dragStartIndex) this.dragMoved = true;
+    if (this.dragSlots.includes(index)) return;
+    if (this.isEligibleDragSlot(index)) this.dragSlots.push(index);
+  }
+
+  private finalizeDrag(): void {
+    if (!this.dragging) return;
+    this.dragging = false;
+    const slots = this.dragSlots;
+    this.dragSlots = [];
+    if (this.dragMoved && slots.length >= 1 && this.cursor !== null) {
+      this.distributeDrag(slots);
+    } else if (!this.dragMoved) {
+      // Press+release with no movement → behave like a normal left-click on the start slot.
+      this.applyLeftClick(this.dragStartIndex, this.getCell(this.dragStartIndex));
+    }
+    // else: a real drag that collected no eligible slots → no-op (items stay on the cursor).
     this.recomputeOutput();
     this.refresh();
+  }
+
+  /** Evenly split the held cursor stack across the given eligible slots (Minecraft left-drag). */
+  private distributeDrag(slots: number[]): void {
+    if (this.cursor === null) return;
+    const item = this.cursor.item;
+    const max = itemMaxStack(item);
+    const total = this.cursor.count;
+    let per = Math.floor(total / slots.length);
+    if (per < 1) per = 1; // hold fewer than n slots → 1 each until exhausted
+    let remaining = total;
+    for (const idx of slots) {
+      if (remaining <= 0) break;
+      const cell = this.getCell(idx);
+      const cur = cell === null ? 0 : cell.count;
+      const space = max - cur;
+      if (space <= 0) continue;
+      const give = Math.min(per, space, remaining);
+      if (give <= 0) continue;
+      this.setCell(idx, { item, count: cur + give });
+      remaining -= give;
+    }
+    this.cursor = remaining > 0 ? { item, count: remaining } : null;
   }
 
   open(): void {
@@ -454,9 +542,12 @@ export class InventoryScreen {
     this.root.style.display = 'flex';
     this.refresh();
     window.addEventListener('mousemove', this.onMouseMove);
+    window.addEventListener('mouseup', this.onMouseUp);
   }
 
   close(): void {
+    this.dragging = false;
+    this.dragSlots = [];
     if (this.cursor !== null) {
       // Return held items to the inventory (conservation invariant: always fits)
       const heldItem = this.cursor.item;
@@ -493,6 +584,7 @@ export class InventoryScreen {
     this.updateCursorEl();
     this.tooltip.hide();
     window.removeEventListener('mousemove', this.onMouseMove);
+    window.removeEventListener('mouseup', this.onMouseUp);
   }
 
   dispose(): void {
