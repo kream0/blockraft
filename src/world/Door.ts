@@ -62,7 +62,8 @@ export interface DoorMeshArrays {
  * - `upper`: top vs bottom half of the 2-cell door. Controls the Y-cap face; the caller also
  *   passes the matching `faceUV` (upper vs lower tile).
  * - `faceUV` textures the two big panel faces; `edgeUV` textures the narrow jamb/top faces.
- * - `skyBrightness`: baked sky-light multiplier (0..1) for this cell.
+ * - `skyBrightness`: baked sky-light multiplier (0..1) for this cell (color.r — day/night-dimmable diffuse).
+ * - `blockBrightness`: baked block-light multiplier (0..1) for this cell (color.g — warm scene-light-independent emissive).
  *
  * Closed: the slab is flush to the `facing` edge of the cell. Open: it is swung 90° onto a
  * fixed perpendicular edge so the doorway centre is clear. The bottom face is never drawn
@@ -80,6 +81,7 @@ export function emitDoorGeometry(
   faceUV: DoorUV,
   edgeUV: DoorUV,
   skyBrightness: number,
+  blockBrightness: number,
 ): void {
   const T = DOOR_THICKNESS;
   // Slab footprint within the cell (x,z in [0,1]); y always spans the full cell [0,1].
@@ -122,12 +124,13 @@ export function emitDoorGeometry(
     shade: number,
   ): void => {
     const start = out.positions.length / 3;
-    const b = shade * skyBrightness;
+    const r = shade * skyBrightness;
+    const g = shade * blockBrightness;
     const corners: ReadonlyArray<readonly [number, number, number]> = [c0, c1, c2, c3];
     for (const c of corners) {
       out.positions.push(wx + c[0], ly + c[1], wz + c[2]);
       out.normals.push(nx, ny, nz);
-      out.colors.push(b, b, b);
+      out.colors.push(r, g, 0);
     }
     // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
     out.uvs.push(uv[0], uv[1], uv[2], uv[1], uv[2], uv[3], uv[0], uv[3]);

@@ -4,6 +4,7 @@ import {
   CHUNK_SIZE,
   MAX_SKY_LIGHT,
   SKY_LIGHT_BRIGHTNESS,
+  BLOCK_LIGHT_BRIGHTNESS,
   type WorkerBlockTable,
   type WorkerAtlasParams,
   type MeshBuffers,
@@ -156,19 +157,28 @@ function sampleOccludes(t: WorkerBlockTable, halo: Uint8Array, lx: number, ly: n
 }
 
 /**
- * Sample the sky-light level for the AO base cell from the lightHalo array.
+ * Sample the sky-light level for the AO base cell from the skyLightHalo array.
  * `lx/ly/lz` are the LOCAL AO base cell coords (same coordinate space as haloGet).
  * - Y >= CHUNK_HEIGHT → open sky → MAX_SKY_LIGHT (15)
  * - Y < 0 → underground → 0
- * - otherwise: read from lightHalo at the same halo index as haloGet
+ * - otherwise: read from skyLightHalo at the same halo index as haloGet
  */
-function sampleSkyLight(lightHalo: Uint8Array, lx: number, ly: number, lz: number): number {
+function sampleSkyLight(skyLightHalo: Uint8Array, lx: number, ly: number, lz: number): number {
   if (ly >= CHUNK_HEIGHT) return MAX_SKY_LIGHT;
   if (ly < 0) return 0;
   const hx = lx + 1;
   const hz = lz + 1;
   if (hx < 0 || hx >= HALO || hz < 0 || hz >= HALO) return 0;
-  return lightHalo[hx + hz * HALO + ly * HALO * HALO] ?? 0;
+  return skyLightHalo[hx + hz * HALO + ly * HALO * HALO] ?? 0;
+}
+
+/** Block-light level for the AO base cell from blockLightHalo. Open sky (ly>=CHUNK_HEIGHT) and underground (ly<0) have NO block light → 0. */
+function sampleBlockLight(blockLightHalo: Uint8Array, lx: number, ly: number, lz: number): number {
+  if (ly >= CHUNK_HEIGHT || ly < 0) return 0;
+  const hx = lx + 1;
+  const hz = lz + 1;
+  if (hx < 0 || hx >= HALO || hz < 0 || hz >= HALO) return 0;
+  return blockLightHalo[hx + hz * HALO + ly * HALO * HALO] ?? 0;
 }
 
 /** Face-draw test, mirrors ChunkMesher.shouldDrawFace exactly. */
@@ -206,7 +216,8 @@ export function buildChunkMeshBuffers(
   cx: number,
   cz: number,
   halo: Uint8Array,
-  lightHalo: Uint8Array,
+  skyLightHalo: Uint8Array,
+  blockLightHalo: Uint8Array,
   blockTable: WorkerBlockTable,
   atlasParams: WorkerAtlasParams,
 ): { solid: MeshBuffers; water: MeshBuffers | null } {
@@ -244,15 +255,19 @@ export function buildChunkMeshBuffers(
           const upper = isDoorBlock(haloGet(halo, lx, ly - 1, lz));
           const faceUV = getUV(atlasParams, upper ? DOOR_TILE_UPPER : DOOR_TILE_LOWER);
           const edgeUV = getUV(atlasParams, DOOR_TILE_EDGE);
-          const level = sampleSkyLight(lightHalo, lx, ly, lz);
-          const skyMul = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
-          emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul);
+          const sky = sampleSkyLight(skyLightHalo, lx, ly, lz);
+          const block = sampleBlockLight(blockLightHalo, lx, ly, lz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
+          const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
+          emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul, blockMul);
           continue;
         }
         if (id === BlockId.TORCH) {
-          const level = sampleSkyLight(lightHalo, lx, ly, lz); // lightHalo carries combined max(sky,block)
-          const b = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
-          emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, TORCH_TILE), b);
+          const sky = sampleSkyLight(skyLightHalo, lx, ly, lz);
+          const block = sampleBlockLight(blockLightHalo, lx, ly, lz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
+          const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
+          emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, TORCH_TILE), skyMul, blockMul);
           continue;
         }
         const isCurrentTransparent = isTransparentId(blockTable, id);
@@ -318,9 +333,11 @@ export function buildChunkMeshBuffers(
           const uAxis = tangentAxes[0];
           const vAxis = tangentAxes[1];
 
-          // Sky-light bake: one value per face (the AO base cell is the exposed air cell)
-          const faceLight = sampleSkyLight(lightHalo, baseAOx, baseAOy, baseAOz);
-          const skyMul = SKY_LIGHT_BRIGHTNESS[faceLight] ?? 1.0;
+          // Per-face light bake: sky channel (day/night-dimmable diffuse) + block channel (emissive).
+          const faceSky = sampleSkyLight(skyLightHalo, baseAOx, baseAOy, baseAOz);
+          const faceBlock = sampleBlockLight(blockLightHalo, baseAOx, baseAOy, baseAOz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[faceSky] ?? 1.0;
+          const blockMul = BLOCK_LIGHT_BRIGHTNESS[faceBlock] ?? 0;
 
           // Compute per-vertex AO brightness and accumulate levels for flip-quad decision
           const aoLevels: [number, number, number, number] = [0, 0, 0, 0];
@@ -359,8 +376,8 @@ export function buildChunkMeshBuffers(
             const corner = data.corners[c]!;
             positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
             normals.push(normX, normY, normZ);
-            const b = (aoBrightness[c] ?? 1.0) * skyMul;
-            colors.push(b, b, b);
+            const ao = aoBrightness[c] ?? 1.0;
+            colors.push(ao * skyMul, ao * blockMul, 0);
           }
           // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
           uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);

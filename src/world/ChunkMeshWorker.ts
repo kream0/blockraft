@@ -23,7 +23,7 @@ self.addEventListener('message', (e: MessageEvent<WorkerInitMsg | ChunkMeshReque
   }
   // msg.type === 'mesh_request'
   if (blockTable === null || atlasParams === null) return;
-  const { solid, water } = buildChunkMeshBuffers(msg.cx, msg.cz, msg.halo, msg.lightHalo, blockTable, atlasParams);
+  const { solid, water } = buildChunkMeshBuffers(msg.cx, msg.cz, msg.halo, msg.skyLightHalo, msg.blockLightHalo, blockTable, atlasParams);
   const response: ChunkMeshResult = {
     type: 'mesh_result',
     cx: msg.cx,

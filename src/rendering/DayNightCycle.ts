@@ -8,7 +8,7 @@ const DUSK_SKY = 0xff7e42;
 const SUN_WARM = 0xffb066;
 const SUN_WHITE = 0xffffff;
 
-const AMBIENT_NIGHT = 0.2;
+const AMBIENT_NIGHT = 0.16;
 const AMBIENT_DAY = 0.55;
 const SUN_MAX = 0.9;
 

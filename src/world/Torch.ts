@@ -14,7 +14,8 @@ export interface TorchMeshArrays {
  * Emit a thin centered torch post into `out`. World-space origin is the block's min corner (wx,ly,wz).
  * Post: 2/16 wide (half-width 1/16) centered at x+0.5, z+0.5.
  * Height 10/16 (bottom y+0 → top y+0.625). 4 side faces + top cap, NO bottom face.
- * Every vertex gets uniform grayscale brightness (colors.push(brightness,brightness,brightness)).
+ * Channel convention: color.r = skyBrightness (day/night-dimmable diffuse), color.g = blockBrightness
+ * (scene-light-independent warm emissive), color.b = 0 (unused).
  * tileUV is [u0,v0,u1,v1] for TORCH_TILE.
  */
 export function emitTorchGeometry(
@@ -23,7 +24,8 @@ export function emitTorchGeometry(
   ly: number,
   wz: number,
   tileUV: [number, number, number, number],
-  brightness: number,
+  skyBrightness: number,
+  blockBrightness: number,
 ): void {
   const HW = 1 / 16;  // half-width of the post
   const H = 10 / 16;  // height of the post
@@ -59,10 +61,10 @@ export function emitTorchGeometry(
     out.normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz, nx, ny, nz);
     out.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
     out.colors.push(
-      brightness, brightness, brightness,
-      brightness, brightness, brightness,
-      brightness, brightness, brightness,
-      brightness, brightness, brightness,
+      skyBrightness, blockBrightness, 0,
+      skyBrightness, blockBrightness, 0,
+      skyBrightness, blockBrightness, 0,
+      skyBrightness, blockBrightness, 0,
     );
     out.indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);
   }

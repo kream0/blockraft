@@ -685,19 +685,19 @@ export class World implements IWorld, ISkyLightAccess {
   }
 
   /**
-   * Build a padded sky-light halo for chunk (cx, cz). Mirrors gatherNeighbourHalo exactly
+   * Build a padded SKY-light halo for chunk (cx, cz). Mirrors gatherNeighbourHalo exactly
    * but reads sky-light levels (0..15) instead of block ids.
    * Dimensions: HALO = CHUNK_SIZE+2 in X and Z, CHUNK_HEIGHT in Y.
    * Index of halo cell (hx, y, hz): hx + hz*HALO + y*HALO*HALO.
    * Interior block (lx, ly, lz) lives at halo cell (lx+1, ly, lz+1).
    */
-  private gatherLightHalo(cx: number, cz: number): Uint8Array {
+  private gatherSkyLightHalo(cx: number, cz: number): Uint8Array {
     const HALO = CHUNK_SIZE + 2;
-    const lightHalo = new Uint8Array(HALO * HALO * CHUNK_HEIGHT);
+    const skyLightHalo = new Uint8Array(HALO * HALO * CHUNK_HEIGHT);
     const baseX = cx * CHUNK_SIZE;
     const baseZ = cz * CHUNK_SIZE;
     const chunk = this.getChunk(cx, cz);
-    // Interior: copy this chunk's own combined light (max of sky + block) directly. hx=lx+1, hz=lz+1.
+    // Interior: copy this chunk's own sky light directly. hx=lx+1, hz=lz+1.
     if (chunk) {
       for (let y = 0; y < CHUNK_HEIGHT; y++) {
         for (let lz = 0; lz < CHUNK_SIZE; lz++) {
@@ -705,24 +705,56 @@ export class World implements IWorld, ISkyLightAccess {
             const hx = lx + 1;
             const hz = lz + 1;
             const i = Chunk.idx(lx, y, lz);
-            lightHalo[hx + hz * HALO + y * HALO * HALO] = Math.max(
-              chunk.skyLight[i] ?? 0,
-              chunk.blockLight[i] ?? 0,
-            );
+            skyLightHalo[hx + hz * HALO + y * HALO * HALO] = chunk.skyLight[i] ?? 0;
           }
         }
       }
     }
-    // Ring (incl. diagonals): border cells filled via getLight (max of sky + block).
+    // Ring (incl. diagonals): border cells filled via getSkyLight.
     for (let y = 0; y < CHUNK_HEIGHT; y++) {
       for (let hz = 0; hz < HALO; hz++) {
         for (let hx = 0; hx < HALO; hx++) {
           if (hx !== 0 && hx !== HALO - 1 && hz !== 0 && hz !== HALO - 1) continue; // interior already filled
-          lightHalo[hx + hz * HALO + y * HALO * HALO] = this.getLight(baseX + hx - 1, y, baseZ + hz - 1);
+          skyLightHalo[hx + hz * HALO + y * HALO * HALO] = this.getSkyLight(baseX + hx - 1, y, baseZ + hz - 1);
         }
       }
     }
-    return lightHalo;
+    return skyLightHalo;
+  }
+
+  /**
+   * Build a padded BLOCK-light halo for chunk (cx, cz). Same shape and indexing as gatherSkyLightHalo
+   * but reads block-light (emitter) levels (0..15) instead of sky-light.
+   */
+  private gatherBlockLightHalo(cx: number, cz: number): Uint8Array {
+    const HALO = CHUNK_SIZE + 2;
+    const blockLightHalo = new Uint8Array(HALO * HALO * CHUNK_HEIGHT);
+    const baseX = cx * CHUNK_SIZE;
+    const baseZ = cz * CHUNK_SIZE;
+    const chunk = this.getChunk(cx, cz);
+    // Interior: copy this chunk's own block light directly. hx=lx+1, hz=lz+1.
+    if (chunk) {
+      for (let y = 0; y < CHUNK_HEIGHT; y++) {
+        for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+          for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+            const hx = lx + 1;
+            const hz = lz + 1;
+            const i = Chunk.idx(lx, y, lz);
+            blockLightHalo[hx + hz * HALO + y * HALO * HALO] = chunk.blockLight[i] ?? 0;
+          }
+        }
+      }
+    }
+    // Ring (incl. diagonals): border cells filled via getBlockLight.
+    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+      for (let hz = 0; hz < HALO; hz++) {
+        for (let hx = 0; hx < HALO; hx++) {
+          if (hx !== 0 && hx !== HALO - 1 && hz !== 0 && hz !== HALO - 1) continue; // interior already filled
+          blockLightHalo[hx + hz * HALO + y * HALO * HALO] = this.getBlockLight(baseX + hx - 1, y, baseZ + hz - 1);
+        }
+      }
+    }
+    return blockLightHalo;
   }
 
   private remeshChunk(chunk: Chunk): void {
@@ -741,8 +773,9 @@ export class World implements IWorld, ISkyLightAccess {
       const version = this.nextMeshVersion++;
       this.liveMeshVersion.set(key, version);
       const halo = this.gatherNeighbourHalo(chunk.cx, chunk.cz);
-      const lightHalo = this.gatherLightHalo(chunk.cx, chunk.cz);
-      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo, lightHalo };
+      const skyLightHalo = this.gatherSkyLightHalo(chunk.cx, chunk.cz);
+      const blockLightHalo = this.gatherBlockLightHalo(chunk.cx, chunk.cz);
+      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo, skyLightHalo, blockLightHalo };
       this.meshQueue.enqueue(req);
       chunk.dirty = false;
       this.dirtyChunks.delete(chunk);

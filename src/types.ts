@@ -22,6 +22,16 @@ export const SKY_LIGHT_BRIGHTNESS: readonly number[] = [
   0.10, 0.13, 0.16, 0.20, 0.24, 0.29, 0.34, 0.40,
   0.46, 0.53, 0.60, 0.68, 0.76, 0.85, 0.93, 1.0,
 ];
+/**
+ * Block-light → emissive brightness LUT (index = block-light level 0..15).
+ * Index 0 is EXACTLY 0 (no emitter nearby → no glow). Unlike SKY_LIGHT_BRIGHTNESS this has
+ * NO non-zero floor: the chunk shader adds this channel as scene-light-independent warm
+ * emissive, so any floor above 0 would make every surface self-glow and wash out night.
+ */
+export const BLOCK_LIGHT_BRIGHTNESS: readonly number[] = [
+  0.0, 0.05, 0.09, 0.13, 0.18, 0.24, 0.30, 0.37,
+  0.44, 0.52, 0.60, 0.69, 0.78, 0.87, 0.95, 1.0,
+];
 /** Gravity acceleration in blocks/s^2 (negative = downward). */
 export const GRAVITY = -28;
 /** Total player height in blocks (feet to top of head). */
@@ -472,6 +482,8 @@ export interface IWorld {
   isSolid(x: number, y: number, z: number): boolean;
   /** Sky-light level 0..15 at world coords. Returns 0 for unloaded chunks / out of vertical range. */
   getSkyLight(x: number, y: number, z: number): number;
+  /** Block-light (emitter) level 0..15 at world coords. Returns 0 for unloaded chunks / out of vertical range. */
+  getBlockLight(x: number, y: number, z: number): number;
   /** Combined light level: max(sky, block) at world coords. Returns 0 for unloaded chunks / out of vertical range. */
   getLight(x: number, y: number, z: number): number;
   /** DDA raycast through the voxel grid. Returns null if no solid block hit within maxDistance. */
@@ -829,12 +841,10 @@ export interface ChunkMeshRequest {
   cz: number;
   version: number;
   halo: Uint8Array;
-  /**
-   * Parallel sky-light halo: same 18×18×96 shape & indexing as `halo`, but each
-   * element is the sky-light level (0..15) of the corresponding cell. The worker
-   * reads it per face to bake lighting into vertex colors. Transferred zero-copy.
-   */
-  lightHalo: Uint8Array;
+  /** Parallel SKY-light halo: same 18×18×96 shape & indexing as `halo`; each element is the sky-light level (0..15). Transferred zero-copy. */
+  skyLightHalo: Uint8Array;
+  /** Parallel BLOCK-light (emitter) halo: same shape/indexing; each element is the block-light level (0..15). Transferred zero-copy. */
+  blockLightHalo: Uint8Array;
 }
 
 /** Geometry buffers for one mesh. All arrays are typed and Transferable. */
