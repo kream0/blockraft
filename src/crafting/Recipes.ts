@@ -400,6 +400,21 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: ItemId.DIAMOND_BOOTS, count: 1 },
   },
+  // Door — 2x3 full planks column (shaped) -> 3 doors
+  // [P, P]
+  // [P, P]
+  // [P, P]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.PLANKS, BlockId.PLANKS,
+      BlockId.PLANKS, BlockId.PLANKS,
+      BlockId.PLANKS, BlockId.PLANKS,
+    ],
+    width: 2,
+    height: 3,
+    output: { item: ItemId.DOOR, count: 3 },
+  },
 ];
 
 // ============================================================

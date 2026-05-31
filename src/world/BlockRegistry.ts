@@ -163,6 +163,38 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0x8b6e3a,
     hardness: 2.5,
   },
+  [BlockId.DOOR_N_CLOSED]: {
+    id: BlockId.DOOR_N_CLOSED, name: 'Door', solid: true, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_N_OPEN]: {
+    id: BlockId.DOOR_N_OPEN, name: 'Door', solid: false, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_E_CLOSED]: {
+    id: BlockId.DOOR_E_CLOSED, name: 'Door', solid: true, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_E_OPEN]: {
+    id: BlockId.DOOR_E_OPEN, name: 'Door', solid: false, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_S_CLOSED]: {
+    id: BlockId.DOOR_S_CLOSED, name: 'Door', solid: true, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_S_OPEN]: {
+    id: BlockId.DOOR_S_OPEN, name: 'Door', solid: false, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_W_CLOSED]: {
+    id: BlockId.DOOR_W_CLOSED, name: 'Door', solid: true, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
+  [BlockId.DOOR_W_OPEN]: {
+    id: BlockId.DOOR_W_OPEN, name: 'Door', solid: false, transparent: true,
+    textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

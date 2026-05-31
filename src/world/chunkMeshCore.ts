@@ -8,6 +8,16 @@ import {
   type WorkerAtlasParams,
   type MeshBuffers,
 } from '../types';
+import {
+  isDoorBlock,
+  doorFacing,
+  doorIsOpen,
+  emitDoorGeometry,
+  DOOR_TILE_LOWER,
+  DOOR_TILE_UPPER,
+  DOOR_TILE_EDGE,
+  type DoorMeshArrays,
+} from './Door';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -205,6 +215,14 @@ export function buildChunkMeshBuffers(
   const solidColors: number[] = [];
   const solidIndices: number[] = [];
 
+  const solidOut: DoorMeshArrays = {
+    positions: solidPositions,
+    normals: solidNormals,
+    uvs: solidUvs,
+    colors: solidColors,
+    indices: solidIndices,
+  };
+
   const waterPositions: number[] = [];
   const waterNormals: number[] = [];
   const waterUvs: number[] = [];
@@ -219,6 +237,17 @@ export function buildChunkMeshBuffers(
       for (let lx = 0; lx < CHUNK_SIZE; lx++) {
         const id = haloGet(halo, lx, ly, lz);
         if (id === BlockId.AIR) continue;
+        if (isDoorBlock(id)) {
+          const wx = baseX + lx;
+          const wz = baseZ + lz;
+          const upper = isDoorBlock(haloGet(halo, lx, ly - 1, lz));
+          const faceUV = getUV(atlasParams, upper ? DOOR_TILE_UPPER : DOOR_TILE_LOWER);
+          const edgeUV = getUV(atlasParams, DOOR_TILE_EDGE);
+          const level = sampleSkyLight(lightHalo, lx, ly, lz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
+          emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul);
+          continue;
+        }
         const isCurrentTransparent = isTransparentId(blockTable, id);
         const isWater = id === BlockId.WATER;
 

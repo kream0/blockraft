@@ -202,6 +202,18 @@ export const BlockId = {
   FURNACE: 15,
   DIAMOND_ORE: 16,
   CHEST: 17,
+  // Doors: 8 ids = facing(N/E/S/W) × open(closed/open). Upper/lower HALF is inferred by the
+  // mesher from the below-neighbor (door below ⇒ upper half), not encoded here. Closed doors
+  // are solid; open doors are non-solid but still raycast-targetable. Base (18) is even so the
+  // open flag is the low bit: closed id ^ 1 === open id.
+  DOOR_N_CLOSED: 18,
+  DOOR_N_OPEN: 19,
+  DOOR_E_CLOSED: 20,
+  DOOR_E_OPEN: 21,
+  DOOR_S_CLOSED: 22,
+  DOOR_S_OPEN: 23,
+  DOOR_W_CLOSED: 24,
+  DOOR_W_OPEN: 25,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
@@ -247,8 +259,9 @@ export const ItemId = {
   DIAMOND_CHESTPLATE: 145,
   DIAMOND_LEGGINGS: 146,
   DIAMOND_BOOTS: 147,
+  DOOR: 150,            // places a 2-tall oriented door; non-block item (renders via swatch+glyph)
 } as const;
-/** A BlockId value (0..17) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..25) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

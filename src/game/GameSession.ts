@@ -88,6 +88,7 @@ import {
   type ChestState,
 } from '../types';
 import { rollDungeonLoot } from '../world/LootTable';
+import { isDoorBlock, toggledDoor } from '../world/Door';
 
 const FIXED_DT = 1 / 60;
 const MAX_FRAME_DT = 0.1;
@@ -435,8 +436,22 @@ export class GameSession {
           this.openChest(tgt.x, tgt.y, tgt.z);
           return;
         }
+        if (tgt !== null && isDoorBlock(tgt.block)) {
+          this.toggleDoor(tgt.x, tgt.y, tgt.z);
+          this.audio.playPlace();
+          return;
+        }
         this.rightHeld = true;
         if (this.tryEquipArmor()) return;
+        const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
+        if (heldItem === ItemId.DOOR) {
+          if (this.interaction.placeDoor()) {
+            if (this.gameMode === GameMode.SURVIVAL) this.player.inventory.removeOne(this.player.state.selectedSlot);
+            this.audio.playPlace();
+            this.viewModel.triggerSwing();
+          }
+          return;
+        }
         if (this.interaction.placeBlock()) {
           if (this.gameMode === GameMode.SURVIVAL) {
             this.player.inventory.removeOne(this.player.state.selectedSlot);
@@ -1173,6 +1188,19 @@ export class GameSession {
     return null;
   }
 
+  /** Toggle the door cell at (x,y,z) and keep its partner half in sync. */
+  private toggleDoor(x: number, y: number, z: number): void {
+    this.world.setBlock(x, y, z, toggledDoor(this.world.getBlock(x, y, z)));
+    const above = this.world.getBlock(x, y + 1, z);
+    if (isDoorBlock(above)) {
+      this.world.setBlock(x, y + 1, z, toggledDoor(above));
+    } else {
+      const belowY = y - 1;
+      const below = this.world.getBlock(x, belowY, z);
+      if (isDoorBlock(below)) this.world.setBlock(x, belowY, z, toggledDoor(below));
+    }
+  }
+
   /**
    * Per-frame hold-to-mine. Accumulates time on the crosshair-targeted block and breaks it
    * once progress reaches its hardness. Survival mines by hardness; creative breaks instantly
@@ -1252,6 +1280,13 @@ export class GameSession {
                 ),
               );
             }
+          }
+        }
+        if (isDoorBlock(broken.block)) {
+          if (isDoorBlock(this.world.getBlock(broken.x, broken.y + 1, broken.z))) {
+            this.world.setBlock(broken.x, broken.y + 1, broken.z, BlockId.AIR);
+          } else if (isDoorBlock(this.world.getBlock(broken.x, broken.y - 1, broken.z))) {
+            this.world.setBlock(broken.x, broken.y - 1, broken.z, BlockId.AIR);
           }
         }
       }

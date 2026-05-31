@@ -11,6 +11,7 @@ import {
   ArmorSlot,
   type ArmorDef,
 } from '../types';
+import { isDoorBlock } from '../world/Door';
 
 // === Canonical block swatch colors (copied from Hotbar.ts; integration agent will redirect Hotbar here) ===
 export const BLOCK_SWATCH_COLORS: Record<number, string> = {
@@ -484,6 +485,11 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
     armor: null,
     food: { hungerRestore: 6 } satisfies FoodDef,
   }],
+  [ItemId.DOOR, {
+    id: ItemId.DOOR, name: 'Door', maxStack: 64,
+    swatchColor: '#9e7140', glyph: 'D', placeable: null, tool: null, weapon: null,
+    armor: null, food: null,
+  }],
 ]);
 
 /** True if id refers to any known item (block or non-block). */
@@ -620,6 +626,7 @@ export function toolMultiplierFor(heldItem: ItemId, target: BlockId): number {
  * block items; BlockId values are valid ItemId numbers so the widening is safe.
  */
 export function blockDropFor(block: BlockId): ItemId {
+  if (isDoorBlock(block)) return ItemId.DOOR;
   if (block === BlockId.STONE) return BlockId.COBBLESTONE;
   if (block === BlockId.DIAMOND_ORE) return ItemId.DIAMOND;
   return block;

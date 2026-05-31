@@ -27,6 +27,7 @@ import { MeshQueue, buildGeometryFromBuffers } from './MeshQueue';
 import { ATLAS_TILE_PIXELS, ATLAS_COLS, ATLAS_SIZE } from '../rendering/TextureAtlas';
 import { TerrainGenerator } from './TerrainGenerator';
 import { EntityManager } from '../entities/EntityManager';
+import { isDoorBlock } from './Door';
 
 const MAX_NEW_CHUNKS_PER_UPDATE = 2;
 const MAX_REMESH_PER_UPDATE = 4;
@@ -379,6 +380,11 @@ export class World implements IWorld, ISkyLightAccess {
     return this.registry.isSolid(this.getBlock(x, y, z));
   }
 
+  private isRaycastTarget(x: number, y: number, z: number): boolean {
+    const id = this.getBlock(x, y, z);
+    return this.registry.isSolid(id) || isDoorBlock(id);
+  }
+
   // --- ISkyLightAccess + IWorld.getSkyLight ---
 
   getSkyLight(x: number, y: number, z: number): number {
@@ -503,7 +509,7 @@ export class World implements IWorld, ISkyLightAccess {
 
       if (distance > maxDistance) return null;
 
-      if (this.isSolid(x, y, z)) {
+      if (this.isRaycastTarget(x, y, z)) {
         const nx = lastAxis === 0 ? -stepX : 0;
         const ny = lastAxis === 1 ? -stepY : 0;
         const nz = lastAxis === 2 ? -stepZ : 0;

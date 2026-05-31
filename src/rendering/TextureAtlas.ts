@@ -3,7 +3,7 @@ import type { ITextureAtlas } from '../types';
 
 const TILE = 16;
 const COLS = 5;
-const ROWS = 4;
+const ROWS = 5;
 const SIZE = TILE * COLS;
 
 export const ATLAS_TILE_PIXELS = TILE;
@@ -346,6 +346,53 @@ function drawChest(ctx: CanvasRenderingContext2D, col: number, row: number, rng:
   speckle(ctx, col, row, '#8a6038', 6, rng);
 }
 
+function drawDoorLower(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Vertical wood planks
+  for (let x = 0; x < TILE; x++) {
+    const band = Math.floor(x / 5);
+    ctx.fillStyle = band % 2 === 0 ? '#9E7140' : '#82602F';
+    ctx.fillRect(col * TILE + x, row * TILE, 1, TILE);
+  }
+  // Outer frame (left/right/bottom darker)
+  ctx.fillStyle = '#5C3A1B';
+  ctx.fillRect(col * TILE, row * TILE, 1, TILE);
+  ctx.fillRect(col * TILE + TILE - 1, row * TILE, 1, TILE);
+  ctx.fillRect(col * TILE, row * TILE + TILE - 1, TILE, 1);
+  // Inset lower panel
+  ctx.fillStyle = '#6E4923';
+  ctx.fillRect(col * TILE + 3, row * TILE + 2, TILE - 6, TILE - 4);
+  ctx.fillStyle = '#A6794A';
+  ctx.fillRect(col * TILE + 4, row * TILE + 3, TILE - 8, TILE - 6);
+  // Handle knob near the right edge, mid-height
+  ctx.fillStyle = '#2B2B2B';
+  ctx.fillRect(col * TILE + TILE - 4, row * TILE + 7, 2, 2);
+  speckle(ctx, col, row, '#8A6038', 6, rng);
+}
+
+function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Vertical wood planks (same palette as lower)
+  for (let x = 0; x < TILE; x++) {
+    const band = Math.floor(x / 5);
+    ctx.fillStyle = band % 2 === 0 ? '#9E7140' : '#82602F';
+    ctx.fillRect(col * TILE + x, row * TILE, 1, TILE);
+  }
+  // Outer frame (left/right/top darker)
+  ctx.fillStyle = '#5C3A1B';
+  ctx.fillRect(col * TILE, row * TILE, 1, TILE);
+  ctx.fillRect(col * TILE + TILE - 1, row * TILE, 1, TILE);
+  ctx.fillRect(col * TILE, row * TILE, TILE, 1);
+  // Window recess with two pale-blue panes near the top
+  ctx.fillStyle = '#3A2A10';
+  ctx.fillRect(col * TILE + 3, row * TILE + 2, TILE - 6, 6);
+  ctx.fillStyle = '#A8D0E6';
+  ctx.fillRect(col * TILE + 4, row * TILE + 3, 3, 4);
+  ctx.fillRect(col * TILE + 9, row * TILE + 3, 3, 4);
+  // Lower panel hint
+  ctx.fillStyle = '#6E4923';
+  ctx.fillRect(col * TILE + 3, row * TILE + 9, TILE - 6, TILE - 11);
+  speckle(ctx, col, row, '#8A6038', 6, rng);
+}
+
 function drawBlank(ctx: CanvasRenderingContext2D, col: number, row: number): void {
   fillTile(ctx, col, row, '#000000');
 }
@@ -366,8 +413,8 @@ export class TextureAtlas implements ITextureAtlas {
 
     const rng = makeRng(0xdeadbeef);
 
-    // 4x4 grid: index = row * COLS + col
-    // Tile 0..18 are real.
+    // 5x5 grid: index = row * COLS + col
+    // Tiles 0..21 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -389,6 +436,8 @@ export class TextureAtlas implements ITextureAtlas {
       drawFurnaceSide,   // tile 17 — plain stone face (used for top and bottom)
       drawDiamondOre,    // tile 18 — diamond ore (cyan speckled stone)
       drawChest,         // tile 19 — wooden chest face
+      drawDoorLower,     // tile 20 — door lower half
+      drawDoorUpper,     // tile 21 — door upper half
     ];
 
     for (let i = 0; i < this.tileCount; i++) {
