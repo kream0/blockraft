@@ -357,7 +357,13 @@ export class App {
     } catch (err) {
       console.error('Load chests failed:', err);
     }
-    this._startSession(save, furnaces, chests);
+    let seededLoot: string[] = [];
+    try {
+      seededLoot = await this.worldStorage.loadSeededLoot(name);
+    } catch (err) {
+      console.error('Load seeded loot failed:', err);
+    }
+    this._startSession(save, furnaces, chests, seededLoot);
   }
 
   private async _deleteWorld(name: string): Promise<void> {
@@ -424,7 +430,13 @@ export class App {
     } catch (err) {
       console.error('Export: loadChests failed (continuing without chests):', err);
     }
-    const json = serializeWorld(save, furnaces, chests);
+    let seededLoot: string[] = [];
+    try {
+      seededLoot = await this.worldStorage.loadSeededLoot(name);
+    } catch (err) {
+      console.error('Export: loadSeededLoot failed (continuing without seeded-loot markers):', err);
+    }
+    const json = serializeWorld(save, furnaces, chests, seededLoot);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -514,6 +526,14 @@ export class App {
       void this._show('worlds');
       return;
     }
+    try {
+      await this.worldStorage.saveSeededLoot(uniqueName, exp.seededLootChests ?? []);
+    } catch (err) {
+      console.error('Import: saveSeededLoot failed (world imported without seeded-loot markers):', err);
+      this._toast('Imported "' + uniqueName + '" (loot-chest markers lost)');
+      void this._show('worlds');
+      return;
+    }
     this._toast('Imported "' + uniqueName + '"');
     void this._show('worlds');
   }
@@ -528,7 +548,7 @@ export class App {
     return base + ' (imported ' + n + ')';
   }
 
-  private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}, initialChests: Record<string, ChestState> = {}): void {
+  private _startSession(save: WorldSave, initialFurnaces: Record<string, FurnaceState> = {}, initialChests: Record<string, ChestState> = {}, initialSeededLoot: string[] = []): void {
     // Bail if a session is already starting or running (fast double-click race guard).
     if (this.session !== null || this.state === 'in_game') return;
     this._flushSettingsSave();
@@ -549,6 +569,7 @@ export class App {
       rendererTarget: document.body,
       initialFurnaces,
       initialChests,
+      initialSeededLoot,
       onPauseRequested: () => {
         // Avoid re-entering pause if we're already there or transitioning.
         if (this.state !== 'in_game') return;

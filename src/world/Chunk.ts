@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE } from '../types';
+import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE, type LootChestSite } from '../types';
 
 export class Chunk {
   readonly cx: number;
@@ -9,6 +9,8 @@ export class Chunk {
   mesh: THREE.Mesh | null = null;
   waterMesh: THREE.Mesh | null = null;
   dirty = true;
+  /** World positions of loot chests this chunk placed during generation. Write-once at gen; read by World on load. */
+  readonly lootChests: LootChestSite[] = [];
 
   constructor(cx: number, cz: number, generator?: (chunk: Chunk) => void) {
     this.cx = cx;

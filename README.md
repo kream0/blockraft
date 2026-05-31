@@ -22,7 +22,8 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
 - **Ore veins**: Coal, Iron, and Diamond scatter through stone as deterministic random-walk veins — coal up to mid-depth (y≤50), iron deep only (y≤28), and **diamond** deepest of all (y≤12); only replaces stone and never touches bedrock
 - **Caves**: underground cave systems carved from a 3D fractal-noise iso-band (`|n| < threshold`) in world coordinates, so caverns connect seamlessly across chunk borders; only stone becomes air (~15–19% carved), leaving the surface skin, bedrock, water, and ore intact (deterministic per seed; carved before ore so veins stay embedded)
-- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level), buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward), and small **villages** (clusters of 1–2 plank huts with log corner posts, glass windows, and a doorway, raised on flat dry ground). Confined to the chunk interior so a structure never spans a border (deterministic per seed; structure-placed loot chests still upcoming — the **Chest** block itself now ships as a craftable storage container, see Items & inventory)
+- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level), buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward and a **loot chest**), and small **villages** (clusters of 1–2 plank huts with log corner posts, glass windows, and a doorway, raised on flat dry ground). Confined to the chunk interior so a structure never spans a border (deterministic per seed)
+- **Dungeon loot chests**: every generated dungeon embeds a **chest pre-filled with a deterministic loot roll** (3–6 weighted stacks drawn from iron, cooked food, sticks, planks, stone/iron tools, an iron sword, diamonds, and iron armor). The roll is a pure function of the world seed and the chest's coordinates, so a given dungeon always yields the same haul — and the loot is seeded **exactly once per chest**: once you open and empty it, it **stays empty across save/load and export/import** (no refarming). Breaking the chest spills its contents in Survival
 - 18 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Diamond Ore, Furnace, Chest, Air
 - Procedurally generated 16×16 texture atlas (no external image assets)
 
@@ -99,7 +100,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Settings saved to **LocalStorage** (debounced writes)
 - Per-world deterministic seed derived from world name (FNV-1a hash + xorshift mix)
 - Auto-save every 30s and on quit-to-menu
-- **World import/export**: from the world list, **Export** any world to a downloadable `*.blockraft.json` file (metadata + chunk overrides + furnace contents) or **Import** one back from disk. The file is validated at the boundary — malformed or foreign files are rejected, recoverable fields fall back to safe defaults — and an import is auto-renamed on name collision so it never overwrites an existing world
+- **World import/export**: from the world list, **Export** any world to a downloadable `*.blockraft.json` file (metadata + chunk overrides + furnace, chest, and dungeon-loot state) or **Import** one back from disk. The file is validated at the boundary — malformed or foreign files are rejected, recoverable fields fall back to safe defaults — and an import is auto-renamed on name collision so it never overwrites an existing world
 
 ### Foundations (in place, not yet user-facing)
 - **Network adapter**: `INetworkAdapter` interface + `LocalAdapter` no-op stub; typed message protocol (entity spawn/despawn/state, block set, chat, hello/welcome handshake)
@@ -119,7 +120,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Lighting (torch/block light)**: block-emitted light sources (torches, glowstone, lava) flooding through the same light grid — **per-block sky light** (Lighting v1: a BFS sky-light flood baked into vertex brightness so caves darken) and vertex ambient occlusion / smooth contact shading already ship (see World above)
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
 - **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
-- **Structure generation (more)**: structure-placed loot chests and larger multi-chunk village layouts — v1 boulders, dungeon rooms (iron reward), and single-chunk villages already ship (see World above); the **Chest** block now ships as a craftable storage container (see Items & inventory)
+- **Structure generation (more)**: larger multi-chunk village layouts and more structure variety — v1 boulders, dungeon rooms (iron reward **+ a deterministic loot chest**), single-chunk villages, and **structure-placed loot chests** already ship (see World above); the **Chest** block also ships as a craftable storage container (see Items & inventory)
 - **Chunk LOD**: distance-based level of detail for far chunks — async meshing in a Web Worker already ships (see World above)
 
 ### Long term / nice-to-haves

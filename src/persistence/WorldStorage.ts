@@ -2,11 +2,12 @@ import type { WorldMetadata, WorldSave, ChunkOverrides, FurnaceState, ChestState
 
 /** All worlds live in one IndexedDB database; one object store per kind. */
 const DB_NAME = 'mc-clone';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_META = 'world_meta';
 const STORE_OVERRIDES = 'world_overrides';
 const STORE_FURNACES = 'world_furnaces';
 const STORE_CHESTS = 'world_chests';
+const STORE_LOOT = 'world_loot';
 
 /** Wrapper row stored in the overrides store. The keyPath is the top-level `name`. */
 interface OverridesRow {
@@ -22,6 +23,11 @@ interface FurnacesRow {
 interface ChestsRow {
   name: string;
   chests: Record<string, ChestState>;
+}
+
+interface SeededLootRow {
+  name: string;
+  seeded: string[];
 }
 
 /**
@@ -143,11 +149,12 @@ export class WorldStorage {
   async deleteWorld(name: string): Promise<void> {
     const db = await this._getDB();
     return new Promise<void>((resolve, reject) => {
-      const tx = db.transaction([STORE_META, STORE_OVERRIDES, STORE_FURNACES, STORE_CHESTS], 'readwrite');
+      const tx = db.transaction([STORE_META, STORE_OVERRIDES, STORE_FURNACES, STORE_CHESTS, STORE_LOOT], 'readwrite');
       tx.objectStore(STORE_META).delete(name);
       tx.objectStore(STORE_OVERRIDES).delete(name);
       tx.objectStore(STORE_FURNACES).delete(name);
       tx.objectStore(STORE_CHESTS).delete(name);
+      tx.objectStore(STORE_LOOT).delete(name);
       tx.onerror = (): void => reject(tx.error ?? new Error('deleteWorld: transaction failed'));
       tx.oncomplete = (): void => resolve();
     });
@@ -209,6 +216,34 @@ export class WorldStorage {
     });
   }
 
+  /** Persist the set of already-seeded loot-chest position keys for a world. */
+  async saveSeededLoot(name: string, seeded: string[]): Promise<void> {
+    const db = await this._getDB();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_LOOT, 'readwrite');
+      const row: SeededLootRow = { name, seeded };
+      tx.objectStore(STORE_LOOT).put(row);
+      tx.onerror = (): void => reject(tx.error ?? new Error('saveSeededLoot: transaction failed'));
+      tx.oncomplete = (): void => resolve();
+    });
+  }
+
+  /** Load the seeded loot-chest keys for a world. Returns [] if none stored. */
+  async loadSeededLoot(name: string): Promise<string[]> {
+    const db = await this._getDB();
+    return new Promise<string[]>((resolve, reject) => {
+      const tx = db.transaction(STORE_LOOT, 'readonly');
+      const req = tx.objectStore(STORE_LOOT).get(name);
+      let seeded: string[] = [];
+      req.onsuccess = (): void => {
+        const row = req.result as SeededLootRow | undefined;
+        if (row !== undefined) seeded = row.seeded;
+      };
+      tx.onerror = (): void => reject(tx.error ?? new Error('loadSeededLoot: transaction failed'));
+      tx.oncomplete = (): void => resolve(seeded);
+    });
+  }
+
   /** Close the connection. Subsequent ops will reopen lazily. */
   close(): void {
     const pending = this._dbPromise;
@@ -240,6 +275,9 @@ export class WorldStorage {
         }
         if (!db.objectStoreNames.contains(STORE_CHESTS)) {
           db.createObjectStore(STORE_CHESTS, { keyPath: 'name' });
+        }
+        if (!db.objectStoreNames.contains(STORE_LOOT)) {
+          db.createObjectStore(STORE_LOOT, { keyPath: 'name' });
         }
       };
       req.onsuccess = (): void => {

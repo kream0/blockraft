@@ -18,7 +18,7 @@ import {
 } from '../types';
 
 /** Build the export envelope and JSON-stringify it (pretty-printed with 2-space indent). */
-export function serializeWorld(save: WorldSave, furnaces: Record<string, FurnaceState>, chests: Record<string, ChestState>): string {
+export function serializeWorld(save: WorldSave, furnaces: Record<string, FurnaceState>, chests: Record<string, ChestState>, seededLoot: string[] = []): string {
   const envelope: WorldExport = {
     format: WORLD_EXPORT_FORMAT,
     version: WORLD_EXPORT_VERSION,
@@ -26,6 +26,7 @@ export function serializeWorld(save: WorldSave, furnaces: Record<string, Furnace
     overrides: save.overrides,
     furnaces,
     chests,
+    ...(seededLoot.length > 0 ? { seededLootChests: seededLoot } : {}),
   };
   return JSON.stringify(envelope, null, 2);
 }
@@ -154,6 +155,15 @@ function toChests(raw: unknown): Record<string, ChestState> {
   return result;
 }
 
+function toSeededLoot(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  for (const k of input) {
+    if (typeof k === 'string' && /^-?\d+,-?\d+,-?\d+$/.test(k)) out.push(k);
+  }
+  return out;
+}
+
 /**
  * Untrusted-file boundary. Parse an already-JSON.parsed value into a clean WorldExport,
  * or return null if it is not a recoverable Blockraft world file. NEVER throws.
@@ -242,6 +252,7 @@ export function validateWorldExport(input: unknown): WorldExport | null {
   const overrides = toOverrides(obj['overrides']);
   const furnaces = toFurnaces(obj['furnaces']);
   const chests = toChests(obj['chests']);
+  const seededLootChests = toSeededLoot(obj['seededLootChests']);
 
   return {
     format: WORLD_EXPORT_FORMAT,
@@ -250,5 +261,6 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     overrides,
     furnaces,
     chests,
+    ...(seededLootChests.length > 0 ? { seededLootChests } : {}),
   };
 }

@@ -256,6 +256,14 @@ export class TerrainGenerator {
       const iz = (czL - DUNGEON_HALF) + (this.oreNext() % (2 * DUNGEON_HALF + 1));
       chunk.blocks[Chunk.idx(ix, floorY, iz)] = BlockId.IRON_ORE;
     }
+
+    // Loot chest: stand a CHEST on the room floor at the room center (floorY is the cobble
+    // floor; floorY+1 is the first interior AIR row). Record its WORLD position so the world
+    // can seed deterministic loot exactly once. cxL,czL ∈ [3,12] → always in-bounds.
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+    chunk.blocks[Chunk.idx(cxL, floorY + 1, czL)] = BlockId.CHEST;
+    chunk.lootChests.push({ x: baseX + cxL, y: floorY + 1, z: baseZ + czL });
   }
 
   /**

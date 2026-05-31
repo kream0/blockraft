@@ -11,6 +11,7 @@ import {
   type ISkyLightAccess,
   type ITextureAtlas,
   type IWorld,
+  type LootChestSite,
   type Vec3,
   type WorkerInitMsg,
   type WorkerBlockTable,
@@ -78,6 +79,8 @@ export class World implements IWorld, ISkyLightAccess {
   private meshQueue: MeshQueue | null = null;
   /** Globally-monotonic, never-reused mesh request id. Stamped on each enqueue. */
   private nextMeshVersion = 1;
+  /** Loot-chest sites discovered during chunk generation since the last takePendingLootChests() call. */
+  private pendingLootChests: LootChestSite[] = [];
   /**
    * chunkKey -> the version of the most-recent enqueue for that coord. A worker result is
    * applied only if its version still equals this (else it is stale: superseded by a newer
@@ -218,6 +221,13 @@ export class World implements IWorld, ISkyLightAccess {
     const lx = mod(x, CHUNK_SIZE);
     const lz = mod(z, CHUNK_SIZE);
     return chunk.getBlock(lx, y, lz);
+  }
+
+  /** Drain loot-chest sites discovered since the last call (chunks that generated dungeon chests). Returns the buffered list and clears it. */
+  takePendingLootChests(): LootChestSite[] {
+    const out = this.pendingLootChests;
+    this.pendingLootChests = [];
+    return out;
   }
 
   setBlock(x: number, y: number, z: number, id: BlockId): void {
@@ -592,6 +602,14 @@ export class World implements IWorld, ISkyLightAccess {
       }
     }
     this.chunks.set(World.key(cx, cz), chunk);
+    // Buffer any loot-chest sites this chunk generated, but only if the CHEST block is still
+    // present after overrides (the player may have already broken it). GameSession drains these
+    // and seeds deterministic loot exactly once per position.
+    for (const site of chunk.lootChests) {
+      if (this.getBlock(site.x, site.y, site.z) === BlockId.CHEST) {
+        this.pendingLootChests.push(site);
+      }
+    }
     // A new chunk was added — signal that the next frame must re-scan (neighbors may now
     // need this chunk's presence to decide border remeshes, and pending may still have more).
     this._streamingDirty = true;

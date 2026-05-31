@@ -384,6 +384,13 @@ export interface FurnaceState {
 /** Number of storage slots in a chest. */
 export const CHEST_SLOTS = 27;
 
+/** Integer WORLD coords of a loot chest placed by structure generation (e.g. a dungeon chest). Recorded on Chunk.lootChests at generation time and drained by GameSession to seed deterministic loot exactly once. */
+export interface LootChestSite {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
 /**
  * Live state of one chest at a world position. Plain & JSON-serializable so it can be
  * persisted per-world. Each element is null when that slot is empty.
@@ -644,7 +651,7 @@ export const WORLD_EXPORT_VERSION = 1;
 
 /**
  * Self-contained, JSON-serializable snapshot of one world: metadata + block overrides +
- * furnace states + chest states. This is the on-disk format produced by Export and consumed by Import.
+ * furnace states + chest states + seeded-loot markers. This is the on-disk format produced by Export and consumed by Import.
  * `furnaces` and `chests` are keyed by world-position string (e.g. "12,64,-3"), matching WorldStorage.
  */
 export interface WorldExport {
@@ -654,6 +661,8 @@ export interface WorldExport {
   overrides: ChunkOverrides;
   furnaces: Record<string, FurnaceState>;
   chests?: Record<string, ChestState>;
+  /** Position keys ("x,y,z") of loot chests whose loot has already been seeded, so import preserves the looted/unlooted state and chests don't refill. Absent on v1 export files. */
+  seededLootChests?: string[];
 }
 
 // === Entity system ===

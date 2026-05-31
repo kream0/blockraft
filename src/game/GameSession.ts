@@ -77,6 +77,7 @@ import {
   ARMOR_SLOT_COUNT,
   EAT_DURATION_S,
   DROPPED_ITEM_PICKUP_RADIUS,
+  CHEST_SLOTS,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -86,6 +87,7 @@ import {
   type FurnaceState,
   type ChestState,
 } from '../types';
+import { rollDungeonLoot } from '../world/LootTable';
 
 const FIXED_DT = 1 / 60;
 const MAX_FRAME_DT = 0.1;
@@ -150,6 +152,7 @@ export interface GameSessionOptions {
   rendererTarget: HTMLElement;
   initialFurnaces?: Record<string, FurnaceState>;
   initialChests?: Record<string, ChestState>;
+  initialSeededLoot?: string[];
   /** Called by the ESC handler. App handles the state transition. */
   onPauseRequested(): void;
   /** Called when the player's health reaches 0. App shows the death overlay. */
@@ -175,6 +178,8 @@ export class GameSession {
   private interaction: BlockInteraction;
 
   private readonly worldName: string;
+  private readonly worldSeed: number;
+  private readonly seededLootChests: Set<string>;
   private readonly worldStorage: WorldStorage;
   private readonly initialSave: WorldSave;
   private readonly network: INetworkAdapter;
@@ -262,6 +267,7 @@ export class GameSession {
     const settings = opts.settings;
     const meta = opts.initialSave.metadata;
     this.gameMode = meta.gameMode;
+    this.worldSeed = meta.seed;
 
     // Renderer (lets WebGLRenderer create its own canvas).
     this.renderer = new Renderer(undefined, settings.renderDistance * CHUNK_SIZE);
@@ -359,6 +365,7 @@ export class GameSession {
     this.furnaceManager = new FurnaceManager(opts.initialFurnaces);
     this.chestScreen = new ChestScreen(this.hudContainer, this.player.inventory, this.iconRenderer, (item, count) => this.spillItem(item, count));
     this.chestManager = new ChestManager(opts.initialChests);
+    this.seededLootChests = new Set<string>(opts.initialSeededLoot ?? []);
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
@@ -536,6 +543,7 @@ export class GameSession {
       }
 
       this.world.update(this.player.state.position);
+      this.drainLootChests();
       this.furnaceManager.update(dt);
       if (this.furnaceScreen.isOpen) this.furnaceScreen.refresh();
       if (this.chestScreen.isOpen) this.chestScreen.refresh();
@@ -678,6 +686,21 @@ export class GameSession {
     this.iconRenderer.dispose();
   }
 
+  /** Seed deterministic loot into any newly-discovered dungeon chests, exactly once per position. */
+  private drainLootChests(): void {
+    const sites = this.world.takePendingLootChests();
+    for (const site of sites) {
+      const key = `${site.x},${site.y},${site.z}`;
+      if (this.seededLootChests.has(key)) continue;
+      this.seededLootChests.add(key);
+      const loot = rollDungeonLoot(this.worldSeed, site.x, site.y, site.z);
+      const state = this.chestManager.getOrRegister(site.x, site.y, site.z);
+      for (let i = 0; i < CHEST_SLOTS; i++) {
+        state.slots[i] = loot[i] ?? null;
+      }
+    }
+  }
+
   /** Persist current player state + overrides via WorldStorage. */
   async save(): Promise<void> {
     if (this._disposed) return;
@@ -707,6 +730,7 @@ export class GameSession {
     await this.worldStorage.saveWorld(save);
     await this.worldStorage.saveFurnaces(this.worldName, this.furnaceManager.serialize());
     await this.worldStorage.saveChests(this.worldName, this.chestManager.serialize());
+    await this.worldStorage.saveSeededLoot(this.worldName, Array.from(this.seededLootChests));
   }
 
   /** Apply settings live (FOV, mouse sensitivity, invertY, keybindings, render distance, show FPS). */
