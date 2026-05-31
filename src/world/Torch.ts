@@ -57,14 +57,18 @@ export function emitTorchGeometry(
     nx: number, ny: number, nz: number,
   ): void {
     const sv = out.positions.length / 3;
+    // Fixed per-face directional shade matching the cube mesher (top=1.0, sides=0.8).
+    const shade = ny > 0.5 ? 1.0 : 0.8;
+    const r = shade * skyBrightness;
+    const g = shade * blockBrightness;
     out.positions.push(c0x, c0y, c0z, c1x, c1y, c1z, c2x, c2y, c2z, c3x, c3y, c3z);
     out.normals.push(nx, ny, nz, nx, ny, nz, nx, ny, nz, nx, ny, nz);
     out.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
     out.colors.push(
-      skyBrightness, blockBrightness, 0,
-      skyBrightness, blockBrightness, 0,
-      skyBrightness, blockBrightness, 0,
-      skyBrightness, blockBrightness, 0,
+      r, g, 0,
+      r, g, 0,
+      r, g, 0,
+      r, g, 0,
     );
     out.indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);
   }

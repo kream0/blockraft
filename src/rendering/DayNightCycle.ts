@@ -41,6 +41,7 @@ export class DayNightCycle {
       sunColor: new THREE.Color(),
       sunIntensity: 0,
       ambientIntensity: 0,
+      daylight: 0,
       sunDirection: new THREE.Vector3(),
     };
     this.recompute();
@@ -85,6 +86,7 @@ export class DayNightCycle {
       .multiplyScalar(-1);
 
     const day = smoothstep(-0.15, 0.25, elevation); // 0 deep night .. 1 full day
+    this.state.daylight = day;
     const twilight = Math.max(0, 1 - Math.abs(elevation) / 0.15); // peaks at the horizon (dawn & dusk)
 
     // Sky: lerp night->day by daylight, then tint toward dusk-orange near the horizon.

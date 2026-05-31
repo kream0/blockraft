@@ -1,24 +1,45 @@
 import * as THREE from 'three';
 import type { ITextureAtlas } from '../types';
 
+/** Darkest the open sky gets at deep night, so nights stay navigable instead of pure black. */
+const NIGHT_SKY_FLOOR = 0.15;
+/** userData key under which each patched material stashes its live day/night uniform holder. */
+const DAYLIGHT_UNIFORM_KEY = 'blockraftDaylight';
+
 /**
- * Patch a vertexColors MeshLambertMaterial so color.r = sky brightness (diffuse, day/night-dimmable)
- * and color.g = block light added as warm, scene-light-independent emissive.
+ * Patch a vertexColors MeshBasicMaterial so the BAKED voxel light is authoritative.
+ * Baked channels (from the mesher):
+ *   color.r = faceShade * AO * skyBrightness   (sky light; dimmed by day/night here)
+ *   color.g = faceShade * AO * blockBrightness (torch/emitter light; day-independent)
+ * Final brightness = max(sky, block): block light only "wins" where sky light is low (caves,
+ * night), so torches NEVER tint surfaces already in full daylight. A warm tint is mixed in only
+ * in proportion to how much block light exceeds sky light. Because MeshBasicMaterial is UNLIT,
+ * the scene's directional + ambient lights never touch terrain, so light cannot leak through walls.
  */
-function patchChunkLighting(material: THREE.MeshLambertMaterial): void {
+function patchChunkLighting(material: THREE.MeshBasicMaterial): void {
+  const daylight = { value: 1 };
+  material.userData[DAYLIGHT_UNIFORM_KEY] = daylight;
   material.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <color_fragment>', 'diffuseColor.rgb *= vColor.r;')
-      .replace(
-        '#include <emissivemap_fragment>',
-        '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance += vColor.g * vec3( 1.0, 0.6, 0.28 );',
-      );
+    shader.uniforms.uDayNight = daylight;
+    shader.fragmentShader = 'uniform float uDayNight;\n' + shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      [
+        '#ifdef USE_COLOR',
+        '\tfloat skyLit = vColor.r * mix(' + NIGHT_SKY_FLOOR.toFixed(3) + ', 1.0, uDayNight);',
+        '\tfloat blockLit = vColor.g;',
+        '\tfloat lum = max(skyLit, blockLit);',
+        '\tfloat warmth = clamp((blockLit - skyLit) * 1.5, 0.0, 1.0);',
+        '\tvec3 warmTint = mix(vec3(1.0), vec3(1.0, 0.82, 0.55), warmth);',
+        '\tdiffuseColor.rgb *= lum * warmTint;',
+        '#endif',
+      ].join('\n'),
+    );
   };
 }
 
-/** Returns a single shared material for chunk meshes. Uses the atlas texture, lit by scene lights. */
+/** Single shared opaque chunk material. Unlit; brightness comes from baked vertex light + uDayNight. */
 export function createChunkMaterial(atlas: ITextureAtlas): THREE.Material {
-  const mat = new THREE.MeshLambertMaterial({
+  const mat = new THREE.MeshBasicMaterial({
     map: atlas.texture,
     side: THREE.DoubleSide,
     transparent: false,
@@ -29,9 +50,9 @@ export function createChunkMaterial(atlas: ITextureAtlas): THREE.Material {
   return mat;
 }
 
-/** Returns a translucent material for water surfaces. Shares the atlas texture with the opaque chunk material. */
+/** Translucent water material; shares the atlas + same baked-light shader as opaque terrain. */
 export function createWaterMaterial(atlas: ITextureAtlas): THREE.Material {
-  const mat = new THREE.MeshLambertMaterial({
+  const mat = new THREE.MeshBasicMaterial({
     map: atlas.texture,
     side: THREE.DoubleSide,
     transparent: true,
@@ -42,4 +63,13 @@ export function createWaterMaterial(atlas: ITextureAtlas): THREE.Material {
   });
   patchChunkLighting(mat);
   return mat;
+}
+
+/**
+ * Push the current normalized daylight (0..1) into a material created by this module.
+ * Safe no-op for any other material. Call each frame from the sky-update path.
+ */
+export function setChunkDaylight(material: THREE.Material, value: number): void {
+  const holder = material.userData[DAYLIGHT_UNIFORM_KEY] as { value: number } | undefined;
+  if (holder !== undefined) holder.value = value;
 }

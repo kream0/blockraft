@@ -495,6 +495,12 @@ export interface SkyState {
   sunIntensity: number;
   /** Ambient light intensity. Never 0 — keeps night navigable. */
   ambientIntensity: number;
+  /**
+   * Normalized daylight factor in [0, 1]: 0 = deep night, 1 = full midday. Drives the terrain
+   * lighting shader's sky-light dimming (a uniform). Weather may multiply this down toward 0
+   * during precipitation. Independent of ambientIntensity (which lights entities via the scene).
+   */
+  daylight: number;
   /** Unit vector: the direction sunlight TRAVELS (from the sun toward the scene). The directional light is positioned on the opposite side (at -sunDirection * distance). */
   readonly sunDirection: THREE.Vector3;
 }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from '../rendering/Renderer';
 import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
-import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
+import { createChunkMaterial, createWaterMaterial, setChunkDaylight } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
@@ -308,6 +308,9 @@ export class GameSession {
     this.iconRenderer = new ItemIconRenderer(this.atlas);
     this.chunkMaterial = createChunkMaterial(this.atlas);
     this.waterMaterial = createWaterMaterial(this.atlas);
+    const initialSky = this.dayNight.getSkyState();
+    setChunkDaylight(this.chunkMaterial, initialSky.daylight);
+    setChunkDaylight(this.waterMaterial, initialSky.daylight);
 
     // World — seeded from save metadata, with persisted overrides applied.
     this.world = new World(
@@ -657,6 +660,8 @@ export class GameSession {
   private applySkyWithWeather(): void {
     const s = this.dayNight.getSkyState();
     this.weather.dimSky(s);
+    setChunkDaylight(this.chunkMaterial, s.daylight);
+    setChunkDaylight(this.waterMaterial, s.daylight);
     this.renderer.applySky(s);
   }
 

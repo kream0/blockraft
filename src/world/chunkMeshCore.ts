@@ -126,6 +126,16 @@ const FACES: Record<Face, FaceData> = {
 
 const ALL_FACES: Face[] = [Face.TOP, Face.BOTTOM, Face.NORTH, Face.SOUTH, Face.EAST, Face.WEST];
 
+/** Fixed per-face directional shade (Minecraft-style) baked into vertex color so unlit terrain keeps 3D form. */
+const FACE_SHADE: Record<Face, number> = {
+  [Face.TOP]: 1.0,
+  [Face.BOTTOM]: 0.5,
+  [Face.NORTH]: 0.8,
+  [Face.SOUTH]: 0.8,
+  [Face.EAST]: 0.6,
+  [Face.WEST]: 0.6,
+};
+
 // ---------------------------------------------------------------------------
 // Halo helpers
 // ---------------------------------------------------------------------------
@@ -278,6 +288,7 @@ export function buildChunkMeshBuffers(
 
         for (const face of ALL_FACES) {
           const data = FACES[face];
+          const faceShade = FACE_SHADE[face] ?? 1.0;
           const dx = data.neighbor[0];
           const dy = data.neighbor[1];
           const dz = data.neighbor[2];
@@ -391,7 +402,7 @@ export function buildChunkMeshBuffers(
             positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
             normals.push(normX, normY, normZ);
             const ao = aoBrightness[c] ?? 1.0;
-            colors.push(ao * (skyMulC[c] ?? skyBase), ao * (blockMulC[c] ?? blockBase), 0);
+            colors.push(faceShade * ao * (skyMulC[c] ?? skyBase), faceShade * ao * (blockMulC[c] ?? blockBase), 0);
           }
           // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
           uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);

@@ -186,6 +186,7 @@ export class WeatherSystem {
    * Mutate a reused SkyState toward overcast in proportion to current intensity.
    * DayNightCycle recomputes a fresh state each tick, so multiplying intensities here
    * is non-cumulative — no drift over multiple frames.
+   * Also dims `state.daylight` so precipitation visibly darkens terrain via the baked-light shader.
    */
   dimSky(state: SkyState): void {
     if (this.intensity <= 0.001) return;
@@ -194,6 +195,7 @@ export class WeatherSystem {
     state.skyColor.lerp(this._overcast, 0.55 * k);
     state.sunIntensity    *= (1 - 0.45 * k);
     state.ambientIntensity *= (1 - 0.25 * k);
+    state.daylight        *= (1 - 0.4  * k);
   }
 
   /** 'Clear' when not precipitating; 'Rain' or 'Snow' while active (incl. fade-out tail). Used by the HUD. */
