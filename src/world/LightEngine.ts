@@ -146,4 +146,136 @@ export class LightEngine {
       queue.push(idx);
     }
   }
+
+  /**
+   * Fully recompute block-light (emitter-sourced light) for `chunk` from scratch.
+   * Seeds from all emitting blocks in this chunk, injects boundary from loaded neighbors,
+   * then BFS flood-fills exactly like sky-light but attenuating by 1 per step.
+   */
+  recomputeChunkBlockLight(chunk: Chunk, access: ISkyLightAccess): void {
+    // 1. Clear all block-light to 0.
+    chunk.blockLight.fill(0);
+
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+
+    const queue: number[] = [];
+    let head = 0;
+
+    // 2. Seed: find every emitting block inside this chunk and set its level.
+    for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+      for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+        for (let y = 0; y < CHUNK_HEIGHT; y++) {
+          const idx = Chunk.idx(lx, y, lz);
+          const blockId = (chunk.blocks[idx] ?? BlockId.AIR) as BlockId;
+          const emission = this.registry.getLightEmission(blockId);
+          if (emission > 0) {
+            chunk.blockLight[idx] = emission;
+            queue.push(idx);
+          }
+        }
+      }
+    }
+
+    // 3. Inject boundary block-light from loaded neighbor chunks on the X/Z borders.
+    for (let y = 0; y < CHUNK_HEIGHT; y++) {
+      for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+        // lx == 0 border: neighbor is at worldX = baseX - 1
+        this._injectBlockBoundary(chunk, access, 0, y, lz, baseX - 1, y, baseZ + lz, queue);
+        // lx == 15 border: neighbor is at worldX = baseX + CHUNK_SIZE
+        this._injectBlockBoundary(chunk, access, CHUNK_SIZE - 1, y, lz, baseX + CHUNK_SIZE, y, baseZ + lz, queue);
+      }
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        // lz == 0 border: neighbor is at worldZ = baseZ - 1
+        this._injectBlockBoundary(chunk, access, lx, y, 0, baseX + lx, y, baseZ - 1, queue);
+        // lz == 15 border: neighbor is at worldZ = baseZ + CHUNK_SIZE
+        this._injectBlockBoundary(chunk, access, lx, y, CHUNK_SIZE - 1, baseX + lx, y, baseZ + CHUNK_SIZE, queue);
+      }
+    }
+
+    // 4. BFS flood fill (6-neighbor, attenuate by 1).
+    const neighbors: [number, number, number][] = [
+      [1, 0, 0], [-1, 0, 0],
+      [0, 1, 0], [0, -1, 0],
+      [0, 0, 1], [0, 0, -1],
+    ];
+
+    while (head < queue.length) {
+      const idx = queue[head++]!;
+      const curLevel = chunk.blockLight[idx] ?? 0;
+
+      if (curLevel <= 1) {
+        continue;
+      }
+
+      // Decode idx back to (lx, ly, lz).
+      // idx = lx + lz * CHUNK_SIZE + ly * CHUNK_SIZE * CHUNK_SIZE
+      const ly = Math.floor(idx / (CHUNK_SIZE * CHUNK_SIZE));
+      const rem = idx - ly * CHUNK_SIZE * CHUNK_SIZE;
+      const lz = Math.floor(rem / CHUNK_SIZE);
+      const lx = rem - lz * CHUNK_SIZE;
+
+      for (const [dx, dy, dz] of neighbors) {
+        const nx = lx + dx;
+        const ny = ly + dy;
+        const nz = lz + dz;
+
+        // Stay inside this chunk.
+        if (nx < 0 || nx >= CHUNK_SIZE || ny < 0 || ny >= CHUNK_HEIGHT || nz < 0 || nz >= CHUNK_SIZE) {
+          continue;
+        }
+
+        const nIdx = Chunk.idx(nx, ny, nz);
+        const neighborBlock = (chunk.blocks[nIdx] ?? BlockId.AIR) as BlockId;
+
+        if (this.isOpaque(neighborBlock)) {
+          continue;
+        }
+
+        const newLevel = curLevel - 1;
+        const existing = chunk.blockLight[nIdx] ?? 0;
+        if (existing < newLevel) {
+          chunk.blockLight[nIdx] = newLevel;
+          if (newLevel > 1) {
+            queue.push(nIdx);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Check the neighbor cell just outside this chunk at (neighborWorldX, neighborWorldY, neighborWorldZ).
+   * If that neighbor has block-light and this chunk's cell (lx, ly, lz) is not opaque and could
+   * benefit from neighborLevel - 1, update and enqueue the cell.
+   */
+  private _injectBlockBoundary(
+    chunk: Chunk,
+    access: ISkyLightAccess,
+    lx: number,
+    ly: number,
+    lz: number,
+    neighborWorldX: number,
+    neighborWorldY: number,
+    neighborWorldZ: number,
+    queue: number[],
+  ): void {
+    const idx = Chunk.idx(lx, ly, lz);
+    const blockId = (chunk.blocks[idx] ?? BlockId.AIR) as BlockId;
+    if (this.isOpaque(blockId)) {
+      return;
+    }
+
+    const neighborLevel = access.getBlockLight(neighborWorldX, neighborWorldY, neighborWorldZ);
+    const newLevel = neighborLevel - 1;
+    if (newLevel <= 0) {
+      return;
+    }
+
+    const cur = chunk.blockLight[idx] ?? 0;
+    if (newLevel > cur) {
+      chunk.blockLight[idx] = newLevel;
+      queue.push(idx);
+    }
+  }
 }

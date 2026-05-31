@@ -18,6 +18,7 @@ import {
   DOOR_TILE_EDGE,
   type DoorMeshArrays,
 } from './Door';
+import { emitTorchGeometry, TORCH_TILE } from './Torch';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -246,6 +247,12 @@ export function buildChunkMeshBuffers(
           const level = sampleSkyLight(lightHalo, lx, ly, lz);
           const skyMul = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
           emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul);
+          continue;
+        }
+        if (id === BlockId.TORCH) {
+          const level = sampleSkyLight(lightHalo, lx, ly, lz); // lightHalo carries combined max(sky,block)
+          const b = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
+          emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, TORCH_TILE), b);
           continue;
         }
         const isCurrentTransparent = isTransparentId(blockTable, id);

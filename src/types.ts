@@ -11,6 +11,8 @@ export const RENDER_DISTANCE = 6;
 export const WORLD_SEED = 1337;
 /** Maximum sky-light level; the light engine uses 0..MAX_SKY_LIGHT for sky light propagation. */
 export const MAX_SKY_LIGHT = 15;
+/** Light emission level of a torch block (0..15). */
+export const TORCH_LIGHT = 14;
 /**
  * Sky-light → brightness multiplier LUT (index = light level 0..15).
  * 0 = deep shadow (a non-zero floor so caves aren't pure black), 15 = full daylight.
@@ -214,6 +216,7 @@ export const BlockId = {
   DOOR_S_OPEN: 23,
   DOOR_W_CLOSED: 24,
   DOOR_W_OPEN: 25,
+  TORCH: 26,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
@@ -261,7 +264,7 @@ export const ItemId = {
   DIAMOND_BOOTS: 147,
   DOOR: 150,            // places a 2-tall oriented door; non-block item (renders via swatch+glyph)
 } as const;
-/** A BlockId value (0..25) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..26) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===
@@ -351,6 +354,8 @@ export interface BlockDef {
   particleColor: number;
   /** Seconds to mine this block by hand at base speed. Infinity = unbreakable (bedrock). AIR/WATER unused. */
   hardness: number;
+  /** Block-light emission level 0..15. Omitted (never undefined) for non-emitters. */
+  light?: number;
 }
 
 /** A stack of a single item type held in an inventory slot or carried by a dropped item. item is never AIR for a real stack; count is in [1, item's maxStack]. */
@@ -465,6 +470,8 @@ export interface IWorld {
   isSolid(x: number, y: number, z: number): boolean;
   /** Sky-light level 0..15 at world coords. Returns 0 for unloaded chunks / out of vertical range. */
   getSkyLight(x: number, y: number, z: number): number;
+  /** Combined light level: max(sky, block) at world coords. Returns 0 for unloaded chunks / out of vertical range. */
+  getLight(x: number, y: number, z: number): number;
   /** DDA raycast through the voxel grid. Returns null if no solid block hit within maxDistance. */
   raycast(origin: Vec3, direction: Vec3, maxDistance: number): BlockHit | null;
   /** The current chase target for hostile mobs (the local player's FEET position), or null if none set. The returned object is a LIVE reference that mutates each tick — read it, do not retain across ticks expecting a snapshot. */
@@ -489,6 +496,8 @@ export interface ISkyLightAccess {
   setSkyLight(x: number, y: number, z: number, level: number): void;
   /** True iff the chunk containing these world coords is currently loaded. */
   isChunkLoaded(x: number, y: number, z: number): boolean;
+  /** Block-light 0..15 at world coords; unloaded / out of range => 0. Used by block-light BFS boundary injection. */
+  getBlockLight(x: number, y: number, z: number): number;
 }
 
 // === Block registry helper (world implements; others read) ===
@@ -496,6 +505,8 @@ export interface IBlockRegistry {
   get(id: BlockId): BlockDef;
   isSolid(id: BlockId): boolean;
   isTransparent(id: BlockId): boolean;
+  /** Block-light emission 0..15 for the given block; returns 0 for non-emitters. */
+  getLightEmission(id: BlockId): number;
 }
 
 // === Player input state (controls produce; physics consumes) ===

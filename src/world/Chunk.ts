@@ -6,6 +6,7 @@ export class Chunk {
   readonly cz: number;
   readonly blocks: Uint8Array;
   readonly skyLight: Uint8Array;
+  readonly blockLight: Uint8Array;
   mesh: THREE.Mesh | null = null;
   waterMesh: THREE.Mesh | null = null;
   dirty = true;
@@ -22,6 +23,7 @@ export class Chunk {
     this.cz = cz;
     this.blocks = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
     this.skyLight = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
+    this.blockLight = new Uint8Array(CHUNK_SIZE * CHUNK_HEIGHT * CHUNK_SIZE);
     if (generator) {
       generator(this);
     }

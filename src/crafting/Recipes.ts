@@ -415,6 +415,32 @@ export const RECIPES: Recipe[] = [
     height: 3,
     output: { item: ItemId.DOOR, count: 3 },
   },
+  // Torch — coal (ore-block item) on top of a stick (shaped 1x2) -> 4 torches
+  // [Coal]
+  // [Stick]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.COAL_ORE,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 2,
+    output: { item: BlockId.TORCH, count: 4 },
+  },
+  // Torch — charcoal on top of a stick (shaped 1x2) -> 4 torches
+  // [Charcoal]
+  // [Stick]
+  {
+    kind: 'shaped',
+    pattern: [
+      ItemId.CHARCOAL,
+      ItemId.STICK,
+    ],
+    width: 1,
+    height: 2,
+    output: { item: BlockId.TORCH, count: 4 },
+  },
 ];
 
 // ============================================================

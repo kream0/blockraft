@@ -382,7 +382,7 @@ export class World implements IWorld, ISkyLightAccess {
 
   private isRaycastTarget(x: number, y: number, z: number): boolean {
     const id = this.getBlock(x, y, z);
-    return this.registry.isSolid(id) || isDoorBlock(id);
+    return this.registry.isSolid(id) || isDoorBlock(id) || id === BlockId.TORCH;
   }
 
   // --- ISkyLightAccess + IWorld.getSkyLight ---
@@ -396,6 +396,21 @@ export class World implements IWorld, ISkyLightAccess {
     const lx = mod(x, CHUNK_SIZE);
     const lz = mod(z, CHUNK_SIZE);
     return chunk.skyLight[Chunk.idx(lx, y, lz)] ?? 0;
+  }
+
+  getBlockLight(x: number, y: number, z: number): number {
+    if (y < 0 || y >= CHUNK_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE);
+    const cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.getChunk(cx, cz);
+    if (!chunk) return 0;
+    const lx = mod(x, CHUNK_SIZE);
+    const lz = mod(z, CHUNK_SIZE);
+    return chunk.blockLight[Chunk.idx(lx, y, lz)] ?? 0;
+  }
+
+  getLight(x: number, y: number, z: number): number {
+    return Math.max(this.getSkyLight(x, y, z), this.getBlockLight(x, y, z));
   }
 
   setSkyLight(x: number, y: number, z: number, level: number): void {
@@ -682,24 +697,28 @@ export class World implements IWorld, ISkyLightAccess {
     const baseX = cx * CHUNK_SIZE;
     const baseZ = cz * CHUNK_SIZE;
     const chunk = this.getChunk(cx, cz);
-    // Interior: copy this chunk's own sky-light directly. hx=lx+1, hz=lz+1.
+    // Interior: copy this chunk's own combined light (max of sky + block) directly. hx=lx+1, hz=lz+1.
     if (chunk) {
       for (let y = 0; y < CHUNK_HEIGHT; y++) {
         for (let lz = 0; lz < CHUNK_SIZE; lz++) {
           for (let lx = 0; lx < CHUNK_SIZE; lx++) {
             const hx = lx + 1;
             const hz = lz + 1;
-            lightHalo[hx + hz * HALO + y * HALO * HALO] = chunk.skyLight[Chunk.idx(lx, y, lz)] ?? 0;
+            const i = Chunk.idx(lx, y, lz);
+            lightHalo[hx + hz * HALO + y * HALO * HALO] = Math.max(
+              chunk.skyLight[i] ?? 0,
+              chunk.blockLight[i] ?? 0,
+            );
           }
         }
       }
     }
-    // Ring (incl. diagonals): border cells filled via getSkyLight.
+    // Ring (incl. diagonals): border cells filled via getLight (max of sky + block).
     for (let y = 0; y < CHUNK_HEIGHT; y++) {
       for (let hz = 0; hz < HALO; hz++) {
         for (let hx = 0; hx < HALO; hx++) {
           if (hx !== 0 && hx !== HALO - 1 && hz !== 0 && hz !== HALO - 1) continue; // interior already filled
-          lightHalo[hx + hz * HALO + y * HALO * HALO] = this.getSkyLight(baseX + hx - 1, y, baseZ + hz - 1);
+          lightHalo[hx + hz * HALO + y * HALO * HALO] = this.getLight(baseX + hx - 1, y, baseZ + hz - 1);
         }
       }
     }
@@ -713,6 +732,7 @@ export class World implements IWorld, ISkyLightAccess {
     // ~65k-cell BFS off lightDirty removes the per-frame main-thread relight storm during streaming.
     if (chunk.lightDirty) {
       this.lightEngine.recomputeChunkLight(chunk, this);
+      this.lightEngine.recomputeChunkBlockLight(chunk, this);
       chunk.lightDirty = false;
     }
 

@@ -20,6 +20,7 @@ import {
   DOOR_TILE_EDGE,
   type DoorMeshArrays,
 } from './Door';
+import { emitTorchGeometry, TORCH_TILE } from './Torch';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -35,12 +36,12 @@ export function aoLevel(side1: boolean, side2: boolean, corner: boolean): number
 export const AO_BRIGHTNESS: readonly [number, number, number, number] = [0.5, 0.7, 0.85, 1.0];
 
 /**
- * Sample the sky-light level for the AO base cell (one step in face-normal direction from the
- * current block). `lx/ly/lz` are the LOCAL AO base cell coords (may be outside [0, CHUNK_SIZE)
+ * Sample the combined light level (max of sky light and block light) for a cell.
+ * `lx/ly/lz` are the LOCAL cell coords (may be outside [0, CHUNK_SIZE)
  * on X/Z for cross-chunk faces; Y is absolute world-Y here, NOT chunk-local).
  * - Y >= CHUNK_HEIGHT → open sky → MAX_SKY_LIGHT (15)
  * - Y < 0 → underground → 0
- * - otherwise: delegate to world.getSkyLight with world coords
+ * - otherwise: delegate to world.getLight (= max(skyLight, blockLight)) with world coords
  */
 function sampleSkyLight(
   world: IWorld,
@@ -52,7 +53,7 @@ function sampleSkyLight(
 ): number {
   if (ly >= CHUNK_HEIGHT) return MAX_SKY_LIGHT;
   if (ly < 0) return 0;
-  return world.getSkyLight(baseX + lx, ly, baseZ + lz);
+  return world.getLight(baseX + lx, ly, baseZ + lz);
 }
 
 /** Face direction tag — used to pick texture (top/bottom/side) and vertices. */
@@ -201,6 +202,12 @@ export class ChunkMesher {
             const level = sampleSkyLight(world, baseX, baseZ, lx, ly, lz);
             const skyMul = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
             emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul);
+            continue;
+          }
+          if (id === BlockId.TORCH) {
+            const level = sampleSkyLight(world, baseX, baseZ, lx, ly, lz); // combined sky+block light
+            const skyMul = SKY_LIGHT_BRIGHTNESS[level] ?? 1.0;
+            emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(TORCH_TILE), skyMul);
             continue;
           }
           const def = this.registry.get(id);

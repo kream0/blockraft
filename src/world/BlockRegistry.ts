@@ -1,4 +1,4 @@
-import { BlockId, type BlockDef, type IBlockRegistry } from '../types';
+import { BlockId, TORCH_LIGHT, type BlockDef, type IBlockRegistry } from '../types';
 
 const defs: Record<number, BlockDef> = {
   [BlockId.AIR]: {
@@ -195,6 +195,16 @@ const defs: Record<number, BlockDef> = {
     id: BlockId.DOOR_W_OPEN, name: 'Door', solid: false, transparent: true,
     textures: { top: 20, bottom: 20, side: 8 }, particleColor: 0x9E7140, hardness: 1.5,
   },
+  [BlockId.TORCH]: {
+    id: BlockId.TORCH,
+    name: 'Torch',
+    solid: false,
+    transparent: true,
+    textures: { top: 22, bottom: 22, side: 22 },
+    particleColor: 0xFFB347,
+    hardness: 0.3,
+    light: TORCH_LIGHT,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;
@@ -210,6 +220,10 @@ class BlockRegistry implements IBlockRegistry {
 
   isTransparent(id: BlockId): boolean {
     return (defs[id] ?? AIR_DEF).transparent;
+  }
+
+  getLightEmission(id: BlockId): number {
+    return (defs[id] ?? AIR_DEF).light ?? 0;
   }
 }
 

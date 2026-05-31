@@ -369,6 +369,15 @@ function drawDoorLower(ctx: CanvasRenderingContext2D, col: number, row: number, 
   speckle(ctx, col, row, '#8A6038', 6, rng);
 }
 
+function drawTorch(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  fillTile(ctx, col, row, '#1a1208');
+  ctx.fillStyle = '#6E4923'; ctx.fillRect(col * TILE + 6, row * TILE + 6, 4, 10); // wooden handle
+  ctx.fillStyle = '#5A3A1B'; ctx.fillRect(col * TILE + 6, row * TILE + 6, 1, 10); ctx.fillRect(col * TILE + 9, row * TILE + 6, 1, 10); // handle shading
+  ctx.fillStyle = '#FFcc33'; ctx.fillRect(col * TILE + 5, row * TILE + 2, 6, 4); // flame core
+  ctx.fillStyle = '#FFF1A8'; ctx.fillRect(col * TILE + 6, row * TILE + 1, 4, 3); // flame highlight
+  speckle(ctx, col, row, '#FFD75E', 4, rng);
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -438,6 +447,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawChest,         // tile 19 — wooden chest face
       drawDoorLower,     // tile 20 — door lower half
       drawDoorUpper,     // tile 21 — door upper half
+      drawTorch,         // tile 22 — torch (wooden post + flame)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {
