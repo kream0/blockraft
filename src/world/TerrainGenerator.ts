@@ -2,6 +2,7 @@ import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE } from '../types';
 import { clamp } from '../utils/MathUtils';
 import { PerlinNoise } from '../utils/Noise';
 import { Chunk } from './Chunk';
+import { doorBlockId, DoorFacing } from './Door';
 
 const BASE_HEIGHT = Math.floor(CHUNK_HEIGHT / 2) - 4;
 const AMPLITUDE = 12;
@@ -330,8 +331,8 @@ export class TerrainGenerator {
     chunk.blocks[Chunk.idx(cxL - HUT_HALF, winY, czL)]        = BlockId.GLASS; // -X wall
     chunk.blocks[Chunk.idx(cxL + HUT_HALF, winY, czL)]        = BlockId.GLASS; // +X wall
 
-    // Door: a 2-high AIR gap on a deterministically chosen wall. Applied after windows so it
-    // cleanly overwrites the window on the chosen side.
+    // Door: a closed door on a deterministically chosen wall, slab flush to its outer face.
+    // Applied after windows so it cleanly overwrites the window on the chosen side.
     const doorSide = this.oreNext() % 4;
     let doorX: number;
     let doorZ: number;
@@ -339,8 +340,14 @@ export class TerrainGenerator {
     else if (doorSide === 1) { doorX = cxL;       doorZ = czL + HUT_HALF; } // +Z wall
     else if (doorSide === 2) { doorX = cxL - HUT_HALF; doorZ = czL;       } // -X wall
     else                     { doorX = cxL + HUT_HALF; doorZ = czL;       } // +X wall
-    chunk.blocks[Chunk.idx(doorX, floorY + 1, doorZ)] = BlockId.AIR;
-    chunk.blocks[Chunk.idx(doorX, floorY + 2, doorZ)] = BlockId.AIR;
+    const doorFacing: DoorFacing =
+      doorSide === 0 ? DoorFacing.NORTH :
+      doorSide === 1 ? DoorFacing.SOUTH :
+      doorSide === 2 ? DoorFacing.WEST :
+      DoorFacing.EAST;
+    const closedDoor = doorBlockId(doorFacing, false);
+    chunk.blocks[Chunk.idx(doorX, floorY + 1, doorZ)] = closedDoor; // lower half
+    chunk.blocks[Chunk.idx(doorX, floorY + 2, doorZ)] = closedDoor; // upper half
 
     // Roof: WOOD across the whole 5x5 footprint at roofY.
     for (let x = cxL - HUT_HALF; x <= cxL + HUT_HALF; x++) {
