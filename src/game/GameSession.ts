@@ -52,6 +52,7 @@ import {
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
   SKELETON_MAX_COUNT,
+  HOSTILE_SPAWN_MAX_LIGHT,
   ARROW_DAMAGE,
   ARROW_HIT_RADIUS,
   PLAYER_RADIUS,
@@ -1183,6 +1184,10 @@ export class GameSession {
       if (sy < 0) continue;
       if (this.world.getBlock(sx, sy + 1, sz) !== BlockId.AIR) continue;
       if (this.world.getBlock(sx, sy + 2, sz) !== BlockId.AIR) continue; // head clearance
+      // Block-light only (NOT max light): sky light is geometric and not dimmed by time of
+      // day, so outdoor cells read skyLight=15 even at midnight. Gating on block light lets
+      // hostiles spawn on dark open ground at night while torches keep their lit radius safe.
+      if (this.world.getBlockLight(sx, sy + 1, sz) > HOSTILE_SPAWN_MAX_LIGHT) continue;
       return { x: sx, y: sy, z: sz };
     }
     return null;

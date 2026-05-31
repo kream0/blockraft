@@ -136,6 +136,8 @@ export const SKELETON_PREFERRED_MAX = 12;
 export const SKELETON_MOVE_SPEED = 2.0;
 /** Seconds between consecutive arrow shots from the same skeleton. */
 export const SKELETON_SHOOT_COOLDOWN_S = 2.0;
+/** Hostiles only spawn on a block whose BLOCK-light level is at or below this (0–15). Torches raise nearby block-light above it, creating a spawn-proof safe zone. */
+export const HOSTILE_SPAWN_MAX_LIGHT = 7;
 
 // === Arrow projectile ===
 /** Arrow flight speed (blocks/s). Straight-line, no gravity. Keep speed/60 < 2*(PLAYER_RADIUS+ARROW_HIT_RADIUS) (≈1.1) for reliable per-tick hit detection (at 22 b/s, per-tick travel ≈0.367 blocks). */
