@@ -230,7 +230,7 @@ export const ITEM_DEFS: Map<ItemId, ItemDef> = new Map([
   }],
   [ItemId.CHARCOAL, {
     id: ItemId.CHARCOAL, name: 'Charcoal', maxStack: 64,
-    swatchColor: '#36312e', glyph: 'c', placeable: null, tool: null, weapon: null, armor: null, food: null,
+    swatchColor: '#231f1b', glyph: 'c', placeable: null, tool: null, weapon: null, armor: null, food: null,
   }],
   [
     ItemId.WOODEN_SWORD,

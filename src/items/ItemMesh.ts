@@ -34,6 +34,7 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
       case ItemId.DIAMOND_AXE:     return buildDiamondAxeMesh();
       case ItemId.DIAMOND_SHOVEL:  return buildDiamondShovelMesh();
       case ItemId.DIAMOND_SWORD:   return buildDiamondSwordMesh();
+      case ItemId.CHARCOAL:        return buildCharcoalMesh();
       default: {
         const color = new THREE.Color(itemSwatchColor(item));
         return new THREE.Mesh(
@@ -68,4 +69,47 @@ export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3
 
   const mat = new THREE.MeshLambertMaterial({ map: atlas.texture });
   return new THREE.Mesh(geo, mat);
+}
+
+/**
+ * Charcoal icon: a near-black coal lump studded with lighter "reflection" chips
+ * so it stays legible against the dark inventory slot. The two unlit (Basic)
+ * chips read as specular sparkles regardless of face orientation; the rest are
+ * lit so the key light at (1,1.5,1) models the lump.
+ */
+function buildCharcoalMesh(): THREE.Object3D {
+  const group = new THREE.Group();
+
+  // Near-black coal body — two overlapping dark boxes give an irregular lump.
+  const core = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.42, 0.42),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color('#231f1b') }),
+  );
+  group.add(core);
+  const lobe = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 0.3, 0.3),
+    new THREE.MeshLambertMaterial({ color: new THREE.Color('#1a1714') }),
+  );
+  lobe.position.set(0.11, 0.11, 0.09);
+  group.add(lobe);
+
+  // Reflection chips — lighter facets toward the camera-facing (+z) top-right so
+  // the key light catches them. x, y, z, size, color, unlit.
+  const chips: ReadonlyArray<readonly [number, number, number, number, string, boolean]> = [
+    [ 0.13,  0.17,  0.17, 0.10, '#8a8a8a', false],
+    [-0.11,  0.05,  0.21, 0.07, '#6d6d6d', false],
+    [ 0.03, -0.11,  0.19, 0.06, '#585858', false],
+    [ 0.17,  0.20,  0.12, 0.05, '#e2e8ee', true ],
+    [-0.07,  0.19,  0.13, 0.04, '#c4ccd4', true ],
+  ];
+  for (const [x, y, z, s, color, unlit] of chips) {
+    const mat = unlit
+      ? new THREE.MeshBasicMaterial({ color: new THREE.Color(color) })
+      : new THREE.MeshLambertMaterial({ color: new THREE.Color(color) });
+    const chip = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat);
+    chip.position.set(x, y, z);
+    group.add(chip);
+  }
+
+  return group;
 }
