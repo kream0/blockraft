@@ -3,6 +3,7 @@ import type { Inventory } from '../player/Inventory';
 import { itemMaxStack } from '../items/ItemRegistry';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
 import { matchRecipe } from '../crafting/Recipes';
+import { Tooltip, itemDisplayName } from './Tooltip';
 
 const CRAFT_INPUT_BASE = 100;   // synthetic indices 100..108 for the 3x3 inputs
 const CRAFT_OUTPUT_INDEX = 200; // synthetic index for the output slot
@@ -23,6 +24,7 @@ export class InventoryScreen {
   private craftOutputEl: HTMLElement;
 
   private onSpill: ((item: ItemId, count: number) => void) | null;
+  private tooltip: Tooltip;
 
   constructor(container: HTMLElement, inventory: Inventory, iconRenderer: ItemIconRenderer, onSpill?: (item: ItemId, count: number) => void) {
     this.inventory = inventory;
@@ -47,6 +49,7 @@ export class InventoryScreen {
     root.addEventListener('contextmenu', e => e.preventDefault());
     container.appendChild(root);
     this.root = root;
+    this.tooltip = new Tooltip(root);
 
     // Centered panel
     const panel = document.createElement('div');
@@ -195,6 +198,17 @@ export class InventoryScreen {
       e.stopPropagation();
       this.handleSlotMouseDown(invIndex, e.button, e.shiftKey);
     });
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const stack = this.getCell(invIndex);
+      if (stack !== null) {
+        this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
+      } else {
+        this.tooltip.hide();
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      this.tooltip.hide();
+    });
     this.slotEls[invIndex] = el;
     return el;
   }
@@ -208,6 +222,17 @@ export class InventoryScreen {
       e.preventDefault();
       e.stopPropagation();
       this.handleSlotMouseDown(synthIndex, e.button, e.shiftKey);
+    });
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const stack = synthIndex === CRAFT_OUTPUT_INDEX ? this.craftOutput : this.getCell(synthIndex);
+      if (stack !== null) {
+        this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
+      } else {
+        this.tooltip.hide();
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      this.tooltip.hide();
     });
     return el;
   }
@@ -466,6 +491,7 @@ export class InventoryScreen {
     this.isOpen = false;
     this.root.style.display = 'none';
     this.updateCursorEl();
+    this.tooltip.hide();
     window.removeEventListener('mousemove', this.onMouseMove);
   }
 
@@ -473,6 +499,7 @@ export class InventoryScreen {
     // Route teardown through close() so a held cursor stack is returned to the
     // inventory, craft inputs are returned, and the mousemove listener is removed.
     this.close();
+    this.tooltip.dispose();
     if (this.root.parentNode !== null) {
       this.root.parentNode.removeChild(this.root);
     }

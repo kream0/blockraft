@@ -1,5 +1,6 @@
 import { HOTBAR_SIZE, type ItemStack } from '../types';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
+import { itemDisplayName } from './Tooltip';
 
 const SLOT_COUNT = HOTBAR_SIZE;
 
@@ -20,6 +21,9 @@ export class Hotbar {
   private _slotCache: Array<SlotCache | null>;
   // Last selected index, -1 sentinel ensures first call applies highlight.
   private _lastSelected: number = -1;
+
+  private _nameLabel: HTMLElement;
+  private _labelTimer: number | null = null;
 
   constructor(container: HTMLElement, stacks: ReadonlyArray<ItemStack | null>, showCounts: boolean, iconRenderer: ItemIconRenderer) {
     this.selectedSlot = 0;
@@ -73,6 +77,27 @@ export class Hotbar {
 
     container.appendChild(root);
     this.root = root;
+
+    const nameLabel = document.createElement('div');
+    nameLabel.style.cssText = [
+      'position:absolute',
+      'left:50%',
+      'bottom:64px',
+      'transform:translateX(-50%)',
+      'pointer-events:none',
+      'user-select:none',
+      'font-family:monospace',
+      'font-size:14px',
+      'color:#fff',
+      'text-shadow:1px 1px 2px black',
+      'padding:2px 8px',
+      'opacity:0',
+      'transition:opacity 0.4s ease-out',
+      'white-space:nowrap',
+    ].join(';');
+    container.appendChild(nameLabel);
+    this._nameLabel = nameLabel;
+
     this.setStacks(stacks);
     this.setSelectedSlot(0);
   }
@@ -106,6 +131,7 @@ export class Hotbar {
 
   setSelectedSlot(slot: number): void {
     if (slot < 0 || slot >= this.slots.length) return;
+    const wasInitial = this._lastSelected === -1;
     if (slot === this._lastSelected) return;
     const prev = this.slots[this.selectedSlot];
     if (prev !== undefined) {
@@ -119,9 +145,36 @@ export class Hotbar {
       cur.style.borderColor = '#FFD24A';
       cur.style.outline = '2px solid #FFD24A';
     }
+    if (!wasInitial) {
+      const cache = this._slotCache[slot] ?? null;
+      if (cache !== null && cache.item !== -1) {
+        this._nameLabel.textContent = itemDisplayName(cache.item);
+        this._nameLabel.style.opacity = '1';
+        if (this._labelTimer !== null) {
+          window.clearTimeout(this._labelTimer);
+        }
+        this._labelTimer = window.setTimeout(() => {
+          this._nameLabel.style.opacity = '0';
+          this._labelTimer = null;
+        }, 1800);
+      } else {
+        this._nameLabel.style.opacity = '0';
+        if (this._labelTimer !== null) {
+          window.clearTimeout(this._labelTimer);
+          this._labelTimer = null;
+        }
+      }
+    }
   }
 
   dispose(): void {
+    if (this._labelTimer !== null) {
+      window.clearTimeout(this._labelTimer);
+      this._labelTimer = null;
+    }
+    if (this._nameLabel.parentNode !== null) {
+      this._nameLabel.parentNode.removeChild(this._nameLabel);
+    }
     if (this.root.parentNode !== null) {
       this.root.parentNode.removeChild(this.root);
     }

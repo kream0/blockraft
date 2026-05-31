@@ -89,6 +89,7 @@ import {
   EAT_DURATION_S,
   DROPPED_ITEM_PICKUP_RADIUS,
   CHEST_SLOTS,
+  HOTBAR_SIZE,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -270,6 +271,7 @@ export class GameSession {
 
   private resizeHandler: () => void;
   private slotKeyHandler: (e: KeyboardEvent) => void;
+  private wheelHandler: (e: WheelEvent) => void;
   private mouseDownHandler: (e: MouseEvent) => void;
   private contextMenuHandler: (e: MouseEvent) => void;
   private pointerLockChangeHandler: () => void;
@@ -441,6 +443,18 @@ export class GameSession {
       const slot = digit - 1;
       this.player.setSelectedSlot(slot);
       this.hud.hotbar.setSelectedSlot(slot);
+    };
+
+    // Hotbar slot cycling via scroll wheel.
+    this.wheelHandler = (e: WheelEvent): void => {
+      if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) return;
+      if (!this.started || this.isDead) return;
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? 1 : -1; // scroll down (deltaY>0) -> next slot to the right
+      const cur = this.player.state.selectedSlot;
+      const next = (((cur + dir) % HOTBAR_SIZE) + HOTBAR_SIZE) % HOTBAR_SIZE; // wrap 0..8
+      this.player.setSelectedSlot(next);
+      this.hud.hotbar.setSelectedSlot(next);
     };
 
     // Mouse input (only when pointer-locked). Left = hold-to-mine / melee; right = place.
@@ -653,6 +667,7 @@ export class GameSession {
     window.addEventListener('resize', this.resizeHandler);
     window.addEventListener('keydown', this.slotKeyHandler);
     window.addEventListener('keydown', this.inventoryKeyHandler);
+    window.addEventListener('wheel', this.wheelHandler, { passive: false });
     window.addEventListener('mousedown', this.mouseDownHandler);
     window.addEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.addEventListener(
@@ -705,6 +720,7 @@ export class GameSession {
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener('keydown', this.slotKeyHandler);
     window.removeEventListener('keydown', this.inventoryKeyHandler);
+    window.removeEventListener('wheel', this.wheelHandler);
     window.removeEventListener('mousedown', this.mouseDownHandler);
     window.removeEventListener('mouseup', this.mouseUpHandler);
     this.renderer.renderer.domElement.removeEventListener(
