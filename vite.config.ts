@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/blockraft/' : '/',
   root: '.',
   build: {
     target: 'es2022',
@@ -12,4 +13,4 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
-});
+}));
