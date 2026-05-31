@@ -229,6 +229,7 @@ export const ItemId = {
   COOKED_PORKCHOP: 115,
   COOKED_CHICKEN: 116,
   COOKED_MUTTON: 117,
+  CHARCOAL: 118,        // smelted from logs; fuel equivalent to coal
   IRON_INGOT: 120,
   DIAMOND: 121,          // gem / crafting material
   DIAMOND_PICKAXE: 122,  // diamond-tier tools
