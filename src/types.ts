@@ -177,6 +177,24 @@ export const SKELETON_ARROW_DROP_MIN = 1;
 /** Max arrows a skeleton drops on death (inclusive). */
 export const SKELETON_ARROW_DROP_MAX = 2;
 
+// === Creeper (exploding hostile) ===
+/** Max simultaneous live creepers at night (separate cap from zombies/skeletons). */
+export const CREEPER_MAX_COUNT = 3;
+/** Creeper health in half-heart points (dies in 2 player hits at PLAYER_ATTACK_DAMAGE=4). */
+export const CREEPER_MAX_HEALTH = 8;
+/** Horizontal distance (blocks) within which a creeper detects and chases the player. */
+export const CREEPER_DETECT_RADIUS = 16;
+/** Creeper horizontal chase speed (blocks/s). Keep speed/60 < radius(0.3) to avoid tunneling. */
+export const CREEPER_MOVE_SPEED = 2.2;
+/** Horizontal distance (blocks) at or below which the creeper lights its fuse and freezes in place. */
+export const CREEPER_IGNITE_RANGE = 2.5;
+/** Seconds the fuse burns before detonation once ignited. Resets if the player escapes IGNITE_RANGE. */
+export const CREEPER_FUSE_S = 1.5;
+/** Blast radius (blocks) for both the spherical terrain crater and the player-damage falloff. */
+export const CREEPER_BLAST_RADIUS = 3;
+/** Player damage (half-heart points) at the blast epicenter; falls off linearly to 0 at BLAST_RADIUS. */
+export const CREEPER_BLAST_MAX_DAMAGE = 12;
+
 // === Block-break particles ===
 /** Particles spawned per block break. */
 export const PARTICLE_BURST_COUNT = 12;
@@ -772,6 +790,7 @@ export const EntityKind = {
   SHEEP: 'sheep',
   CHICKEN: 'chicken',
   SKELETON: 'skeleton',
+  CREEPER: 'creeper',
   ARROW: 'arrow',
   DROPPED_ITEM: 'dropped_item',
 } as const;

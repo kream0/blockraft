@@ -250,6 +250,26 @@ export class World implements IWorld, ISkyLightAccess {
   }
 
   /**
+   * Run `fn` (which performs many setBlock calls) as a single remesh batch: every
+   * affected chunk is remeshed at most once, after `fn` returns, instead of once per
+   * edit. Use for bulk edits like explosion craters. Re-entrant-safe: if a batch is
+   * already open, runs `fn` inline and lets the outer batch flush.
+   */
+  runBatched(fn: () => void): void {
+    const topLevel = !this.batchingRemesh;
+    if (topLevel) this.batchingRemesh = true;
+    try {
+      fn();
+    } finally {
+      if (topLevel) {
+        this.batchingRemesh = false;
+        for (const c of this.pendingRemesh) this.remeshChunk(c);
+        this.pendingRemesh.clear();
+      }
+    }
+  }
+
+  /**
    * Apply a single block write: mutate the chunk, record the override, and queue the
    * affected chunk(s) for remesh (flushed by the top-level setBlock). Returns the PRIOR
    * block id, or null if the chunk isn't loaded. Does NOT run block-update cascades.

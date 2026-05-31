@@ -31,6 +31,7 @@ import { Chicken } from '../entities/Chicken';
 import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
 import { Skeleton } from '../entities/Skeleton';
+import { Creeper } from '../entities/Creeper';
 import { Arrow } from '../entities/Arrow';
 import { DroppedItem } from '../entities/DroppedItem';
 import { Mob } from '../entities/Mob';
@@ -55,6 +56,9 @@ import {
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
   SKELETON_MAX_COUNT,
+  CREEPER_MAX_COUNT,
+  CREEPER_BLAST_RADIUS,
+  CREEPER_BLAST_MAX_DAMAGE,
   HOSTILE_SPAWN_MAX_LIGHT,
   ARROW_DAMAGE,
   ARROW_HIT_RADIUS,
@@ -603,6 +607,7 @@ export class GameSession {
           this.updateDroppedItems();
           this.applyHostileContact(FIXED_DT);
           this.updateSkeletonFire();
+          this.updateCreeperExplosions();
           this.updateArrows();
         }
         this.acc -= FIXED_DT;
@@ -1139,6 +1144,65 @@ export class GameSession {
     }
   }
 
+  /** Per-fixed-step: detonate any creeper whose fuse completed — radial player damage,
+   *  a spherical terrain crater, debris particles — then despawn it. The Creeper only
+   *  raises `exploded`; the world mutation lives here (mirrors updateSkeletonFire). */
+  private updateCreeperExplosions(): void {
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Creeper) || !e.exploded) continue;
+      this.detonateCreeper(e);
+      this.world.entityManager.despawn(e.id);
+    }
+  }
+
+  /** Apply one creeper's blast: armor-reduced radial player damage with linear falloff,
+   *  a spherical crater (skips AIR/BEDROCK/WATER) batched into a single remesh, and a
+   *  bounded number of debris bursts. */
+  private detonateCreeper(creeper: Creeper): void {
+    const ox = creeper.position.x;
+    const oy = creeper.position.y + 0.85; // ~body center, not feet
+    const oz = creeper.position.z;
+
+    if (this.gameMode === GameMode.SURVIVAL && !this.isDead && this.respawnInvuln <= 0) {
+      const pp = this.player.state.position;
+      const pdx = pp.x - ox;
+      const pdy = (pp.y + PLAYER_HEIGHT * 0.5) - oy;
+      const pdz = pp.z - oz;
+      const pdist = Math.sqrt(pdx * pdx + pdy * pdy + pdz * pdz);
+      if (pdist < CREEPER_BLAST_RADIUS) {
+        const dmg = Math.max(1, Math.round(CREEPER_BLAST_MAX_DAMAGE * (1 - pdist / CREEPER_BLAST_RADIUS)));
+        this.damagePlayer(dmg);
+      }
+    }
+
+    const cx = Math.floor(ox);
+    const cy = Math.floor(oy);
+    const cz = Math.floor(oz);
+    const R = CREEPER_BLAST_RADIUS;
+    const r2 = R * R;
+    const MAX_BURSTS = 6;
+    let bursts = 0;
+    this.world.runBatched(() => {
+      for (let dx = -R; dx <= R; dx++) {
+        for (let dy = -R; dy <= R; dy++) {
+          for (let dz = -R; dz <= R; dz++) {
+            if (dx * dx + dy * dy + dz * dz > r2) continue;
+            const bx = cx + dx;
+            const by = cy + dy;
+            const bz = cz + dz;
+            const id = this.world.getBlock(bx, by, bz);
+            if (id === BlockId.AIR || id === BlockId.BEDROCK || id === BlockId.WATER) continue;
+            if (bursts < MAX_BURSTS) {
+              this.particles.spawnBurst(bx + 0.5, by + 0.5, bz + 0.5, blockRegistry.get(id).particleColor);
+              bursts++;
+            }
+            this.world.setBlock(bx, by, bz, BlockId.AIR);
+          }
+        }
+      }
+    });
+  }
+
   /**
    * Per-fixed-step: arrows that overlap the player deal damage (survival only, respecting
    * respawn invulnerability) and are consumed; any arrow flagged dead (block hit, expired
@@ -1223,13 +1287,13 @@ export class GameSession {
     }
   }
 
-  /** Frame-rate, throttled: spawn zombies + skeletons at night near the player up to their caps; despawn all hostiles + arrows at dawn. */
+  /** Frame-rate, throttled: spawn zombies, skeletons, and creepers at night near the player up to their caps; despawn all hostiles + arrows at dawn. */
   private updateHostiles(dt: number): void {
     if (!this.dayNight.isNight) {
       // Despawn once, on the night->day transition — not every daytime frame.
       if (this.wasNight) {
         for (const e of this.world.entityManager.all) {
-          if (e instanceof Zombie || e instanceof Skeleton || e instanceof Arrow) {
+          if (e instanceof Zombie || e instanceof Skeleton || e instanceof Creeper || e instanceof Arrow) {
             this.world.entityManager.despawn(e.id);
           }
         }
@@ -1245,9 +1309,11 @@ export class GameSession {
 
     let zombies = 0;
     let skeletons = 0;
+    let creepers = 0;
     for (const e of this.world.entityManager.all) {
       if (e instanceof Zombie) zombies++;
       else if (e instanceof Skeleton) skeletons++;
+      else if (e instanceof Creeper) creepers++;
     }
 
     if (zombies < ZOMBIE_MAX_COUNT) {
@@ -1257,6 +1323,10 @@ export class GameSession {
     if (skeletons < SKELETON_MAX_COUNT) {
       const s = this.findHostileSpawn();
       if (s !== null) this.world.entityManager.spawn(new Skeleton({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
+    }
+    if (creepers < CREEPER_MAX_COUNT) {
+      const s = this.findHostileSpawn();
+      if (s !== null) this.world.entityManager.spawn(new Creeper({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
     }
   }
 
