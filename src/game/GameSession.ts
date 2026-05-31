@@ -5,6 +5,7 @@ import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
+import { SkyBodies } from '../rendering/SkyBodies';
 import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
@@ -176,6 +177,7 @@ export class GameSession {
   private renderer: Renderer;
   private particles: ParticleSystem;
   private weather!: WeatherSystem;
+  private skyBodies!: SkyBodies;
   private breakOverlay: BreakOverlay;
   private audio: AudioManager;
   private dayNight: DayNightCycle;
@@ -408,6 +410,8 @@ export class GameSession {
     this.renderer.scene.add(this.particles.object3D);
     this.weather = new WeatherSystem();
     this.renderer.scene.add(this.weather.object3D);
+    this.skyBodies = new SkyBodies();
+    this.renderer.scene.add(this.skyBodies.object3D);
 
     // Block-crack overlay.
     this.breakOverlay = new BreakOverlay();
@@ -625,7 +629,9 @@ export class GameSession {
         this.hud.setHunger(this.player.state.hunger, PLAYER_MAX_HUNGER);
         this.hud.setArmor(this.armorPoints(), ARMOR_DISPLAY_MAX);
       }
-      this.weather.update(dt, this.player.camera.getWorldPosition(this._scratchCam));
+      const camWorld = this.player.camera.getWorldPosition(this._scratchCam);
+      this.weather.update(dt, camWorld);
+      this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
 
@@ -730,6 +736,8 @@ export class GameSession {
     this.particles.dispose();
     this.renderer.scene.remove(this.weather.object3D);
     this.weather.dispose();
+    this.renderer.scene.remove(this.skyBodies.object3D);
+    this.skyBodies.dispose();
     this.renderer.scene.remove(this.breakOverlay.object3D);
     this.breakOverlay.dispose();
     this.viewModel.dispose();

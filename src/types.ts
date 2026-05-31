@@ -210,6 +210,11 @@ export const WEATHER_VOLUME_RADIUS = 14;
 /** Camera Y at/above which precipitation falls as SNOW instead of RAIN (mirrors TerrainGenerator SNOW_LINE = 72). */
 export const WEATHER_SNOW_MIN_Y = 72;
 
+// === Sky bodies (visible sun + moon) ===
+export const SKY_BODY_DISTANCE = 400; // world units from camera; < camera far (1000)
+export const SUN_RADIUS = 30;         // half-width of the sun quad
+export const MOON_RADIUS = 22;        // half-width of the moon quad
+
 /** Number of progressive crack stages drawn on a block as it's mined (Minecraft-style destroy stages). */
 export const BREAK_OVERLAY_STAGES = 10;
 /** Max items in one inventory stack. */
