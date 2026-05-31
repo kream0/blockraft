@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   type SkyState,
   type WeatherKind,
+  type IWorld,
   WEATHER_CLEAR_MIN_S,
   WEATHER_CLEAR_MAX_S,
   WEATHER_PRECIP_MIN_S,
@@ -12,6 +13,7 @@ import {
   WEATHER_PARTICLE_COUNT,
   WEATHER_VOLUME_RADIUS,
   WEATHER_SNOW_MIN_Y,
+  CHUNK_HEIGHT,
 } from '../types';
 
 const R = WEATHER_VOLUME_RADIUS;
@@ -26,8 +28,11 @@ export class WeatherSystem {
 
   // Local-space positions within the cube [-R, R]^3. The object3D is moved to the
   // camera each frame, so these stay relative to the cloud centre.
-  private readonly positions: Float32Array; // length = COUNT*3
-  private readonly driftX: Float32Array;    // per-particle horizontal drift for snow
+  private readonly positions: Float32Array;       // length = COUNT*3 — stable sim buffer
+  // renderPositions holds only un-sheltered particles, compacted to the front each frame,
+  // so sheltered particles are simply excluded from the draw range without branching in the shader.
+  private readonly renderPositions: Float32Array; // length = COUNT*3 — render buffer
+  private readonly driftX: Float32Array;          // per-particle horizontal drift for snow
   private readonly driftZ: Float32Array;
 
   private precipitating = false;
@@ -42,9 +47,10 @@ export class WeatherSystem {
   private readonly _snowColor = new THREE.Color(0xffffff);
 
   constructor() {
-    this.positions = new Float32Array(WEATHER_PARTICLE_COUNT * 3);
-    this.driftX    = new Float32Array(WEATHER_PARTICLE_COUNT);
-    this.driftZ    = new Float32Array(WEATHER_PARTICLE_COUNT);
+    this.positions       = new Float32Array(WEATHER_PARTICLE_COUNT * 3);
+    this.renderPositions = new Float32Array(WEATHER_PARTICLE_COUNT * 3);
+    this.driftX          = new Float32Array(WEATHER_PARTICLE_COUNT);
+    this.driftZ          = new Float32Array(WEATHER_PARTICLE_COUNT);
 
     for (let i = 0; i < WEATHER_PARTICLE_COUNT; i++) {
       this.positions[i * 3 + 0] = this.rand(-R, R);
@@ -56,7 +62,7 @@ export class WeatherSystem {
     }
 
     const geometry = new THREE.BufferGeometry();
-    const posAttr = new THREE.BufferAttribute(this.positions, 3);
+    const posAttr = new THREE.BufferAttribute(this.renderPositions, 3);
     posAttr.setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('position', posAttr);
     // Nothing drawn until precip begins.
@@ -80,7 +86,7 @@ export class WeatherSystem {
   }
 
   /** Advance state machine, ease intensity, animate particles, recentre cloud on camera. */
-  update(dt: number, camPos: THREE.Vector3): void {
+  update(dt: number, camPos: THREE.Vector3, world: IWorld): void {
     // --- State machine ---
     this.timer -= dt;
     if (this.timer <= 0) {
@@ -136,6 +142,10 @@ export class WeatherSystem {
     const fall       = isSnow ? 3.5  : 22;
     const driftScale = isSnow ? 0.8  : 0;
 
+    // Scan ceiling no higher than the top of the cloud volume; particles can't be above it.
+    const scanTopY = Math.min(Math.floor(camPos.y + R + 2), CHUNK_HEIGHT - 1);
+    let visible = 0;
+
     for (let i = 0; i < WEATHER_PARTICLE_COUNT; i++) {
       let y = (this.positions[i * 3 + 1] ?? 0) - fall * dt;
       let x = (this.positions[i * 3 + 0] ?? 0) + (this.driftX[i] ?? 0) * driftScale * dt;
@@ -149,10 +159,26 @@ export class WeatherSystem {
       this.positions[i * 3 + 0] = x;
       this.positions[i * 3 + 1] = y;
       this.positions[i * 3 + 2] = z;
+
+      // Shelter test: any solid block above this particle (between it and the cloud ceiling)
+      // means it's under a roof or overhang — exclude it from the render buffer.
+      const wx = Math.floor(camPos.x + x);
+      const wz = Math.floor(camPos.z + z);
+      const startY = Math.floor(camPos.y + y) + 1;
+      let sheltered = false;
+      for (let yy = startY; yy <= scanTopY; yy++) {
+        if (world.isSolid(wx, yy, wz)) { sheltered = true; break; }
+      }
+      if (!sheltered) {
+        this.renderPositions[visible * 3 + 0] = x;
+        this.renderPositions[visible * 3 + 1] = y;
+        this.renderPositions[visible * 3 + 2] = z;
+        visible++;
+      }
     }
 
     const geometry = this.object3D.geometry;
-    geometry.setDrawRange(0, WEATHER_PARTICLE_COUNT);
+    geometry.setDrawRange(0, visible);
     geometry.attributes['position']!.needsUpdate = true;
   }
 

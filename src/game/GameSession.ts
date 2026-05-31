@@ -630,7 +630,7 @@ export class GameSession {
         this.hud.setArmor(this.armorPoints(), ARMOR_DISPLAY_MAX);
       }
       const camWorld = this.player.camera.getWorldPosition(this._scratchCam);
-      this.weather.update(dt, camWorld);
+      this.weather.update(dt, camWorld, this.world);
       this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
