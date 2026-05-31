@@ -580,6 +580,7 @@ export class App {
         if (this.state !== 'in_game') return;
         void this._show('dead');
       },
+      onToast: (text: string) => this._toast(text),
     });
     this.session.start();
     this.session.requestPointerLock();

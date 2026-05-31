@@ -413,6 +413,25 @@ function drawGlowstone(ctx: CanvasRenderingContext2D, col: number, row: number, 
   ctx.fillRect(col * TILE + 10, row * TILE + 7, 1, TILE - 7);
 }
 
+function drawBed(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  const x0 = col * TILE;
+  const y0 = row * TILE;
+  // Red quilt base
+  fillTile(ctx, col, row, '#A93B36');
+  speckle(ctx, col, row, '#922F2B', 24, rng);
+  speckle(ctx, col, row, '#C24A44', 16, rng);
+  // Stitched quilt seams (a simple cross grid in the lower mattress area)
+  ctx.fillStyle = '#7C2622';
+  ctx.fillRect(x0, y0 + 8, TILE, 1);
+  ctx.fillRect(x0 + 7, y0 + 8, 1, TILE - 8);
+  // Cream pillow band across the top (drawn last so it sits above the speckle)
+  ctx.fillStyle = '#ECE6D8';
+  ctx.fillRect(x0, y0, TILE, 5);
+  ctx.fillStyle = '#D2C9B4';
+  ctx.fillRect(x0, y0 + 5, TILE, 1); // pillow shadow line
+  speckle(ctx, col, row, '#F4EEE0', 6, rng); // faint pillow highlights (top area only matters visually)
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -458,7 +477,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 5x5 grid: index = row * COLS + col
-    // Tiles 0..23 are real.
+    // Tiles 0..24 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -484,6 +503,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawDoorUpper,     // tile 21 — door upper half
       drawTorch,         // tile 22 — torch (wooden post + flame)
       drawGlowstone,     // tile 23 — glowstone (warm gold glowing cells)
+      drawBed,           // tile 24 — bed (red quilt + cream pillow)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

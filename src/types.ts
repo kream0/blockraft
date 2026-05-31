@@ -54,6 +54,8 @@ export const JUMP_VELOCITY = 9.2;
 export const REACH = 5;
 /** Real-time seconds for one full day→night→day cycle. Tunable. */
 export const DAY_LENGTH_SECONDS = 180;
+/** Normalized time-of-day a player wakes to after sleeping in a bed. Just past sunrise (0.25) so it reads as clearly daytime and hostiles stop spawning. */
+export const MORNING_TIME = 0.28;
 /** Player max health in half-heart points (20 = 10 hearts). */
 export const PLAYER_MAX_HEALTH = 20;
 /** Seconds of post-respawn invulnerability so the player isn't instantly re-killed. */
@@ -246,12 +248,13 @@ export const BlockId = {
   DOOR_W_OPEN: 25,
   TORCH: 26,
   GLOWSTONE: 27,
+  BED: 28,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..27) directly, so a persisted block stack {block,count} reads
+// numeric value (0..28) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -295,7 +298,7 @@ export const ItemId = {
   BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
   ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
-/** A BlockId value (0..27) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..28) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===
@@ -687,6 +690,8 @@ export interface WorldMetadata {
   playerYaw: number;
   playerPitch: number;
   selectedSlot: number;
+  /** Respawn anchor set by sleeping in a bed (FEET position on top of the bed). Absent until the player first sleeps. */
+  spawnPoint?: Vec3;
   /** Persisted inventory: INVENTORY_SIZE slots, null = empty. Slots are {item,count}; legacy saves used {block,count} (numerically identical for block items, so readable by reading item ?? block). Absent on Creative worlds. */
   inventory?: (ItemStack | null)[];
   /** Persisted equipped armor: ARMOR_SLOT_COUNT slots, null = empty. Absent on Creative / legacy saves. */

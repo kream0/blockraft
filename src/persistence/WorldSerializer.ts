@@ -234,6 +234,20 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     armorResult = mapped;
   }
 
+  // Optional spawn point (bed respawn anchor): include only when a valid {x,y,z} object is present; omit otherwise.
+  let spawnResult: Vec3 | null = null;
+  const rawSpawn = m['spawnPoint'];
+  if (rawSpawn !== null && typeof rawSpawn === 'object' && !Array.isArray(rawSpawn)) {
+    const sp = rawSpawn as Record<string, unknown>;
+    if (
+      typeof sp['x'] === 'number' && Number.isFinite(sp['x']) &&
+      typeof sp['y'] === 'number' && Number.isFinite(sp['y']) &&
+      typeof sp['z'] === 'number' && Number.isFinite(sp['z'])
+    ) {
+      spawnResult = { x: sp['x'], y: sp['y'], z: sp['z'] };
+    }
+  }
+
   const metadata: WorldMetadata = {
     name,
     seed,
@@ -247,6 +261,7 @@ export function validateWorldExport(input: unknown): WorldExport | null {
     // exactOptionalPropertyTypes: spread conditionally rather than assigning undefined.
     ...(inventoryResult !== null ? { inventory: inventoryResult } : {}),
     ...(armorResult !== null ? { armor: armorResult } : {}),
+    ...(spawnResult !== null ? { spawnPoint: spawnResult } : {}),
   };
 
   const overrides = toOverrides(obj['overrides']);

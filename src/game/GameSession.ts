@@ -39,6 +39,7 @@ import {
   CHUNK_HEIGHT,
   CHUNK_SIZE,
   GameMode,
+  MORNING_TIME,
   PLAYER_MAX_HEALTH,
   PLAYER_RESPAWN_INVULN_S,
   PLAYER_ATTACK_DAMAGE,
@@ -166,6 +167,8 @@ export interface GameSessionOptions {
   onPauseRequested(): void;
   /** Called when the player's health reaches 0. App shows the death overlay. */
   onDeath(): void;
+  /** Show a transient toast message (App wires this to its in-app toast). */
+  onToast(text: string): void;
 }
 
 export class GameSession {
@@ -196,6 +199,9 @@ export class GameSession {
   private readonly rendererTarget: HTMLElement;
   private readonly onPauseRequested: () => void;
   private readonly onDeath: () => void;
+  private readonly onToast: (text: string) => void;
+  /** Respawn anchor set by sleeping in a bed (feet position). null until first sleep; falls back to findDrySpawn. */
+  private spawnPoint: Vec3 | null = null;
 
   private last = 0;
   private acc = 0;
@@ -274,6 +280,7 @@ export class GameSession {
     this.rendererTarget = opts.rendererTarget;
     this.onPauseRequested = opts.onPauseRequested;
     this.onDeath = opts.onDeath;
+    this.onToast = opts.onToast;
 
     const settings = opts.settings;
     const meta = opts.initialSave.metadata;
@@ -345,6 +352,9 @@ export class GameSession {
           const id = i < src.length ? (src[i] ?? null) : null;
           this.player.state.armor[i] = id !== null && itemArmorDef(id) !== null ? id : null;
         }
+      }
+      if (meta.spawnPoint !== undefined) {
+        this.spawnPoint = { x: meta.spawnPoint.x, y: meta.spawnPoint.y, z: meta.spawnPoint.z };
       }
       this.player.state.velocity.y = 0;
       this.player.state.onGround = true;
@@ -449,6 +459,10 @@ export class GameSession {
         if (tgt !== null && isDoorBlock(tgt.block)) {
           this.toggleDoor(tgt.x, tgt.y, tgt.z);
           this.audio.playPlace();
+          return;
+        }
+        if (tgt !== null && tgt.block === BlockId.BED) {
+          this.trySleep(tgt.x, tgt.y, tgt.z);
           return;
         }
         this.rightHeld = true;
@@ -749,6 +763,9 @@ export class GameSession {
       ...(this.gameMode === GameMode.SURVIVAL
         ? { inventory: this.player.inventory.serialize(), armor: [...this.player.state.armor] }
         : {}),
+      ...(this.spawnPoint !== null
+        ? { spawnPoint: { x: this.spawnPoint.x, y: this.spawnPoint.y, z: this.spawnPoint.z } }
+        : {}),
     };
     const save: WorldSave = {
       metadata,
@@ -1037,7 +1054,7 @@ export class GameSession {
 
   /** Reset to a fresh dry spawn at full health with brief invulnerability. MUTATES position/velocity in place (World holds a live ref). */
   private respawnPlayer(): void {
-    const spawn = findDrySpawn(this.world);
+    const spawn = this.spawnPoint ?? findDrySpawn(this.world);
     const p = this.player.state.position;
     p.x = spawn.x;
     p.y = spawn.y;
@@ -1434,6 +1451,24 @@ export class GameSession {
       }
     }
     this.world.entityManager.despawn(mob.id);
+  }
+
+  /**
+   * Right-clicking a bed sets the respawn anchor (feet on top of the bed) and, at night,
+   * skips to morning. Always gives toast feedback so it's never a silent no-op.
+   */
+  private trySleep(bx: number, by: number, bz: number): void {
+    this.spawnPoint = { x: bx + 0.5, y: by + 1, z: bz + 0.5 };
+    if (this.dayNight.isNight) {
+      this.dayNight.setNormalizedTime(MORNING_TIME);
+      this.renderer.applySky(this.dayNight.getSkyState());
+      this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.wasNight = false;
+      this.onToast('You slept through the night. Spawn point set.');
+    } else {
+      this.onToast('Spawn point set.');
+    }
+    this.audio.playPlace();
   }
 
   /**

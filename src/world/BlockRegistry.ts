@@ -215,6 +215,15 @@ const defs: Record<number, BlockDef> = {
     hardness: 0.3,
     light: GLOWSTONE_LIGHT,
   },
+  [BlockId.BED]: {
+    id: BlockId.BED,
+    name: 'Bed',
+    solid: true,
+    transparent: false,
+    textures: { top: 24, bottom: 24, side: 24 },
+    particleColor: 0xA93B36,
+    hardness: 0.4,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

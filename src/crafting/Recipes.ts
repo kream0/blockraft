@@ -482,6 +482,19 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: ItemId.ARROW, count: 4 },
   },
+  // Bed — leaf bedding over a plank frame (shaped 3x2) -> 1 bed
+  // [L, L, L]
+  // [P, P, P]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.LEAVES, BlockId.LEAVES, BlockId.LEAVES,
+      BlockId.PLANKS, BlockId.PLANKS, BlockId.PLANKS,
+    ],
+    width: 3,
+    height: 2,
+    output: { item: BlockId.BED, count: 1 },
+  },
 ];
 
 // ============================================================
