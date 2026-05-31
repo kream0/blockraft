@@ -14,6 +14,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ### World
 - Chunked voxel world (16×96×16 chunks) with face-culled meshing — **built off the main thread in a Web Worker**: a padded block "halo" is transferred to the worker, which returns typed-array geometry buffers (with a global-version staleness check so an unloaded/reloaded chunk never picks up a stale result), so heavy chunk streaming no longer stalls the frame; a synchronous mesher remains as an automatic fallback
 - **Ambient occlusion**: chunk meshes bake per-vertex AO, so block crevices, ledges, and the ground beneath trees pick up soft contact shadows (the classic voxel smooth-lighting look) — opaque blocks occlude, foliage/glass/water don't, and a flip-quad split avoids the diagonal-gradient artifact
+- **Sky lighting** (Lighting v1): a per-block sky-light level (0–15) floods straight down open columns, then a 6-neighbour BFS spreads it around corners (attenuating one step per block), so caves, overhangs, and deep interiors sink into shadow while exposed surfaces stay fully lit. The level is baked into per-vertex brightness (multiplying the AO term) and recomputed per chunk whenever it meshes, pulling light across borders from loaded neighbours so seams stay smooth; the day/night ambient still scales on top. Block-emitted (torch) light is still upcoming
 - Procedural terrain via Perlin FBM heightmap
 - Trees placed deterministically per chunk (Plains only)
 - **Biomes**: a low-frequency biome map skins the surface into grassy **Plains**, sandy **Desert**, and snow-capped **Snowy** regions (deterministic per seed; heightmap unchanged)
@@ -115,7 +116,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Medium term
 - **Multiplayer (real)**: WebSocket server + `WebSocketAdapter implements INetworkAdapter`. Entity sync + block sync + chat already typed in `NetworkMessage`.
-- **Lighting**: per-block sky/torch light propagation — vertex ambient occlusion / smooth contact shading already ships (see World above)
+- **Lighting (torch/block light)**: block-emitted light sources (torches, glowstone, lava) flooding through the same light grid — **per-block sky light** (Lighting v1: a BFS sky-light flood baked into vertex brightness so caves darken) and vertex ambient occlusion / smooth contact shading already ship (see World above)
 - **Mob spawning rules**: night-time hostile spawns, light-level checks, biome-specific spawns
 - **Block updates**: water flow — sand falling + leaf decay already ship (see Gameplay above)
 - **Structure generation (more)**: structure-placed loot chests and larger multi-chunk village layouts — v1 boulders, dungeon rooms (iron reward), and single-chunk villages already ship (see World above); the **Chest** block now ships as a craftable storage container (see Items & inventory)
