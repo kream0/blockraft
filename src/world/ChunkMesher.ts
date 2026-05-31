@@ -297,15 +297,19 @@ export class ChunkMesher {
             const uAxis = tangentAxes[0];
             const vAxis = tangentAxes[1];
 
-            // Per-face light bake: sky channel (day/night-dimmable diffuse) + block channel (emissive).
+            // Light bake base cell (the cell across the face). Smooth lighting averages this
+            // with the 3 plane-neighbors per corner so flat surfaces get a smooth gradient
+            // instead of one flat value per face.
             const faceSky = sampleSkyLight(world, baseX, baseZ, baseAOx, baseAOy, baseAOz);
             const faceBlock = sampleBlockLight(world, baseX, baseZ, baseAOx, baseAOy, baseAOz);
-            const skyMul = SKY_LIGHT_BRIGHTNESS[faceSky] ?? 1.0;
-            const blockMul = BLOCK_LIGHT_BRIGHTNESS[faceBlock] ?? 0;
+            const skyBase = SKY_LIGHT_BRIGHTNESS[faceSky] ?? 1.0;
+            const blockBase = BLOCK_LIGHT_BRIGHTNESS[faceBlock] ?? 0;
 
             // Compute per-vertex AO brightness and accumulate levels for flip-quad decision
             const aoLevels: [number, number, number, number] = [0, 0, 0, 0];
             const aoBrightness: [number, number, number, number] = [1.0, 1.0, 1.0, 1.0];
+            const skyMulC: [number, number, number, number] = [skyBase, skyBase, skyBase, skyBase];
+            const blockMulC: [number, number, number, number] = [blockBase, blockBase, blockBase, blockBase];
 
             for (let c = 0; c < 4; c++) {
               const corner = data.corners[c]!;
@@ -334,6 +338,16 @@ export class ChunkMesher {
               const level = aoLevel(occ1, occ2, occC);
               aoLevels[c] = level;
               aoBrightness[c] = AO_BRIGHTNESS[level] ?? 1.0;
+
+              const skyS1 = SKY_LIGHT_BRIGHTNESS[sampleSkyLight(world, baseX, baseZ, s1x, s1y, s1z)] ?? 1.0;
+              const skyS2 = SKY_LIGHT_BRIGHTNESS[sampleSkyLight(world, baseX, baseZ, s2x, s2y, s2z)] ?? 1.0;
+              const skySc = SKY_LIGHT_BRIGHTNESS[sampleSkyLight(world, baseX, baseZ, scx, scy, scz)] ?? 1.0;
+              skyMulC[c] = (skyBase + skyS1 + skyS2 + skySc) * 0.25;
+
+              const blockS1 = BLOCK_LIGHT_BRIGHTNESS[sampleBlockLight(world, baseX, baseZ, s1x, s1y, s1z)] ?? 0;
+              const blockS2 = BLOCK_LIGHT_BRIGHTNESS[sampleBlockLight(world, baseX, baseZ, s2x, s2y, s2z)] ?? 0;
+              const blockSc = BLOCK_LIGHT_BRIGHTNESS[sampleBlockLight(world, baseX, baseZ, scx, scy, scz)] ?? 0;
+              blockMulC[c] = (blockBase + blockS1 + blockS2 + blockSc) * 0.25;
             }
 
             for (let c = 0; c < 4; c++) {
@@ -341,7 +355,7 @@ export class ChunkMesher {
               positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
               normals.push(normX, normY, normZ);
               const ao = aoBrightness[c] ?? 1.0;
-              colors.push(ao * skyMul, ao * blockMul, 0);
+              colors.push(ao * (skyMulC[c] ?? skyBase), ao * (blockMulC[c] ?? blockBase), 0);
             }
             // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
             uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);

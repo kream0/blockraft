@@ -11,7 +11,7 @@ function patchChunkLighting(material: THREE.MeshLambertMaterial): void {
       .replace('#include <color_fragment>', 'diffuseColor.rgb *= vColor.r;')
       .replace(
         '#include <emissivemap_fragment>',
-        '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance += vColor.g * vec3( 1.0, 0.82, 0.55 );',
+        '#include <emissivemap_fragment>\n\ttotalEmissiveRadiance += vColor.g * vec3( 1.0, 0.6, 0.28 );',
       );
   };
 }
