@@ -54,6 +54,8 @@ import {
   DROWN_INTERVAL_S,
   LAVA_DAMAGE,
   LAVA_DAMAGE_INTERVAL_S,
+  CACTUS_DAMAGE,
+  CACTUS_DAMAGE_INTERVAL_S,
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
@@ -238,6 +240,8 @@ export class GameSession {
   private drownAcc: number = 0;
   /** Accumulator (seconds) toward the next lava-contact damage tick (survival only). */
   private lavaDamageAcc: number = 0;
+  /** Accumulator (seconds) toward the next cactus-contact damage tick (survival only). */
+  private cactusDamageAcc: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   /** Wall-clock seconds remaining until the player's next bow shot is allowed. */
@@ -649,6 +653,7 @@ export class GameSession {
       this.hud.setUnderwater(this.isHeadSubmerged());
       this.updateBreath(dt);
       this.updateLavaDamage(dt);
+      this.updateCactusDamage(dt);
       this.updateHealthRegen(dt);
       if (this.gameMode === GameMode.SURVIVAL) {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
@@ -1115,6 +1120,45 @@ export class GameSession {
     }
   }
 
+  /** True when any block cell overlapping the player's AABB is cactus. Drives cactus contact damage (survival). */
+  private isTouchingCactus(): boolean {
+    const p = this.player.state.position;
+    const minX = Math.floor(p.x - PLAYER_RADIUS);
+    const maxX = Math.floor(p.x + PLAYER_RADIUS);
+    const minY = Math.floor(p.y);
+    const maxY = Math.floor(p.y + PLAYER_HEIGHT);
+    const minZ = Math.floor(p.z - PLAYER_RADIUS);
+    const maxZ = Math.floor(p.z + PLAYER_RADIUS);
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        for (let z = minZ; z <= maxZ; z++) {
+          if (this.world.getBlock(x, y, z) === BlockId.CACTUS) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** Per-frame (survival only): while the player's hitbox touches cactus, apply CACTUS_DAMAGE every CACTUS_DAMAGE_INTERVAL_S (armor reduces it). */
+  private updateCactusDamage(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.isDead) return;
+    if (this.respawnInvuln > 0) return;
+    if (this.isTouchingCactus()) {
+      this.cactusDamageAcc += dt;
+      while (this.cactusDamageAcc >= CACTUS_DAMAGE_INTERVAL_S) {
+        this.damagePlayer(CACTUS_DAMAGE);
+        this.cactusDamageAcc -= CACTUS_DAMAGE_INTERVAL_S;
+        if (this.isDead) {
+          this.cactusDamageAcc = 0;
+          return;
+        }
+      }
+    } else {
+      this.cactusDamageAcc = 0;
+    }
+  }
+
   /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
   private applyHostileContact(dt: number): void {
     if (this.isDead) return;
@@ -1151,6 +1195,7 @@ export class GameSession {
     this.air = PLAYER_MAX_AIR_S;
     this.drownAcc = 0;
     this.lavaDamageAcc = 0;
+    this.cactusDamageAcc = 0;
     const v = this.player.state.velocity;
     v.x = 0;
     v.y = 0;

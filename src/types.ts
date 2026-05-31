@@ -84,6 +84,10 @@ export const LAVA_DAMAGE = 3;
 export const LAVA_DAMAGE_INTERVAL_S = 0.5;
 /** Lava floods carved cave-air at or below this world-Y during terrain generation (deep underground only). */
 export const LAVA_GEN_MAX_Y = 6;
+/** Damage (half-heart points) per cactus-contact tick (survival only). Reduced by armor. */
+export const CACTUS_DAMAGE = 1;
+/** Seconds between consecutive cactus-contact damage ticks. */
+export const CACTUS_DAMAGE_INTERVAL_S = 0.5;
 /** Max simultaneous live hostile mobs (zombies) at night. */
 export const ZOMBIE_MAX_COUNT = 8;
 /** Horizontal distance (blocks) within which a zombie begins chasing the player. */
@@ -300,12 +304,13 @@ export const BlockId = {
   GLOWSTONE: 27,
   BED: 28,
   LAVA: 29, // opaque non-solid hazard liquid; emits max block light, burns on contact
+  CACTUS: 30, // desert plant; opaque solid cube, harvestable, burns on contact (survival)
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..29) directly, so a persisted block stack {block,count} reads
+// numeric value (0..30) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -349,7 +354,7 @@ export const ItemId = {
   BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
   ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
-/** A BlockId value (0..28) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..30) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

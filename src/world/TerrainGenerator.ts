@@ -67,6 +67,12 @@ const VILLAGE_MAX_HUTS = 2;         // up to this many huts per village chunk
 // and the four candidates must not overlap, so a village can place up to 2 non-touching huts.
 const HUT_CENTERS: ReadonlyArray<readonly [number, number]> = [[5, 5], [11, 11], [5, 11], [11, 5]];
 
+// Cacti: sparse desert plants. Deterministic per chunk; 1-3 blocks tall on sand dunes above sea level.
+const STRUCT_SALT_CACTUS = 0x5ca7c715;
+const CACTUS_CANDIDATES = 4;   // candidate interior spots tried per chunk
+const CACTUS_MIN_H = 1;        // min column height (blocks above the surface)
+const CACTUS_MAX_H = 3;        // max column height
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -399,6 +405,39 @@ export class TerrainGenerator {
     }
   }
 
+  /** Place sparse cactus columns in the desert biome. Desert-only, sand-surface, above sea level, interior positions, AIR-only writes. */
+  private placeCacti(chunk: Chunk, heights: Int16Array): void {
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+    for (let i = 0; i < CACTUS_CANDIDATES; i++) {
+      // Derive two independent hashes for x and z using distinct salts so cacti don't correlate with trees.
+      const h1 = hash3(chunk.cx, chunk.cz, this.seed ^ STRUCT_SALT_CACTUS ^ (i * 1299709));
+      const h2 = hash3(chunk.cx ^ 0x6b43a9b5, chunk.cz ^ 0x35fbe3a1, this.seed ^ STRUCT_SALT_CACTUS ^ (i * 2396957));
+      const h3 = hash3(chunk.cx ^ 0x1b873593, chunk.cz ^ 0xcc9e2d51, this.seed ^ STRUCT_SALT_CACTUS ^ (i * 999983));
+      // Interior-only: lx,lz ∈ [2, CHUNK_SIZE-3] so a single-column cactus never touches a chunk border.
+      const lx = 2 + (h1 % (CHUNK_SIZE - 4));
+      const lz = 2 + (h2 % (CHUNK_SIZE - 4));
+      const surface = heights[lx + lz * CHUNK_SIZE]!;
+      // Desert biome gate: world coordinates required for the noise-based biome query.
+      if (this.biomeAt(baseX + lx, baseZ + lz) !== BIOME_DESERT) continue;
+      // Surface must be SAND (not stone, snow, grass, or water) and above sea level.
+      const surfaceId = (chunk.blocks[Chunk.idx(lx, surface, lz)] ?? BlockId.AIR) as BlockId;
+      if (surfaceId !== BlockId.SAND) continue;
+      if (surface <= SEA_LEVEL) continue;
+      // Column height: 1-3 blocks (uses h3, an independent hash, to decorrelate height from x-position).
+      const h = CACTUS_MIN_H + (h3 % (CACTUS_MAX_H - CACTUS_MIN_H + 1));
+      // Vertical room: need h free cells above the surface block.
+      if (surface + h >= CHUNK_HEIGHT) continue;
+      // Place cactus column — AIR-only writes so we never overwrite trees, structures, or terrain.
+      for (let y = surface + 1; y <= surface + h; y++) {
+        const idx = Chunk.idx(lx, y, lz);
+        if ((chunk.blocks[idx] ?? BlockId.AIR) === BlockId.AIR) {
+          chunk.blocks[idx] = BlockId.CACTUS;
+        }
+      }
+    }
+  }
+
   /** Dispatch surface boulders, underground dungeons, and villages for this chunk. */
   private placeStructures(chunk: Chunk, heights: Int16Array): void {
     this.placeBoulder(chunk, heights);
@@ -532,6 +571,9 @@ export class TerrainGenerator {
       // 1 leaf on top of the trunk.
       chunk.blocks[Chunk.idx(lx, trunkTop + 1, lz)] = BlockId.LEAVES;
     }
+
+    // Cacti: sparse desert plants on sand dunes (after trees; desert-only).
+    this.placeCacti(chunk, heights);
 
     chunk.dirty = true;
   }

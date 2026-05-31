@@ -457,6 +457,60 @@ function drawLava(ctx: CanvasRenderingContext2D, col: number, row: number, rng: 
   speckle(ctx, col, row, '#7A2208', 8, rng);
 }
 
+function drawCactusSide(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Cactus stem side — ribbed green column
+  fillTile(ctx, col, row, '#3C7D32');
+  // 3 darker vertical grooves/ribs (1-2px wide, full tile height)
+  const grooveCount = 3;
+  const grooveXs = [
+    Math.floor(rng() * 4) + 1,
+    Math.floor(rng() * 4) + 6,
+    Math.floor(rng() * 4) + 11,
+  ];
+  ctx.fillStyle = '#2E5F26';
+  for (let g = 0; g < grooveCount; g++) {
+    const gx = grooveXs[g] ?? (g * 5 + 2);
+    const gw = rng() < 0.5 ? 1 : 2;
+    ctx.fillRect(col * TILE + gx, row * TILE, gw, TILE);
+  }
+  // 2 lighter vertical highlights
+  ctx.fillStyle = '#57A347';
+  ctx.fillRect(col * TILE + Math.floor(rng() * 3) + 3, row * TILE, 1, TILE);
+  ctx.fillRect(col * TILE + Math.floor(rng() * 3) + 9, row * TILE, 1, TILE);
+  // Sparse pale spines (1px dots/dashes) scattered across the face
+  ctx.fillStyle = '#D8E8C0';
+  for (let i = 0; i < 6; i++) {
+    const sx = Math.floor(rng() * TILE);
+    const sy = Math.floor(rng() * TILE);
+    const len = rng() < 0.5 ? 1 : 2;
+    ctx.fillRect(col * TILE + sx, row * TILE + sy, Math.min(len, TILE - sx), 1);
+  }
+}
+
+function drawCactusTop(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Cactus top cross-section — slightly darker green with central areole
+  fillTile(ctx, col, row, '#356E2C');
+  // Faint lighter rim (1px inset border)
+  ctx.fillStyle = '#3C7D32';
+  ctx.fillRect(col * TILE + 1, row * TILE + 1, TILE - 2, 1);
+  ctx.fillRect(col * TILE + 1, row * TILE + TILE - 2, TILE - 2, 1);
+  ctx.fillRect(col * TILE + 1, row * TILE + 1, 1, TILE - 2);
+  ctx.fillRect(col * TILE + TILE - 2, row * TILE + 1, 1, TILE - 2);
+  // Small darker center areole (3x3 cluster near center)
+  ctx.fillStyle = '#264F20';
+  const cx = col * TILE + Math.floor(rng() * 3) + 6;
+  const cy = row * TILE + Math.floor(rng() * 3) + 6;
+  ctx.fillRect(cx, cy, 3, 3);
+  ctx.fillRect(cx + 1, cy + 1, 1, 1);
+  // A couple of spine dots near the rim
+  ctx.fillStyle = '#D8E8C0';
+  for (let i = 0; i < 4; i++) {
+    const sx = Math.floor(rng() * (TILE - 2)) + 1;
+    const sy = Math.floor(rng() * (TILE - 2)) + 1;
+    ctx.fillRect(col * TILE + sx, row * TILE + sy, 1, 1);
+  }
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -502,7 +556,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 6x6 grid: index = row * COLS + col
-    // Tiles 0..25 are real.
+    // Tiles 0..27 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -530,6 +584,8 @@ export class TextureAtlas implements ITextureAtlas {
       drawGlowstone,     // tile 23 — glowstone (warm gold glowing cells)
       drawBed,           // tile 24 — bed (red quilt + cream pillow)
       drawLava,          // tile 25 — lava (molten orange)
+      drawCactusSide,    // tile 26 — cactus stem side (ribbed green)
+      drawCactusTop,     // tile 27 — cactus top cross-section
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

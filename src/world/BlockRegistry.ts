@@ -234,6 +234,15 @@ const defs: Record<number, BlockDef> = {
     hardness: 0,
     light: LAVA_LIGHT,
   },
+  [BlockId.CACTUS]: {
+    id: BlockId.CACTUS,
+    name: 'Cactus',
+    solid: true,
+    transparent: false,
+    textures: { top: 27, bottom: 27, side: 26 },
+    particleColor: 0x3C7D32,
+    hardness: 0.4,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;
