@@ -266,6 +266,8 @@ export class GameSession {
   private rightHeld = false;
   /** Seconds spent eating the currently-held food. */
   private eatProgress = 0;
+  /** Armed after ESC closes an overlay: re-grab pointer lock on the next movement keydown. */
+  private wantRelock = false;
 
   private viewModel: ViewModel;
   private mouseUpHandler: (e: MouseEvent) => void;
@@ -292,6 +294,7 @@ export class GameSession {
   private contextMenuHandler: (e: MouseEvent) => void;
   private pointerLockChangeHandler: () => void;
   private escKeyHandler: (e: KeyboardEvent) => void;
+  private relockKeyHandler: (e: KeyboardEvent) => void;
   private frame: (t: number) => void;
 
   constructor(opts: GameSessionOptions) {
@@ -543,7 +546,11 @@ export class GameSession {
     // Reflect pointer-lock state into HUD ("Click to play" hint).
     this.pointerLockChangeHandler = (): void => {
       this.hud.setLocked(this.controls.isLocked);
-      if (!this.controls.isLocked) { this.leftHeld = false; this.rightHeld = false; this.eatProgress = 0; }
+      if (this.controls.isLocked) {
+        this.wantRelock = false;
+      } else {
+        this.leftHeld = false; this.rightHeld = false; this.eatProgress = 0;
+      }
     };
 
     // Inventory toggle (bound inventory key, both game modes).
@@ -579,19 +586,36 @@ export class GameSession {
       if (this.furnaceScreen.isOpen) {
         this.furnaceScreen.close();
         this.requestPointerLock();
+        this.wantRelock = true;
         return;
       }
       if (this.chestScreen.isOpen) {
         this.chestScreen.close();
         this.requestPointerLock();
+        this.wantRelock = true;
         return;
       }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
         this.requestPointerLock();
+        this.wantRelock = true;
         return;
       }
+      this.wantRelock = false;
       this.onPauseRequested();
+    };
+
+    // One-shot: after ESC closed an overlay, Chrome refuses the immediate re-lock.
+    // Re-grab the pointer on the next movement keydown (a user gesture the browser accepts).
+    this.relockKeyHandler = (e: KeyboardEvent): void => {
+      if (!this.wantRelock) return;
+      if (!this.started || this.isDead) return;
+      if (this.controls.isLocked) { this.wantRelock = false; return; }
+      if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) return;
+      const kb = this.controls.keybindings;
+      if (e.code === kb.forward || e.code === kb.back || e.code === kb.left || e.code === kb.right || e.code === kb.jump) {
+        this.requestPointerLock();
+      }
     };
 
     // Game loop.
@@ -701,6 +725,7 @@ export class GameSession {
     );
     document.addEventListener('pointerlockchange', this.pointerLockChangeHandler);
     window.addEventListener('keydown', this.escKeyHandler);
+    window.addEventListener('keydown', this.relockKeyHandler);
 
     // Initial HUD lock state.
     this.hud.setLocked(this.controls.isLocked);
@@ -754,6 +779,7 @@ export class GameSession {
     );
     document.removeEventListener('pointerlockchange', this.pointerLockChangeHandler);
     window.removeEventListener('keydown', this.escKeyHandler);
+    window.removeEventListener('keydown', this.relockKeyHandler);
 
     this.controls.unlock();
     this.controls.dispose();
