@@ -511,6 +511,33 @@ function drawCactusTop(ctx: CanvasRenderingContext2D, col: number, row: number, 
   }
 }
 
+function drawSandstoneTop(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Sandstone top cross-section — pale tan with faint inset rim and grain speckles
+  fillTile(ctx, col, row, '#D9CB94');
+  // 1px inset rim in a slightly darker tan (mirrors drawCactusTop rim technique)
+  ctx.fillStyle = '#C9B97E';
+  ctx.fillRect(col * TILE + 1, row * TILE + 1, TILE - 2, 1);
+  ctx.fillRect(col * TILE + 1, row * TILE + TILE - 2, TILE - 2, 1);
+  ctx.fillRect(col * TILE + 1, row * TILE + 1, 1, TILE - 2);
+  ctx.fillRect(col * TILE + TILE - 2, row * TILE + 1, 1, TILE - 2);
+  // ~10 grain speckles
+  speckle(ctx, col, row, '#C9B97E', 10, rng);
+}
+
+function drawSandstoneSide(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Sandstone side face — layered sedimentary bands
+  fillTile(ctx, col, row, '#D9CB94');
+  // Horizontal mid band — y offset jittered slightly via rng
+  const bandY = 6 + Math.floor(rng() * 2); // 6 or 7
+  ctx.fillStyle = '#C9B97E';
+  ctx.fillRect(col * TILE, row * TILE + bandY, TILE, 3);
+  // Thin darker sediment line just above the band
+  ctx.fillStyle = '#B8A86A';
+  ctx.fillRect(col * TILE, row * TILE + bandY - 1, TILE, 1);
+  // Faint grain speckles across the whole face
+  speckle(ctx, col, row, '#C9B97E', 6, rng);
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -556,7 +583,7 @@ export class TextureAtlas implements ITextureAtlas {
     const rng = makeRng(0xdeadbeef);
 
     // 6x6 grid: index = row * COLS + col
-    // Tiles 0..27 are real.
+    // Tiles 0..29 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -585,7 +612,9 @@ export class TextureAtlas implements ITextureAtlas {
       drawBed,           // tile 24 — bed (red quilt + cream pillow)
       drawLava,          // tile 25 — lava (molten orange)
       drawCactusSide,    // tile 26 — cactus stem side (ribbed green)
-      drawCactusTop,     // tile 27 — cactus top cross-section
+      drawCactusTop,        // tile 27 — cactus top cross-section
+      drawSandstoneTop,  // tile 28 — sandstone top (pale tan, speckled)
+      drawSandstoneSide, // tile 29 — sandstone side (layered sediment bands)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

@@ -321,12 +321,13 @@ export const BlockId = {
   BED: 28,
   LAVA: 29, // opaque non-solid hazard liquid; emits max block light, burns on contact
   CACTUS: 30, // desert plant; opaque solid cube, harvestable, burns on contact (survival)
+  SANDSTONE: 31, // desert building block; opaque solid cube, crafted from 4 sand, generates beneath desert sand
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..30) directly, so a persisted block stack {block,count} reads
+// numeric value (0..31) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -370,7 +371,7 @@ export const ItemId = {
   BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
   ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
-/** A BlockId value (0..30) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..31) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

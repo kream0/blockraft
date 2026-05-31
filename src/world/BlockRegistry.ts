@@ -243,6 +243,15 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0x3C7D32,
     hardness: 0.4,
   },
+  [BlockId.SANDSTONE]: {
+    id: BlockId.SANDSTONE,
+    name: 'Sandstone',
+    solid: true,
+    transparent: false,
+    textures: { top: 28, bottom: 28, side: 29 },
+    particleColor: 0xD9CB94,
+    hardness: 0.8,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

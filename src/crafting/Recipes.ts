@@ -495,6 +495,19 @@ export const RECIPES: Recipe[] = [
     height: 2,
     output: { item: BlockId.BED, count: 1 },
   },
+  // Sandstone — four sand packed into a 2x2 square -> 1 sandstone
+  // [Sand, Sand]
+  // [Sand, Sand]
+  {
+    kind: 'shaped',
+    pattern: [
+      BlockId.SAND, BlockId.SAND,
+      BlockId.SAND, BlockId.SAND,
+    ],
+    width: 2,
+    height: 2,
+    output: { item: BlockId.SANDSTONE, count: 1 },
+  },
 ];
 
 // ============================================================

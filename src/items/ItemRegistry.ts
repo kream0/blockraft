@@ -37,12 +37,13 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.BED]:         '#A93B36',
   [BlockId.LAVA]:        '#D8401A',
   [BlockId.CACTUS]:      '#3C7D32',
+  [BlockId.SANDSTONE]:   '#D9CB94',
 };
 
 // === Block item identity set — built once at module load ===
 const _blockIdSet = new Set<number>(Object.values(BlockId));
 
-/** True if id is one of the BlockId numeric values (0..30). */
+/** True if id is one of the BlockId numeric values (0..31). */
 export function isBlockItem(id: ItemId): boolean {
   return _blockIdSet.has(id);
 }
@@ -605,6 +606,7 @@ export const BLOCK_TOOL_CATEGORY: Partial<Record<BlockId, ToolKind>> = {
   [BlockId.COAL_ORE]:    ToolKind.PICKAXE,
   [BlockId.IRON_ORE]:    ToolKind.PICKAXE,
   [BlockId.DIAMOND_ORE]: ToolKind.PICKAXE,
+  [BlockId.SANDSTONE]:   ToolKind.PICKAXE,
 
   [BlockId.WOOD]:   ToolKind.AXE,
   [BlockId.PLANKS]: ToolKind.AXE,

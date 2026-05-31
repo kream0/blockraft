@@ -489,8 +489,8 @@ export class TerrainGenerator {
           } else if (y < h - 3) {
             id = BlockId.STONE;
           } else if (y < h) {
-            // Sub-surface band: solid rock under rocky/peak columns, else dirt (sand in desert).
-            id = (isPeak || isRocky) ? BlockId.STONE : (biome === BIOME_DESERT ? BlockId.SAND : BlockId.DIRT);
+            // Sub-surface band: solid rock under rocky/peak columns, else dirt (desert: sand at h-1, sandstone below).
+            id = (isPeak || isRocky) ? BlockId.STONE : (biome === BIOME_DESERT ? (y === h - 1 ? BlockId.SAND : BlockId.SANDSTONE) : BlockId.DIRT);
           } else {
             // y === h (surface block)
             if (h <= SEA_LEVEL) {
