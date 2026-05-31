@@ -77,6 +77,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Day & night
 - Continuous day/night cycle driving sky color, sun direction, ambient light, and fog (zero per-frame allocation)
+- A **visible sun and moon** track the cycle across the sky — billboarded discs that warm at dawn/dusk and fade through the horizon, correctly occluded by terrain (hills, walls, ceilings) so they're hidden when you're indoors
 - HUD time-of-day indicator; nightfall brings out the hostiles (time of day is not persisted — each load starts in the morning)
 
 ### Weather
