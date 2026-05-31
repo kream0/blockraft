@@ -102,6 +102,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **World list**: load existing worlds with last-played time, mode, seed
 - **Create world**: name (validates uniqueness), optional seed, game mode (Survival / Creative)
 - **Pause menu** (ESC): Resume / Settings / Save and Quit to Menu
+- **HUD minimap**: an always-on top-down terrain overview in the top-right corner — for each column in a 49×49 area around you it samples the highest non-air block and paints it by block type (so grass, water, leaves, sand, and structures all read at a glance), with a center arrow that rotates to your facing (north-up). The column scan is throttled to a few times a second so it stays cheap, while the arrow redraws every frame for smooth rotation
 - **Settings** (live-applied during gameplay):
   - Render distance (2–16 chunks)
   - FOV (60–110)
