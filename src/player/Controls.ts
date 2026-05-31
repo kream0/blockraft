@@ -158,7 +158,14 @@ export class Controls {
   /** Request pointer lock on the dom element (call from a click handler). */
   lock(): void {
     if (document.pointerLockElement !== this.domElement) {
-      this.domElement.requestPointerLock();
+      // requestPointerLock() returns void in older browsers and a Promise in newer
+      // Chrome. The Promise rejects when the browser refuses the lock (notably when
+      // re-locking right after an Escape press). Swallow it — the user can click to
+      // re-lock (Controls.onClick), and an unhandled rejection would just be noise.
+      const result = this.domElement.requestPointerLock() as unknown;
+      if (result instanceof Promise) {
+        result.catch(() => { /* lock refused; click-to-lock fallback remains */ });
+      }
     }
   }
 
