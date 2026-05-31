@@ -9,6 +9,11 @@ export class Chunk {
   mesh: THREE.Mesh | null = null;
   waterMesh: THREE.Mesh | null = null;
   dirty = true;
+  /** Sky-light needs a (re)compute on the next remesh. Set when this chunk's OWN blocks change;
+   *  NOT set when a neighbor merely loads (that only affects border face-light, sampled from the
+   *  neighbor ring in the light halo). Gating the expensive BFS on this avoids a per-frame relight
+   *  storm during chunk streaming. */
+  lightDirty = true;
   /** World positions of loot chests this chunk placed during generation. Write-once at gen; read by World on load. */
   readonly lootChests: LootChestSite[] = [];
 

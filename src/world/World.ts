@@ -274,14 +274,16 @@ export class World implements IWorld, ISkyLightAccess {
     inner.set(Chunk.idx(lx, y, lz), id);
 
     chunk.dirty = true;
+    chunk.lightDirty = true;
     this.dirtyChunks.add(chunk);
     this.pendingRemesh.add(chunk);
 
-    // Mark border-neighbor chunks for remesh too (face culling across the border).
-    if (lx === 0) { const n = this.getChunk(cx - 1, cz); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
-    else if (lx === CHUNK_SIZE - 1) { const n = this.getChunk(cx + 1, cz); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
-    if (lz === 0) { const n = this.getChunk(cx, cz - 1); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
-    else if (lz === CHUNK_SIZE - 1) { const n = this.getChunk(cx, cz + 1); if (n) { n.dirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    // Mark border-neighbor chunks for remesh too (face culling across the border). An edit at a
+    // shared border can change light across the seam, so these neighbors relight as well.
+    if (lx === 0) { const n = this.getChunk(cx - 1, cz); if (n) { n.dirty = true; n.lightDirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    else if (lx === CHUNK_SIZE - 1) { const n = this.getChunk(cx + 1, cz); if (n) { n.dirty = true; n.lightDirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    if (lz === 0) { const n = this.getChunk(cx, cz - 1); if (n) { n.dirty = true; n.lightDirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
+    else if (lz === CHUNK_SIZE - 1) { const n = this.getChunk(cx, cz + 1); if (n) { n.dirty = true; n.lightDirty = true; this.dirtyChunks.add(n); this.pendingRemesh.add(n); } }
 
     return oldId;
   }
@@ -699,9 +701,14 @@ export class World implements IWorld, ISkyLightAccess {
   }
 
   private remeshChunk(chunk: Chunk): void {
-    // Recompute sky-light before building the halo / mesh so both the worker path
-    // and the sync fallback see fresh, neighbor-aware light values.
-    this.lightEngine.recomputeChunkLight(chunk, this);
+    // Recompute sky-light only when this chunk's own blocks changed (or it's the first mesh).
+    // A remesh triggered purely by a neighbor loading does NOT need a relight: border face-light
+    // is sampled from the neighbor ring that gatherLightHalo rebuilds every time. Gating this
+    // ~65k-cell BFS off lightDirty removes the per-frame main-thread relight storm during streaming.
+    if (chunk.lightDirty) {
+      this.lightEngine.recomputeChunkLight(chunk, this);
+      chunk.lightDirty = false;
+    }
 
     if (this.meshQueue !== null) {
       const key = World.key(chunk.cx, chunk.cz);
