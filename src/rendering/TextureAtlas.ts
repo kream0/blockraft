@@ -370,12 +370,35 @@ function drawDoorLower(ctx: CanvasRenderingContext2D, col: number, row: number, 
 }
 
 function drawTorch(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
-  fillTile(ctx, col, row, '#1a1208');
-  ctx.fillStyle = '#6E4923'; ctx.fillRect(col * TILE + 6, row * TILE + 6, 4, 10); // wooden handle
-  ctx.fillStyle = '#5A3A1B'; ctx.fillRect(col * TILE + 6, row * TILE + 6, 1, 10); ctx.fillRect(col * TILE + 9, row * TILE + 6, 1, 10); // handle shading
-  ctx.fillStyle = '#FFcc33'; ctx.fillRect(col * TILE + 5, row * TILE + 2, 6, 4); // flame core
-  ctx.fillStyle = '#FFF1A8'; ctx.fillRect(col * TILE + 6, row * TILE + 1, 4, 3); // flame highlight
-  speckle(ctx, col, row, '#FFD75E', 4, rng);
+  const x0 = col * TILE;
+  const y0 = row * TILE;
+  // Opaque wooden handle fills the whole tile — NO black background. The torch
+  // renders on a thin (~2px) post whose 4 side faces each receive the full tile UV
+  // under NearestFilter, so only the vertical layering reads reliably at distance;
+  // horizontal detail is mostly averaged away. Hence a row-by-row design.
+  ctx.fillStyle = '#6E4923';
+  ctx.fillRect(x0, y0, TILE, TILE);
+  // Rounded-stick shading: lighter central grain band, darker flanks.
+  ctx.fillStyle = '#83592B';
+  ctx.fillRect(x0 + 4, y0, 8, TILE);
+  ctx.fillStyle = '#553619';
+  ctx.fillRect(x0, y0, 3, TILE);
+  ctx.fillRect(x0 + TILE - 3, y0, 3, TILE);
+  // Subtle vertical grain streaks down the handle.
+  ctx.fillStyle = '#4E3115';
+  for (let x = 0; x < TILE; x++) {
+    if (rng() < 0.22) {
+      ctx.fillRect(x0 + x, y0 + 6, 1, TILE - 6);
+    }
+  }
+  // Flame on top — layered warm gradient (overwrites the handle in the top rows).
+  ctx.fillStyle = '#C2480A'; ctx.fillRect(x0, y0 + 4, TILE, 2);          // ember base
+  ctx.fillStyle = '#FF8A1E'; ctx.fillRect(x0, y0 + 3, TILE, 1);          // orange
+  ctx.fillStyle = '#FFB02A'; ctx.fillRect(x0 + 1, y0 + 2, TILE - 2, 1);  // amber
+  ctx.fillStyle = '#FFD24A'; ctx.fillRect(x0 + 3, y0 + 1, TILE - 6, 1);  // yellow core
+  ctx.fillStyle = '#FFF3B0'; ctx.fillRect(x0 + 4, y0, 8, 1);             // white-hot tip
+  // A few warm sparkles around the flame.
+  speckle(ctx, col, row, '#FFE680', 3, rng);
 }
 
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
