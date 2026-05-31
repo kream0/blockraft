@@ -22,9 +22,9 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Sea level + water bodies; translucent water rendering (multi-mesh per chunk)
 - **Ore veins**: Coal, Iron, and Diamond scatter through stone as deterministic random-walk veins — coal up to mid-depth (y≤50), iron deep only (y≤28), and **diamond** deepest of all (y≤12); only replaces stone and never touches bedrock
 - **Caves**: underground cave systems carved from a 3D fractal-noise iso-band (`|n| < threshold`) in world coordinates, so caverns connect seamlessly across chunk borders; only stone becomes air (~15–19% carved), leaving the surface skin, bedrock, water, and ore intact (deterministic per seed; carved before ore so veins stay embedded)
-- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level), buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward and a **loot chest**), and small **villages** (clusters of 1–2 plank huts with log corner posts, glass windows, and a doorway, raised on flat dry ground). Confined to the chunk interior so a structure never spans a border (deterministic per seed)
+- **Structure generation** (v1): deterministic per-chunk structures stamped after ores — surface **boulders** (rounded cobblestone mounds on land above sea level), buried **dungeon rooms** (a cobblestone-shell chamber a few blocks under the surface with an embedded **iron-ore** reward and a **loot chest**), and small **villages** (clusters of 1–2 plank huts with log corner posts, glass windows, and a **closed door** hung in the doorway, raised on flat dry ground). Confined to the chunk interior so a structure never spans a border (deterministic per seed)
 - **Dungeon loot chests**: every generated dungeon embeds a **chest pre-filled with a deterministic loot roll** (3–6 weighted stacks drawn from iron, cooked food, sticks, planks, stone/iron tools, an iron sword, diamonds, and iron armor). The roll is a pure function of the world seed and the chest's coordinates, so a given dungeon always yields the same haul — and the loot is seeded **exactly once per chest**: once you open and empty it, it **stays empty across save/load and export/import** (no refarming). Breaking the chest spills its contents in Survival
-- 18 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Diamond Ore, Furnace, Chest, Air
+- 19 block types: Grass, Dirt, Stone, Cobblestone, Wood, Leaves, Planks, Sand, Snow, Glass, Bedrock, Water, Coal Ore, Iron Ore, Diamond Ore, Furnace, Chest, Door, Air
 - Procedurally generated 16×16 texture atlas (no external image assets)
 
 ### Gameplay
@@ -69,6 +69,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Armor** (Survival): craft a **helmet, chestplate, leggings, and boots** in two tiers — from **iron ingots** or, for the toughest protection, from **diamonds** — then **right-click** a piece to wear it in its body slot (any piece already worn there swaps back to your hotbar). Worn armor shows as a shield meter above the hearts and **soaks up a share of incoming combat and fall damage** (more and stronger pieces = more protection, up to a cap; a full diamond set reaches the cap) while leaving starvation and drowning at full bite; it persists per-world through save/load and stays on through death and respawn
 - **Smelting** (both modes): craft a **Furnace** (a ring of 8 cobblestone) and place it, then **right-click** it to open a 3-slot smelting screen (input · fuel · output). Fuel — **coal, wood, planks, or sticks** (coal lasts longest) — burns to smelt the input over time: **iron ore → iron ingot**, **sand → glass**, **cobblestone → stone**, and **raw food → cooked food** (cooking more than doubles the hunger it restores). The flame gauge and progress arrow animate live, smelting keeps running while the screen is open, and **each furnace's contents persist per-world**. Iron ingots feed the **iron tool tier**; breaking a furnace drops it (and spills its contents) in Survival
 - **Storage chests** (both modes): craft a **Chest** (a ring of 8 planks) and place it, then **right-click** it to open a 27-slot storage grid above your inventory — move stacks with the held cursor (left-click to pick up / drop / merge, right-click to split, shift-click to transfer) exactly like the inventory screen. Each chest's contents persist per-world, and **breaking a chest spills its contents** in Survival
+- **Doors** (both modes): craft **3 doors** from a 2×3 block of **planks**, then place one to raise a **2-tall swinging door** in a single-block gap. It takes its facing from the way you're looking, and **right-clicking swings it open or closed** — both halves move together. An open door is walk-through; a closed one blocks you (and seals the hut). Breaking either half removes the whole door and returns one door item in Survival. **Village huts now come with a door already hung**
 - Creative keeps an infinite pre-filled block palette — no drops, no consumption, no counts — but crafting works from palette items too
 
 ### Day & night
@@ -156,7 +157,7 @@ bun install
 | **Shift** | Sprint |
 | **Mouse** | Look around |
 | **Left click (hold)** | Mine / break block (hold to keep mining) |
-| **Right click** | Place block |
+| **Right click** | Place block, or open a door / chest / furnace |
 | **1–9** | Select hotbar slot |
 | **E** | Open / close inventory & crafting |
 | **Esc** | Pause menu (release pointer) |
