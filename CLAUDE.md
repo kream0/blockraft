@@ -2,6 +2,24 @@
 
 > A Three.js + TypeScript voxel game built with Bun + Vite. This file is loaded automatically by Claude Code (and compatible LLM tools) at the start of every session in this directory.
 
+## Autonomy mandate (CRITICAL — do not wait to be told to continue)
+
+**This is a self-driving development project. The user should NEVER have to say "continue", "next", or "keep going".** Once given a general directive to develop the game, run the full feature lifecycle on a loop, autonomously, until told to stop:
+
+1. **Pick the next feature yourself** — consult the README "Upcoming features" roadmap and the shipped-features list; choose the highest-value, lowest-risk item that fits the existing architecture. The user has explicitly delegated this decision ("I'll let you take the decisions", "you can pick what's next").
+2. **Create tasks** (`TaskCreate`) breaking the feature into the agent-workflow phases.
+3. **Execute via agents only** — follow the multi-agent workflow below (contract → implementers → integration → review → fix). **Use opus agents, NEVER haiku.** The lead (you) NEVER edits feature code directly; delegate every code change to an implementer agent. (Lead-direct activities ARE allowed: git operations, README/docs edits, research, file reads, running the validation gate, smoke testing.)
+4. **Test** — run the validation gate (`bun run typecheck && bun run build`), spawn a READ-ONLY opus reviewer, and smoke-test in browser where possible (state the pointer-lock caveat honestly when gameplay can't be driven).
+5. **Commit + push** — commit the feature directly to `main`, then a separate `docs:` commit for README updates, and `git push origin main`. NEVER branch, NEVER open a PR.
+6. **Update memory** — run the memorai session-end flow; derive 0–3 beliefs. NEVER stage `.memorai/`.
+7. **Loop** — immediately pick the next feature and repeat. Do not stop to ask "what's next?" or "should I proceed?".
+
+**Only pause for the user when:**
+- There is genuine, implementation-blocking ambiguity where guessing would likely produce the wrong result, OR
+- An action is irreversible/destructive or affects shared state beyond this repo (e.g. force-push, history rewrite, deleting remote data) and needs confirmation.
+
+Routine work (picking features, creating tasks, spawning agents, committing to main, pushing, doc updates, memory writes) proceeds WITHOUT asking. Keep going until the user explicitly tells you to stop.
+
 ## Quick reference
 
 - **Stack**: Three.js 0.160, TypeScript 5.4 (strict), Bun runtime, Vite 5 dev/build
