@@ -191,6 +191,25 @@ export const PARTICLE_SIZE = 0.14;
 /** Max simultaneous live particles. The pool is preallocated to this size; bursts past it are dropped. */
 export const PARTICLE_POOL_MAX = 256;
 
+// === Weather (ambient precipitation) ===
+/** Real-time seconds bounds for a CLEAR spell before precipitation may begin. */
+export const WEATHER_CLEAR_MIN_S = 70;
+export const WEATHER_CLEAR_MAX_S = 200;
+/** Real-time seconds bounds for one precipitation spell. */
+export const WEATHER_PRECIP_MIN_S = 35;
+export const WEATHER_PRECIP_MAX_S = 95;
+/** Short randomized delay before the FIRST precipitation after a world loads, so weather visibly kicks in soon. */
+export const WEATHER_INITIAL_CLEAR_MIN_S = 8;
+export const WEATHER_INITIAL_CLEAR_MAX_S = 18;
+/** Seconds for precipitation intensity to ease fully in or out (0..1), so onset/end is gradual. */
+export const WEATHER_FADE_S = 6;
+/** Number of precipitation particles in the camera-following volume. Separate pool from block-break particles. */
+export const WEATHER_PARTICLE_COUNT = 1200;
+/** Half-extent (blocks) of the cubic precipitation volume centered on the camera. */
+export const WEATHER_VOLUME_RADIUS = 14;
+/** Camera Y at/above which precipitation falls as SNOW instead of RAIN (mirrors TerrainGenerator SNOW_LINE = 72). */
+export const WEATHER_SNOW_MIN_Y = 72;
+
 /** Number of progressive crack stages drawn on a block as it's mined (Minecraft-style destroy stages). */
 export const BREAK_OVERLAY_STAGES = 10;
 /** Max items in one inventory stack. */
@@ -474,6 +493,9 @@ export interface SkyState {
   /** Unit vector: the direction sunlight TRAVELS (from the sun toward the scene). The directional light is positioned on the opposite side (at -sunDirection * distance). */
   readonly sunDirection: THREE.Vector3;
 }
+
+/** Ambient weather state. 'clear' = no precipitation; 'rain'/'snow' = precipitating (snow at high altitude). */
+export type WeatherKind = 'clear' | 'rain' | 'snow';
 
 // === Vec3 (plain object for ergonomics; Three.js Vector3 used internally where needed) ===
 export interface Vec3 {

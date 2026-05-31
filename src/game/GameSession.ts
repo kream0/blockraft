@@ -4,6 +4,7 @@ import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
 import { createChunkMaterial, createWaterMaterial } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
+import { WeatherSystem } from '../rendering/Weather';
 import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
@@ -174,6 +175,7 @@ export interface GameSessionOptions {
 export class GameSession {
   private renderer: Renderer;
   private particles: ParticleSystem;
+  private weather!: WeatherSystem;
   private breakOverlay: BreakOverlay;
   private audio: AudioManager;
   private dayNight: DayNightCycle;
@@ -235,6 +237,7 @@ export class GameSession {
   // Reusable scratch vectors for findMeleeTarget — avoids per-frame allocations.
   private _scratchEye = new THREE.Vector3();
   private _scratchFwd = new THREE.Vector3();
+  private readonly _scratchCam = new THREE.Vector3();
 
   /** Accumulated activity exhaustion; each EXHAUSTION_PER_HUNGER converts to -1 hunger. */
   private exhaustion = 0;
@@ -403,6 +406,8 @@ export class GameSession {
     // Block-break particles.
     this.particles = new ParticleSystem();
     this.renderer.scene.add(this.particles.object3D);
+    this.weather = new WeatherSystem();
+    this.renderer.scene.add(this.weather.object3D);
 
     // Block-crack overlay.
     this.breakOverlay = new BreakOverlay();
@@ -606,8 +611,9 @@ export class GameSession {
       if (this.skyAcc >= SKY_UPDATE_INTERVAL_S) {
         // Advance by the accumulated time so total simulated day length is conserved.
         this.dayNight.update(this.skyAcc);
-        this.renderer.applySky(this.dayNight.getSkyState());
+        this.applySkyWithWeather();
         this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+        this.hud.setWeather(this.weather.label);
         this.skyAcc = 0;
       }
       this.hud.setUnderwater(this.isHeadSubmerged());
@@ -619,11 +625,19 @@ export class GameSession {
         this.hud.setHunger(this.player.state.hunger, PLAYER_MAX_HUNGER);
         this.hud.setArmor(this.armorPoints(), ARMOR_DISPLAY_MAX);
       }
+      this.weather.update(dt, this.player.camera.getWorldPosition(this._scratchCam));
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
 
       this.rafId = requestAnimationFrame(this.frame);
     };
+  }
+
+  /** Apply the current day/night sky, dimmed by active weather, to the renderer. */
+  private applySkyWithWeather(): void {
+    const s = this.dayNight.getSkyState();
+    this.weather.dimSky(s);
+    this.renderer.applySky(s);
   }
 
   start(): void {
@@ -714,6 +728,8 @@ export class GameSession {
     this.renderer.scene.remove(this.player.camera);
     this.renderer.scene.remove(this.particles.object3D);
     this.particles.dispose();
+    this.renderer.scene.remove(this.weather.object3D);
+    this.weather.dispose();
     this.renderer.scene.remove(this.breakOverlay.object3D);
     this.breakOverlay.dispose();
     this.viewModel.dispose();
@@ -1461,7 +1477,7 @@ export class GameSession {
     this.spawnPoint = { x: bx + 0.5, y: by + 1, z: bz + 0.5 };
     if (this.dayNight.isNight) {
       this.dayNight.setNormalizedTime(MORNING_TIME);
-      this.renderer.applySky(this.dayNight.getSkyState());
+      this.applySkyWithWeather();
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
       this.wasNight = false;
       this.onToast('You slept through the night. Spawn point set.');

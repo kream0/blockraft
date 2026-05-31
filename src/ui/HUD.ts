@@ -55,6 +55,7 @@ export class HUD {
   private fpsEl: HTMLElement;
   private posEl: HTMLElement;
   private timeEl: HTMLElement;
+  private weatherEl: HTMLElement;
   private clickHintEl: HTMLElement;
   private crosshairEl: HTMLElement;
   private readoutEl: HTMLElement;
@@ -79,6 +80,7 @@ export class HUD {
   private _lastFpsStr: string = '';
   private _lastPosStr: string = '';
   private _lastTimeStr: string = '';
+  private _lastWeatherStr: string = '';
   private _lastUnderwater: boolean | null = null;
   private _lastHealthVal: number = -1;
   private _lastHealthMax: number = -1;
@@ -113,11 +115,15 @@ export class HUD {
     const time = document.createElement('div');
     time.textContent = 'Time: --:--';
     readout.appendChild(time);
+    const weather = document.createElement('div');
+    weather.textContent = 'Weather: Clear';
+    readout.appendChild(weather);
     container.appendChild(readout);
     this.readoutEl = readout;
     this.fpsEl = fps;
     this.posEl = pos;
     this.timeEl = time;
+    this.weatherEl = weather;
 
     const hint = document.createElement('div');
     hint.className = 'mc-clickhint';
@@ -267,6 +273,15 @@ export class HUD {
     }
   }
 
+  /** Update the weather readout. label is 'Clear' | 'Rain' | 'Snow'. */
+  setWeather(label: string): void {
+    const s = 'Weather: ' + label;
+    if (s !== this._lastWeatherStr) {
+      this._lastWeatherStr = s;
+      this.weatherEl.textContent = s;
+    }
+  }
+
   setHealth(hp: number, max: number): void {
     if (hp === this._lastHealthVal && max === this._lastHealthMax) return;
     this._lastHealthVal = hp;
@@ -367,7 +382,7 @@ export class HUD {
 
   dispose(): void {
     this.hotbar.dispose();
-    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl]) {
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }
