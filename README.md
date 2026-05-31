@@ -79,6 +79,12 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - Continuous day/night cycle driving sky color, sun direction, ambient light, and fog (zero per-frame allocation)
 - HUD time-of-day indicator; nightfall brings out the hostiles (time of day is not persisted — each load starts in the morning)
 
+### Weather
+- Dynamic, non-persisted weather that drifts between clear and precipitating on a randomized timer — like the day/night cycle, it resets each session
+- **Rain** at lower altitudes and **snow** up high, rendered as a camera-following particle cloud that fades in and out smoothly
+- While precipitating, the sky, sun, and fog **dim toward overcast** in proportion to intensity; a HUD readout shows **Weather: Clear / Rain / Snow**
+- Zero per-frame heap allocation — preallocated particle buffers, reused scratch colors, and draw-range gating while clear
+
 ### Audio
 - Procedural sound effects synthesized at runtime with the Web Audio API — **no audio files**
 - Cues for block break / place, melee swing, and taking damage, each built from oscillators + filtered noise bursts
