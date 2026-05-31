@@ -207,6 +207,22 @@ export const CREEPER_BLAST_RADIUS = 3;
 /** Player damage (half-heart points) at the blast epicenter; falls off linearly to 0 at BLAST_RADIUS. */
 export const CREEPER_BLAST_MAX_DAMAGE = 12;
 
+// === Spider (fast melee hostile) ===
+/** Max simultaneous live spiders at night (separate cap from zombies/skeletons/creepers). */
+export const SPIDER_MAX_COUNT = 4;
+/** Spider health in half-heart points (dies in 2 player hits at PLAYER_ATTACK_DAMAGE=4). */
+export const SPIDER_MAX_HEALTH = 8;
+/** Horizontal distance (blocks) within which a spider begins chasing the player. */
+export const SPIDER_DETECT_RADIUS = 16;
+/** Horizontal distance (blocks) at which a spider can bite the player. Slightly longer than a zombie's because the spider's body is wider. */
+export const SPIDER_ATTACK_RANGE = 1.4;
+/** Damage (half-heart points) per spider bite. Lower than a zombie (3): the spider trades power for speed. */
+export const SPIDER_ATTACK_DAMAGE = 2;
+/** Seconds between consecutive bites from the same spider. */
+export const SPIDER_ATTACK_COOLDOWN_S = 1.0;
+/** Spider horizontal chase speed (blocks/s) — its signature trait, faster than a zombie's 2.4. Keep speed/60 < radius(0.4) to avoid tunneling: 3.2/60 ≈ 0.053, safe. */
+export const SPIDER_CHASE_SPEED = 3.2;
+
 // === Block-break particles ===
 /** Particles spawned per block break. */
 export const PARTICLE_BURST_COUNT = 12;
@@ -805,6 +821,7 @@ export const EntityKind = {
   CHICKEN: 'chicken',
   SKELETON: 'skeleton',
   CREEPER: 'creeper',
+  SPIDER: 'spider',
   ARROW: 'arrow',
   DROPPED_ITEM: 'dropped_item',
 } as const;

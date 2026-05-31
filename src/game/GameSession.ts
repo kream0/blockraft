@@ -32,6 +32,7 @@ import type { PassiveMob } from '../entities/PassiveMob';
 import { Zombie } from '../entities/Zombie';
 import { Skeleton } from '../entities/Skeleton';
 import { Creeper } from '../entities/Creeper';
+import { Spider } from '../entities/Spider';
 import { Arrow } from '../entities/Arrow';
 import { DroppedItem } from '../entities/DroppedItem';
 import { Mob } from '../entities/Mob';
@@ -61,6 +62,9 @@ import {
   ZOMBIE_ATTACK_DAMAGE,
   SKELETON_MAX_COUNT,
   CREEPER_MAX_COUNT,
+  SPIDER_MAX_COUNT,
+  SPIDER_ATTACK_RANGE,
+  SPIDER_ATTACK_DAMAGE,
   CREEPER_BLAST_RADIUS,
   CREEPER_BLAST_MAX_DAMAGE,
   HOSTILE_SPAWN_MAX_LIGHT,
@@ -1180,6 +1184,18 @@ export class GameSession {
         if (this.isDead) return;
       }
     }
+    for (const e of this.world.entityManager.all) {
+      if (!(e instanceof Spider)) continue;
+      const dx = e.position.x - p.x;
+      const dz = e.position.z - p.z;
+      const dy = e.position.y - p.y;
+      if (Math.abs(dy) > 2) continue;
+      if (dx * dx + dz * dz > SPIDER_ATTACK_RANGE * SPIDER_ATTACK_RANGE) continue;
+      if (e.tryBite()) {
+        this.damagePlayer(SPIDER_ATTACK_DAMAGE);
+        if (this.isDead) return;
+      }
+    }
   }
 
   /** Reset to a fresh dry spawn at full health with brief invulnerability. MUTATES position/velocity in place (World holds a live ref). */
@@ -1375,7 +1391,7 @@ export class GameSession {
       // Despawn once, on the night->day transition — not every daytime frame.
       if (this.wasNight) {
         for (const e of this.world.entityManager.all) {
-          if (e instanceof Zombie || e instanceof Skeleton || e instanceof Creeper || e instanceof Arrow) {
+          if (e instanceof Zombie || e instanceof Skeleton || e instanceof Creeper || e instanceof Spider || e instanceof Arrow) {
             this.world.entityManager.despawn(e.id);
           }
         }
@@ -1392,10 +1408,12 @@ export class GameSession {
     let zombies = 0;
     let skeletons = 0;
     let creepers = 0;
+    let spiders = 0;
     for (const e of this.world.entityManager.all) {
       if (e instanceof Zombie) zombies++;
       else if (e instanceof Skeleton) skeletons++;
       else if (e instanceof Creeper) creepers++;
+      else if (e instanceof Spider) spiders++;
     }
 
     if (zombies < ZOMBIE_MAX_COUNT) {
@@ -1409,6 +1427,10 @@ export class GameSession {
     if (creepers < CREEPER_MAX_COUNT) {
       const s = this.findHostileSpawn();
       if (s !== null) this.world.entityManager.spawn(new Creeper({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
+    }
+    if (spiders < SPIDER_MAX_COUNT) {
+      const s = this.findHostileSpawn();
+      if (s !== null) this.world.entityManager.spawn(new Spider({ x: s.x + 0.5, y: s.y + 1, z: s.z + 0.5 }));
     }
   }
 
