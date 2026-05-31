@@ -2,6 +2,7 @@ import { INVENTORY_SIZE, HOTBAR_SIZE, SMELT_DURATION_S, type ItemId, type ItemSt
 import type { Inventory } from '../player/Inventory';
 import { itemMaxStack } from '../items/ItemRegistry';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
+import { getSmeltingRecipe, getFuelDef } from '../crafting/Smelting';
 
 // Synthetic slot indices for the three furnace slots — must not collide with real
 // inventory indices 0..35.
@@ -270,7 +271,7 @@ export class FurnaceScreen {
     el.addEventListener('mousedown', (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotMouseDown(invIndex, e.button);
+      this.handleSlotMouseDown(invIndex, e.button, e.shiftKey);
     });
     this.slotEls[invIndex] = el;
     return el;
@@ -284,7 +285,7 @@ export class FurnaceScreen {
     el.addEventListener('mousedown', (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      this.handleSlotMouseDown(synthIndex, e.button);
+      this.handleSlotMouseDown(synthIndex, e.button, e.shiftKey);
     });
     return el;
   }
@@ -340,7 +341,63 @@ export class FurnaceScreen {
     this.inventory.setSlot(index, stack);
   }
 
-  private handleSlotMouseDown(index: number, button: number): void {
+  /** Move the whole stack from a furnace synthetic slot into player inventory (backpack first, then hotbar). */
+  private quickMoveFurnaceToPlayer(furnaceSlot: number): void {
+    const stack = this.getCell(furnaceSlot);
+    if (stack === null) return;
+    // backpack (9..35) first, then hotbar (0..8) — consistent with InventoryScreen
+    let leftover = this.inventory.addToRange(stack.item, stack.count, HOTBAR_SIZE, INVENTORY_SIZE);
+    if (leftover > 0) leftover = this.inventory.addToRange(stack.item, leftover, 0, HOTBAR_SIZE);
+    this.setCell(furnaceSlot, leftover > 0 ? { item: stack.item, count: leftover } : null);
+  }
+
+  /** Move an inventory stack into a furnace input/fuel slot — merge same-item, never swap. */
+  private quickMoveToFurnaceSlot(invIndex: number, furnaceSlot: number): void {
+    const src = this.inventory.getSlot(invIndex);
+    if (src === null) return;
+    const dst = this.getCell(furnaceSlot);
+    if (dst === null) {
+      this.setCell(furnaceSlot, { item: src.item, count: src.count });
+      this.inventory.setSlot(invIndex, null);
+    } else if (dst.item === src.item) {
+      const space = itemMaxStack(src.item) - dst.count;
+      const move = Math.min(space, src.count);
+      if (move > 0) {
+        this.setCell(furnaceSlot, { item: dst.item, count: dst.count + move });
+        const left = src.count - move;
+        this.inventory.setSlot(invIndex, left > 0 ? { item: src.item, count: left } : null);
+      }
+      // furnace slot full → no-op
+    }
+    // different item already in furnace slot → no-op (shift-click never swaps)
+  }
+
+  private handleShiftClick(index: number): void {
+    if (this.state === null) return;
+
+    if (index === FURNACE_OUTPUT || index === FURNACE_INPUT || index === FURNACE_FUEL) {
+      // Move the whole furnace slot stack into player inventory.
+      this.quickMoveFurnaceToPlayer(index);
+    } else {
+      // Inventory slot (0..35): route item into furnace based on type.
+      const src = this.inventory.getSlot(index);
+      if (src === null) return;
+      if (getSmeltingRecipe(src.item) !== null) {
+        // Smeltable items go to the INPUT slot (takes priority over fuel).
+        this.quickMoveToFurnaceSlot(index, FURNACE_INPUT);
+      } else if (getFuelDef(src.item) !== null) {
+        // Fuel-only items go to the FUEL slot.
+        this.quickMoveToFurnaceSlot(index, FURNACE_FUEL);
+      }
+      // Neither smeltable nor fuel → no-op.
+    }
+
+    this.refresh();
+  }
+
+  private handleSlotMouseDown(index: number, button: number, shiftKey: boolean): void {
+    if (shiftKey) { this.handleShiftClick(index); return; }
+
     // Output slot: take-only rule — never deposit into it.
     if (index === FURNACE_OUTPUT) {
       if (this.state === null) return;
