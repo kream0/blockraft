@@ -1,4 +1,4 @@
-import { BlockId, GLOWSTONE_LIGHT, TORCH_LIGHT, type BlockDef, type IBlockRegistry } from '../types';
+import { BlockId, GLOWSTONE_LIGHT, LAVA_LIGHT, TORCH_LIGHT, type BlockDef, type IBlockRegistry } from '../types';
 
 const defs: Record<number, BlockDef> = {
   [BlockId.AIR]: {
@@ -223,6 +223,16 @@ const defs: Record<number, BlockDef> = {
     textures: { top: 24, bottom: 24, side: 24 },
     particleColor: 0xA93B36,
     hardness: 0.4,
+  },
+  [BlockId.LAVA]: {
+    id: BlockId.LAVA,
+    name: 'Lava',
+    solid: false,
+    transparent: false,
+    textures: { top: 25, bottom: 25, side: 25 },
+    particleColor: 0xE2541E,
+    hardness: 0,
+    light: LAVA_LIGHT,
   },
 };
 

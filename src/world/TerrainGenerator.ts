@@ -1,4 +1,4 @@
-import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE } from '../types';
+import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE, LAVA_GEN_MAX_Y } from '../types';
 import { clamp } from '../utils/MathUtils';
 import { PerlinNoise } from '../utils/Noise';
 import { Chunk } from './Chunk';
@@ -151,6 +151,22 @@ export class TerrainGenerator {
           const n = this.caveNoise.fbm3D(wx * CAVE_SCALE_XZ, y * CAVE_SCALE_Y, wz * CAVE_SCALE_XZ, CAVE_OCTAVES);
           if (Math.abs(n) < CAVE_THRESHOLD) {
             chunk.blocks[idx] = BlockId.AIR;
+          }
+        }
+      }
+    }
+  }
+
+  /** Flood the bottom of carved caves with lava: any cave-air cell at or below LAVA_GEN_MAX_Y
+   *  becomes lava (deep underground only). Runs after carveCaves so it fills the carved air,
+   *  and before ore placement (ores only replace stone, so no conflict). Deterministic. */
+  private floodDeepLava(chunk: Chunk): void {
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        for (let y = 1; y <= LAVA_GEN_MAX_Y; y++) {   // y starts at 1 — never touch bedrock at y=0
+          const idx = Chunk.idx(lx, y, lz);
+          if (chunk.blocks[idx] === BlockId.AIR) {
+            chunk.blocks[idx] = BlockId.LAVA;
           }
         }
       }
@@ -466,6 +482,8 @@ export class TerrainGenerator {
 
     // Caves: carve stone before ore so ore veins embed in the remaining stone (no floating ore).
     this.carveCaves(chunk);
+    // Lava: flood the bottom of carved caves before ores (ores only replace stone, so no conflict).
+    this.floodDeepLava(chunk);
     // Ore veins: placed after caves are carved, before trees.
     this.placeOreVeins(chunk);
     // Structures: boulders sit on the surface; dungeons are sealed underground (after ores so they overwrite/seal whatever's there).

@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import type { ITextureAtlas } from '../types';
 
 const TILE = 16;
-const COLS = 5;
-const ROWS = 5;
+const COLS = 6;
+const ROWS = 6;
 const SIZE = TILE * COLS;
 
 export const ATLAS_TILE_PIXELS = TILE;
@@ -432,6 +432,31 @@ function drawBed(ctx: CanvasRenderingContext2D, col: number, row: number, rng: R
   speckle(ctx, col, row, '#F4EEE0', 6, rng); // faint pillow highlights (top area only matters visually)
 }
 
+function drawLava(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  // Deep orange-red molten base
+  fillTile(ctx, col, row, '#D8401A');
+  // Glowing crack streaks — bright orange/amber horizontal lines
+  ctx.fillStyle = '#FF8A1E';
+  for (let i = 0; i < 6; i++) {
+    const len = 2 + Math.floor(rng() * 4); // 2-5 px
+    const x = Math.floor(rng() * (TILE - len));
+    const y = Math.floor(rng() * TILE);
+    ctx.fillRect(col * TILE + x, row * TILE + y, len, 1);
+  }
+  // Brighter amber cracks
+  ctx.fillStyle = '#FFB02A';
+  for (let i = 0; i < 4; i++) {
+    const len = 2 + Math.floor(rng() * 3); // 2-4 px
+    const x = Math.floor(rng() * (TILE - len));
+    const y = Math.floor(rng() * TILE);
+    ctx.fillRect(col * TILE + x, row * TILE + y, len, 1);
+  }
+  // Near-white-hot glowing pixels at crack intersections
+  speckle(ctx, col, row, '#FFE08A', 5, rng);
+  // Dark crust spots
+  speckle(ctx, col, row, '#7A2208', 8, rng);
+}
+
 function drawDoorUpper(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
   // Vertical wood planks (same palette as lower)
   for (let x = 0; x < TILE; x++) {
@@ -476,8 +501,8 @@ export class TextureAtlas implements ITextureAtlas {
 
     const rng = makeRng(0xdeadbeef);
 
-    // 5x5 grid: index = row * COLS + col
-    // Tiles 0..24 are real.
+    // 6x6 grid: index = row * COLS + col
+    // Tiles 0..25 are real.
     const drawers: Array<(c: CanvasRenderingContext2D, col: number, row: number, r: Rng) => void> = [
       drawGrassTop,
       drawDirt,
@@ -504,6 +529,7 @@ export class TextureAtlas implements ITextureAtlas {
       drawTorch,         // tile 22 — torch (wooden post + flame)
       drawGlowstone,     // tile 23 — glowstone (warm gold glowing cells)
       drawBed,           // tile 24 — bed (red quilt + cream pillow)
+      drawLava,          // tile 25 — lava (molten orange)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

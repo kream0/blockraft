@@ -15,6 +15,8 @@ export const MAX_SKY_LIGHT = 15;
 export const TORCH_LIGHT = 14;
 /** Light emission level of a glowstone block (0..15). Brighter than a torch — full strength. */
 export const GLOWSTONE_LIGHT = 15;
+/** Block-light level emitted by a lava block (max, like glowstone). */
+export const LAVA_LIGHT = 15;
 /**
  * Sky-light → brightness multiplier LUT (index = light level 0..15).
  * 0 = deep shadow (a non-zero floor so caves aren't pure black), 15 = full daylight.
@@ -76,6 +78,12 @@ export const PLAYER_MAX_AIR_S = 15;
 export const DROWN_DAMAGE = 2;
 /** Seconds between consecutive drowning damage ticks. */
 export const DROWN_INTERVAL_S = 1;
+/** Damage (half-heart points) per lava-contact tick (survival only). Reduced by armor. */
+export const LAVA_DAMAGE = 3;
+/** Seconds between consecutive lava-contact damage ticks. */
+export const LAVA_DAMAGE_INTERVAL_S = 0.5;
+/** Lava floods carved cave-air at or below this world-Y during terrain generation (deep underground only). */
+export const LAVA_GEN_MAX_Y = 6;
 /** Max simultaneous live hostile mobs (zombies) at night. */
 export const ZOMBIE_MAX_COUNT = 8;
 /** Horizontal distance (blocks) within which a zombie begins chasing the player. */
@@ -291,12 +299,13 @@ export const BlockId = {
   TORCH: 26,
   GLOWSTONE: 27,
   BED: 28,
+  LAVA: 29, // opaque non-solid hazard liquid; emits max block light, burns on contact
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..28) directly, so a persisted block stack {block,count} reads
+// numeric value (0..29) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. ItemId is therefore the numeric union
 // of "any BlockId" plus these non-block ids.
 export const ItemId = {
@@ -881,8 +890,8 @@ export interface WorkerBlockTable {
 /** Atlas geometry constants so the worker computes UVs without a canvas. */
 export interface WorkerAtlasParams {
   tilePixels: number;  // TILE (16)
-  atlasCols: number;   // COLS (5)
-  atlasSize: number;   // SIZE = TILE * COLS (80) — used for BOTH U and V denominators
+  atlasCols: number;   // COLS (6)
+  atlasSize: number;   // SIZE = TILE * COLS (96) — used for BOTH U and V denominators
 }
 
 /** One-time init message: main thread -> worker. */

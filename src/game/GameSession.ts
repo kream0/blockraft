@@ -52,6 +52,8 @@ import {
   PLAYER_MAX_AIR_S,
   DROWN_DAMAGE,
   DROWN_INTERVAL_S,
+  LAVA_DAMAGE,
+  LAVA_DAMAGE_INTERVAL_S,
   ZOMBIE_MAX_COUNT,
   ZOMBIE_ATTACK_RANGE,
   ZOMBIE_ATTACK_DAMAGE,
@@ -234,6 +236,8 @@ export class GameSession {
   private air: number = PLAYER_MAX_AIR_S;
   /** Accumulator (seconds) toward the next drowning damage tick once air is depleted. */
   private drownAcc: number = 0;
+  /** Accumulator (seconds) toward the next lava-contact damage tick (survival only). */
+  private lavaDamageAcc: number = 0;
   /** Wall-clock seconds remaining until the player's next melee swing is allowed. */
   private playerAttackCooldown: number = 0;
   /** Wall-clock seconds remaining until the player's next bow shot is allowed. */
@@ -644,6 +648,7 @@ export class GameSession {
       }
       this.hud.setUnderwater(this.isHeadSubmerged());
       this.updateBreath(dt);
+      this.updateLavaDamage(dt);
       this.updateHealthRegen(dt);
       if (this.gameMode === GameMode.SURVIVAL) {
         this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
@@ -1079,6 +1084,37 @@ export class GameSession {
     }
   }
 
+  /** True when the player's feet or eye voxel is lava. Drives lava contact damage (survival). */
+  private isInLava(): boolean {
+    const st = this.player.state;
+    const fx = Math.floor(st.position.x);
+    const fz = Math.floor(st.position.z);
+    return (
+      this.world.getBlock(fx, Math.floor(st.position.y), fz) === BlockId.LAVA ||
+      this.world.getBlock(fx, Math.floor(st.position.y + PLAYER_EYE), fz) === BlockId.LAVA
+    );
+  }
+
+  /** Per-tick (survival only): while standing in lava, apply LAVA_DAMAGE every LAVA_DAMAGE_INTERVAL_S (armor reduces it). */
+  private updateLavaDamage(dt: number): void {
+    if (this.gameMode !== GameMode.SURVIVAL) return;
+    if (this.isDead) return;
+    if (this.respawnInvuln > 0) return;
+    if (this.isInLava()) {
+      this.lavaDamageAcc += dt;
+      while (this.lavaDamageAcc >= LAVA_DAMAGE_INTERVAL_S) {
+        this.damagePlayer(LAVA_DAMAGE);
+        this.lavaDamageAcc -= LAVA_DAMAGE_INTERVAL_S;
+        if (this.isDead) {
+          this.lavaDamageAcc = 0;
+          return;
+        }
+      }
+    } else {
+      this.lavaDamageAcc = 0;
+    }
+  }
+
   /** Per-fixed-step (survival only): zombies in range bite the player; death triggers the death overlay. */
   private applyHostileContact(dt: number): void {
     if (this.isDead) return;
@@ -1114,6 +1150,7 @@ export class GameSession {
     this.healthRegenAcc = 0;
     this.air = PLAYER_MAX_AIR_S;
     this.drownAcc = 0;
+    this.lavaDamageAcc = 0;
     const v = this.player.state.velocity;
     v.x = 0;
     v.y = 0;

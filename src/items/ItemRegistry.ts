@@ -35,6 +35,7 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.CHEST]:       '#8b6e3a',
   [BlockId.GLOWSTONE]:   '#C99A2E',
   [BlockId.BED]:         '#A93B36',
+  [BlockId.LAVA]:        '#D8401A',
 };
 
 // === Block item identity set — built once at module load ===
