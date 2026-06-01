@@ -6,6 +6,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { makeGodraysShader } from './GodraysPass';
 import {
   CHUNK_HEIGHT,
   CHUNK_SIZE,
@@ -59,6 +60,7 @@ export class Renderer {
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private godraysPass: ShaderPass | null = null;
   private aaPass: ShaderPass | SMAAPass | null = null;
   private outputPass: OutputPass | null = null;
   private _w = 1;
@@ -66,6 +68,10 @@ export class Renderer {
   private _pixelRatioCap = 2;
   private _fogFar: number;
   private _lastGraphics: Settings | null = null;
+  private _godraysStrength = 0;
+  private _tmpSun = new THREE.Vector3();
+  private _tmpView = new THREE.Vector3();
+  private _camInv = new THREE.Matrix4();
 
   constructor(canvas?: HTMLCanvasElement, fogFar: number = RENDER_DISTANCE * CHUNK_SIZE) {
     this.renderer = createWebGLRenderer(canvas);
@@ -169,11 +175,13 @@ export class Renderer {
     // --- Composer (structural rebuild) ---
     const aa = settings.antiAlias ?? DEFAULTS.antiAlias;
     const bloom = settings.bloom ?? DEFAULTS.bloom;
+    const godrays = settings.godrays ?? DEFAULTS.godrays;
 
     const prevAa = prev?.antiAlias ?? DEFAULTS.antiAlias;
     const prevBloom = prev?.bloom ?? DEFAULTS.bloom;
+    const prevGodrays = prev?.godrays ?? DEFAULTS.godrays;
 
-    const structuralChange = isFirst || aa !== prevAa || bloom !== prevBloom;
+    const structuralChange = isFirst || aa !== prevAa || bloom !== prevBloom || godrays !== prevGodrays;
 
     if (structuralChange) {
       this.rebuildComposer(settings, camera);
@@ -189,6 +197,9 @@ export class Renderer {
       this.bloomPass.radius = 0.3;
     }
 
+    // Godrays strength is live-applied each applyGraphics call (no rebuild needed for strength changes).
+    this._godraysStrength = settings.godraysStrength ?? DEFAULTS.godraysStrength;
+
     this._lastGraphics = settings;
     return { shadowRecompileNeeded };
   }
@@ -198,10 +209,11 @@ export class Renderer {
 
     const aa = settings.antiAlias ?? DEFAULTS.antiAlias;
     const bloom = settings.bloom ?? DEFAULTS.bloom;
+    const godrays = settings.godrays ?? DEFAULTS.godrays;
     const bloomIntensity = settings.bloomIntensity ?? DEFAULTS.bloomIntensity;
     const bloomThreshold = settings.bloomThreshold ?? DEFAULTS.bloomThreshold;
 
-    const needComposer = aa !== AntiAlias.OFF || bloom;
+    const needComposer = aa !== AntiAlias.OFF || bloom || godrays;
     if (!needComposer) {
       // Low preset → direct render, zero composer overhead.
       this.composer = null;
@@ -216,6 +228,12 @@ export class Renderer {
 
     this.renderPass = new RenderPass(this.scene, camera);
     this.composer.addPass(this.renderPass);
+
+    // God rays pass — runs before bloom so it scatters the raw HDR scene.
+    if (godrays) {
+      this.godraysPass = new ShaderPass(makeGodraysShader());
+      this.composer.addPass(this.godraysPass);
+    }
 
     // Bloom pass.
     if (bloom) {
@@ -249,12 +267,14 @@ export class Renderer {
 
   private disposeComposer(): void {
     this.bloomPass?.dispose?.();
+    this.godraysPass?.dispose?.();
     (this.aaPass as { dispose?: () => void } | null)?.dispose?.();
     this.outputPass?.dispose?.();
     this.composer?.dispose();
     this.composer = null;
     this.renderPass = null;
     this.bloomPass = null;
+    this.godraysPass = null;
     this.aaPass = null;
     this.outputPass = null;
   }
@@ -333,10 +353,37 @@ export class Renderer {
 
   render(camera: THREE.Camera): void {
     if (this.composer !== null) {
+      if (this.godraysPass !== null) this.updateGodrays(camera);
       this.composer.render();
     } else {
       this.renderer.render(this.scene, camera);
     }
+  }
+
+  private updateGodrays(camera: THREE.Camera): void {
+    const pass = this.godraysPass;
+    if (pass === null) return;
+    const u = (pass.material as THREE.ShaderMaterial).uniforms;
+    const sun = u['uSunPos'];
+    const inten = u['uIntensity'];
+    if (sun === undefined || inten === undefined) return;
+    camera.updateMatrixWorld();
+    this._camInv.copy(camera.matrixWorld).invert();
+    // Sun is opposite the travel direction; push it far away then offset by camera pos.
+    this._tmpSun.copy(this._sunDir).multiplyScalar(-1000).add(camera.position);
+    this._tmpView.copy(this._tmpSun).applyMatrix4(this._camInv);
+    const inFront = this._tmpView.z < 0;
+    this._tmpView.applyMatrix4(camera.projectionMatrix);
+    const uvx = this._tmpView.x * 0.5 + 0.5;
+    const uvy = this._tmpView.y * 0.5 + 0.5;
+    // Fade out as the sun nears/drops below the horizon (_sunDir.y > 0 means sun is below horizon).
+    const aboveHorizon = Math.min(1, Math.max(0, (-this._sunDir.y) / 0.15));
+    // Fade out as the sun's projected position leaves the screen.
+    const edge = Math.max(Math.abs(this._tmpView.x), Math.abs(this._tmpView.y));
+    const edgeFade = Math.min(1, Math.max(0, (1.3 - edge) / 0.4));
+    const vis = inFront ? aboveHorizon * edgeFade : 0;
+    (sun.value as THREE.Vector2).set(uvx, uvy);
+    inten.value = this._godraysStrength * vis;
   }
 
   /** Largest anisotropy level the GPU/driver supports (to resolve the "max" anisotropy option). */

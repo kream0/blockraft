@@ -67,6 +67,7 @@ const NUMERIC_LABELS: Record<NumericKey, string> = {
   ssaoIntensity: 'SSAO Intensity',
   bloomIntensity: 'Bloom Intensity',
   bloomThreshold: 'Bloom Threshold',
+  godraysStrength: 'God Ray Strength',
 };
 
 const BOOLEAN_LABELS: Record<BooleanKey, string> = {
@@ -141,14 +142,16 @@ const VALUE_FORMATTERS: Record<NumericKey, (value: number) => string> = {
   ssaoIntensity: (v) => v.toFixed(1),
   bloomIntensity: (v) => v.toFixed(2),
   bloomThreshold: (v) => v.toFixed(2),
+  godraysStrength: (v) => v.toFixed(2),
 };
 
-/** Keys for the 4 graphics-only sliders rendered inside the Advanced panel. */
+/** Keys for the graphics-only sliders rendered inside the Advanced panel. */
 const GRAPHICS_SLIDER_KEYS: readonly NumericKey[] = [
   'pixelRatioCap',
   'ssaoIntensity',
   'bloomIntensity',
   'bloomThreshold',
+  'godraysStrength',
 ];
 
 export class SettingsMenu extends MenuScreen {
@@ -426,12 +429,14 @@ export class SettingsMenu extends MenuScreen {
     details.appendChild(this.makeSliderRow('ssaoIntensity',  () => this.markCustom()));
     details.appendChild(this.makeSliderRow('bloomIntensity', () => this.markCustom()));
     details.appendChild(this.makeSliderRow('bloomThreshold', () => this.markCustom()));
+    details.appendChild(this.makeSliderRow('godraysStrength', () => this.markCustom()));
 
     // ── Graphics checkboxes ─────────────────────────────────────────────────
     details.appendChild(this.makeGraphicsCheckboxRow('ssao',          'SSAO'));
     details.appendChild(this.makeGraphicsCheckboxRow('normalMaps',    'Normal Maps'));
     details.appendChild(this.makeGraphicsCheckboxRow('bloom',         'Bloom'));
     details.appendChild(this.makeGraphicsCheckboxRow('emissiveBloom', 'Emissive Block Glow'));
+    details.appendChild(this.makeGraphicsCheckboxRow('godrays',       'God Rays'));
 
     gfxList.appendChild(details);
     this.root.appendChild(gfxList);
@@ -575,7 +580,7 @@ export class SettingsMenu extends MenuScreen {
   }
 
   private makeGraphicsCheckboxRow(
-    field: 'ssao' | 'normalMaps' | 'bloom' | 'emissiveBloom',
+    field: 'ssao' | 'normalMaps' | 'bloom' | 'emissiveBloom' | 'godrays',
     labelText: string,
   ): HTMLElement {
     const row = document.createElement('div');
