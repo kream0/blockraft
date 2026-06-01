@@ -156,6 +156,8 @@ export const STARVE_INTERVAL_S = 4.0;
 export const STARVE_FLOOR_HP = 1;
 /** Seconds of holding right-click required to finish eating a food item. */
 export const EAT_DURATION_S = 1.6;
+/** Min seconds between successive block placements while right-click is held (~5 blocks/s). */
+export const PLACE_INTERVAL_S = 0.2;
 
 // === Skeleton (ranged hostile) ===
 /** Max simultaneous live skeletons at night (separate cap from zombies). */

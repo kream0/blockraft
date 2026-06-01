@@ -104,6 +104,7 @@ import {
   ARMOR_DISPLAY_MAX,
   ARMOR_SLOT_COUNT,
   EAT_DURATION_S,
+  PLACE_INTERVAL_S,
   DROPPED_ITEM_PICKUP_RADIUS,
   CHEST_SLOTS,
   HOTBAR_SIZE,
@@ -272,6 +273,8 @@ export class GameSession {
   private rightHeld = false;
   /** Seconds spent eating the currently-held food. */
   private eatProgress = 0;
+  /** Seconds until the next placement is allowed while right-click is held (hold-to-place rate limit). */
+  private placeCooldown = 0;
   /** Armed after ESC closes an overlay: re-grab pointer lock on the next movement keydown. */
   private wantRelock = false;
 
@@ -528,9 +531,10 @@ export class GameSession {
           this.trySleep(tgt.x, tgt.y, tgt.z);
           return;
         }
-        this.rightHeld = true;
         const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
         if (heldItem === ItemId.BOW) { this.fireBow(); return; }
+        this.rightHeld = true;
+        this.placeCooldown = PLACE_INTERVAL_S; // prime: per-frame repeat waits one interval after this click's placement
         if (this.tryEquipArmor()) return;
         if (heldItem === ItemId.DOOR) {
           if (this.interaction.placeDoor()) {
@@ -684,6 +688,7 @@ export class GameSession {
       this.player.syncCamera();
       this.updateMining(dt);
       this.updateEating(dt);
+      this.updatePlacing(dt);
       this.viewModel.update(dt);
       const selItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? null;
       if (selItem !== this.heldItemId) {
@@ -1664,6 +1669,42 @@ export class GameSession {
       st.saturation = Math.min(st.hunger, st.saturation + food.saturationRestore);
       this.player.inventory.removeOne(slot);
       this.viewModel.triggerSwing();
+    }
+  }
+
+  /**
+   * Per-frame: while right-click is held over a placeable item, place a block every
+   * PLACE_INTERVAL_S — the placement analogue of hold-to-mine (updateMining). The FIRST
+   * placement happens in mouseDownHandler; this drives the repeats while the button stays
+   * held. placeBlock()/placeTorch()/placeDoor() each only succeed when the path isn't
+   * blocked (target AIR + no player overlap), so holding into a wall/your own body stops.
+   * The bow is excluded (it fires once per click, never auto-repeats); food/armor/other
+   * non-placeable held items naturally no-op because placeBlock() returns false for them.
+   */
+  private updatePlacing(dt: number): void {
+    if (this.isDead || !this.controls.isLocked || !this.rightHeld
+        || this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) {
+      this.placeCooldown = 0;
+      return;
+    }
+    const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
+    if (heldItem === ItemId.BOW) return; // ranged weapon: single-fire per click, no hold-repeat
+    this.placeCooldown = Math.max(0, this.placeCooldown - dt);
+    if (this.placeCooldown > 0) return;
+
+    let placed = false;
+    if (heldItem === ItemId.DOOR) {
+      placed = this.interaction.placeDoor();
+    } else if (heldItem === BlockId.TORCH) {
+      placed = this.interaction.placeTorch();
+    } else {
+      placed = this.interaction.placeBlock();
+    }
+    if (placed) {
+      if (this.gameMode === GameMode.SURVIVAL) this.player.inventory.removeOne(this.player.state.selectedSlot);
+      this.audio.playPlace();
+      this.viewModel.triggerSwing();
+      this.placeCooldown = PLACE_INTERVAL_S;
     }
   }
 
