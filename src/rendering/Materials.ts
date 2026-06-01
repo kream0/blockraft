@@ -33,7 +33,8 @@ export interface WaterMaterialOptions extends ChunkMaterialOptions {
 
 /**
  * Patch a vertexColors MeshStandardMaterial so BAKED voxel light is authoritative for
- * diffuse, while the real scene DirectionalLight drives specular highlights only.
+ * diffuse. The real scene DirectionalLight drives specular on WATER only; opaque terrain
+ * is fully matte (see Specular policy below).
  *
  * Baked channels (from the mesher):
  *   vColor.r = faceShade * AO * skyBrightness   (sky light; dimmed by day/night here)
@@ -43,12 +44,16 @@ export interface WaterMaterialOptions extends ChunkMaterialOptions {
  * exceeds sky light.  Because we zero out reflectedLight.directDiffuse /
  * reflectedLight.indirectDiffuse and replace them with our baked term, the scene's
  * Directional + Ambient lights never contribute diffuse to terrain — no through-wall
- * light leak.  directSpecular is left intact so the sun produces a physically-plausible
- * specular glint shaped by roughnessMap / normalMap.
+ * light leak.
  *
  * Shadow support: shadow is sampled from getShadowMask() and applied ONLY to the sky
  * channel, scaled by daylight — block/torch light is never shadowed, and night surfaces
  * are unaffected because shadowScale mixes toward 1.0 as uDayNight → 0.
+ *
+ * Specular policy: the OPAQUE chunk material zeroes reflectedLight.directSpecular so terrain
+ * is fully matte — this eliminates the sweeping sun-highlight band and the dielectric
+ * grazing-angle Fresnel sheen on distant vertical faces. Only the WATER material retains
+ * directSpecular so water surfaces still read as wet with a visible sun glint.
  *
  * MeshStandardMaterial NOTE: the physical fragment preamble already pulls in <packing> and
  * <shadowmap_pars_fragment> (getShadow + shadow uniforms) but NOT <shadowmask_pars_fragment>,
@@ -269,20 +274,24 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { anim
     );
 
     // -------------------------------------------------------------------------
-    // FRAGMENT SHADER — step 4: replace diffuse with baked term; keep specular
+    // FRAGMENT SHADER — step 4: replace diffuse with baked term; conditionally zero specular
     // -------------------------------------------------------------------------
     // After <lights_fragment_end> the reflectedLight struct is fully accumulated.
-    // We zero out both diffuse channels and substitute our baked term, then leave
-    // directSpecular intact for the sun glint.
+    // We zero out both diffuse channels and substitute our baked term.
+    // directSpecular: zeroed for opaque terrain (fully matte — prevents the sweeping sun-band
+    // and grazing-angle Fresnel sheen); left intact for water so it still looks wet.
+    const isWater = water !== undefined;
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <lights_fragment_end>',
       [
         '#include <lights_fragment_end>',
-        '// blockraft: override diffuse with baked voxel lighting; keep sun specular only',
+        '// blockraft: override diffuse with baked voxel lighting',
         'reflectedLight.directDiffuse   = vec3(0.0);',
         'reflectedLight.indirectDiffuse = bakedDiffuse;',
         'reflectedLight.indirectSpecular = vec3(0.0);',
-        '// reflectedLight.directSpecular is left intact — that is the sun specular glint',
+        isWater
+          ? '// water keeps directSpecular — the sun glint reads as a wet sheen on the surface'
+          : 'reflectedLight.directSpecular = vec3(0.0); // opaque terrain is fully matte: no sun mirror/sheen',
       ].join('\n'),
     );
 
