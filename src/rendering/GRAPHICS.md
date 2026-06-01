@@ -20,6 +20,8 @@ afterwards flips the quality label to **Custom**. Source of truth: `GRAPHICS_PRE
 | shadowSoftness   | pcf     | pcf      | pcfsoft   | pcfsoft     | P1    |
 | bloom            | off     | off      | on        | on          | P1    |
 | bloomIntensity   | 0.0     | 0.0      | 0.4       | 0.6         | P1    |
+| godrays          | off     | off      | on        | on          | P5    |
+| godraysStrength  | 0.0     | 0.0      | 0.5       | 0.7         | P5    |
 | ssao / samples   | off / 8 | off / 8  | off / 8   | off / 16    | P5    |
 | normalMaps       | off     | off      | on        | on          | P3    |
 | edgeRounding     | off     | analytic | normalmap | normalmap   | P3    |
@@ -34,13 +36,13 @@ afterwards flips the quality label to **Custom**. Source of truth: `GRAPHICS_PRE
 render target. Pass order is fixed:
 
 ```
-RenderPass (scene)  →  UnrealBloomPass (if bloom)  →  FXAA | SMAA (if AA)  →  OutputPass
+RenderPass (scene)  →  GodraysPass (if godrays)  →  UnrealBloomPass (if bloom)  →  FXAA | SMAA (if AA)  →  OutputPass
 ```
 
 `OutputPass` is always last: it bakes tone mapping (`renderer.toneMapping`) and the sRGB
 encode (`renderer.outputColorSpace`) in-shader, so the intermediate targets stay linear and
 tone mapping is applied exactly once. When a preset needs **no** composer passes
-(`antiAlias === off && !bloom`, i.e. Low) the composer is left null and `render()` calls
+(`antiAlias === off && !bloom && !godrays`, i.e. Low) the composer is left null and `render()` calls
 `renderer.render()` directly — zero post-processing overhead.
 
 ## What each change costs
@@ -50,12 +52,12 @@ the minimum work. Cost tiers, cheapest first:
 
 - **Live, no rebuild** — applied in place every call: `pixelRatioCap`, `toneMapping`,
   `fogType` (swaps the `scene.fog` object between `Fog`/`FogExp2`), `bloomIntensity`,
-  `bloomThreshold`. Also handled live in `GameSession.applySettings`: `fov`,
+  `bloomThreshold`, `godraysStrength`. Also handled live in `GameSession.applySettings`: `fov`,
   `renderDistance` (fog far + chunk streaming), `anisotropy` (atlas texture re-upload,
   no remesh), sensitivity, volumes, FPS toggle.
 - **Structural composer rebuild** — disposes and recreates the `EffectComposer`:
-  changing `antiAlias` (off/fxaa/smaa) or toggling `bloom`. Cheap (a few GPU allocations),
-  but not per-frame; only on a settings change.
+  changing `antiAlias` (off/fxaa/smaa) or toggling `bloom` / `godrays`. Cheap (a few GPU
+  allocations), but not per-frame; only on a settings change.
 - **Material recompile** — sets `chunkMaterial.needsUpdate` / `waterMaterial.needsUpdate`
   so the chunk/water shaders re-link. Triggered by `applyGraphics` returning
   `shadowRecompileNeeded`: when `shadowMapSize` toggles shadows **on↔off**, or when
@@ -285,6 +287,40 @@ with **no shader recompile**; `GameSession.applySettings` diffs `emissiveBloom` 
 The term is injected unconditionally, so toggling is a pure uniform write; when off the term is
 multiplied by `0.0` and is exactly a no-op. Only the solid chunk material carries the uniform —
 `createWaterMaterial` never enables it, so water never glows.
+
+## God rays (P5)
+
+`godrays` (off at Low/Medium, on at High/Ultra) adds **screen-space radial light-scatter** —
+crepuscular "sun shaft" streaks fanning out from the sun through gaps in the terrain. It is a
+single extra `ShaderPass` (`makeGodraysShader` in `src/rendering/GodraysPass.ts`), the
+McGuire / *GPU Gems 3* ch.13 radial-blur method: no occlusion prepass, no new render target.
+
+**Where it sits.** `rebuildComposer` inserts the pass **after `RenderPass` and before
+`UnrealBloomPass`**, so it scatters the raw linear-HDR scene and its own output can then bloom.
+`OutputPass` still tone-maps + sRGB-encodes once at the very end. When `godrays` is off the pass
+isn't added at all, and a preset with no passes whatsoever (`antiAlias === off && !bloom &&
+!godrays`, i.e. Low) keeps the composer null for a direct, zero-overhead render.
+
+**The shader.** From the sun's screen-UV position (`uSunPos`) it marches `SAMPLES` (60) steps
+back toward each pixel, accumulating scene luminance with geometric `DECAY`. A
+`smoothstep(MASK_LOW, MASK_HIGH, luma)` mask means **only bright sky/sun pixels scatter** while
+darker terrain reads as an occluder — that's what fans the shafts around terrain silhouettes
+without a dedicated occlusion pass. The accumulation is tinted warm (`uColor`) and added onto
+the original texel. When `uIntensity < 0.001` the shader is an **exact passthrough** and skips
+the whole sample loop, so an off-screen or below-horizon sun costs almost nothing.
+
+**Per-frame uniform update.** `Renderer.updateGodrays(camera)` (called right before
+`composer.render()`) projects the sun to screen space allocation-free: the sun sits at
+`cameraPos + (-_sunDir)·1000` (since `_sunDir` is the direction light *travels*), transformed
+through the inverse camera-world then projection matrices to NDC→UV. `uIntensity` is
+`godraysStrength × visibility`, where visibility multiplies three gates that each fade to 0:
+**behind the camera** (`viewZ ≥ 0`), **below the horizon** (`-_sunDir.y ≤ 0`, ramped over
+0.15), and **off the screen edges** (NDC magnitude past 1.3, ramped over 0.4). So shafts bleed
+in and out smoothly as the sun rises, sets, or pans off-frame — no popping.
+
+**Cost to change.** Toggling `godrays` is a **structural composer rebuild** (adds/removes the
+pass). `godraysStrength` is **live, no rebuild** — `applyGraphics` writes `_godraysStrength`
+every call, so dragging the slider changes the next frame's `uIntensity` directly.
 
 ## SSAO is deferred to P5
 
