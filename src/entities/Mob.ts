@@ -63,14 +63,19 @@ export abstract class Mob extends Entity {
    * Apply `amount` damage from a source at world XZ (fromX, fromZ). Imparts knockback
    * away from the source plus a brief stun, and records the hit direction. Returns true
    * if this hit reduced health to 0 (caller should despawn).
+   *
+   * `knockbackScale` multiplies the horizontal impulse only (default 1). Pass
+   * SPRINT_ATTACK_KNOCKBACK_SCALE for melee hits landed while sprinting to shove
+   * the target further back. Vertical pop is intentionally not scaled — scaling it
+   * upward would cause juggling.
    */
-  takeDamage(amount: number, fromX: number, fromZ: number): boolean {
+  takeDamage(amount: number, fromX: number, fromZ: number, knockbackScale: number = 1): boolean {
     this.health = Math.max(0, this.health - amount);
     const dx = this.position.x - fromX;
     const dz = this.position.z - fromZ;
     const len = Math.hypot(dx, dz) || 1;
-    this.velocity.x = (dx / len) * MOB_KNOCKBACK_SPEED;
-    this.velocity.z = (dz / len) * MOB_KNOCKBACK_SPEED;
+    this.velocity.x = (dx / len) * MOB_KNOCKBACK_SPEED * knockbackScale;
+    this.velocity.z = (dz / len) * MOB_KNOCKBACK_SPEED * knockbackScale;
     // Only pop a grounded mob upward; re-launching an airborne one would juggle it.
     if (this.onGround) this.velocity.y = MOB_KNOCKBACK_POP;
     this.hurtTimer = MOB_KNOCKBACK_DURATION_S;

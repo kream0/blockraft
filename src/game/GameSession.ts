@@ -48,6 +48,7 @@ import {
   PLAYER_RESPAWN_INVULN_S,
   PLAYER_ATTACK_DAMAGE,
   CRITICAL_HIT_MULTIPLIER,
+  SPRINT_ATTACK_KNOCKBACK_SCALE,
   PLAYER_ATTACK_RANGE,
   PLAYER_ATTACK_COOLDOWN_S,
   PLAYER_EYE,
@@ -1693,7 +1694,8 @@ export class GameSession {
     const isCrit = !st.onGround && st.velocity.y < 0;
     const damage = isCrit ? Math.round(baseDamage * CRITICAL_HIT_MULTIPLIER) : baseDamage;
     if (isCrit) this.audio.playCrit();
-    const killed = target.takeDamage(damage, p.x, p.z);
+    const sprinting = this.controls.input.sprint && st.hunger > SPRINT_MIN_HUNGER;
+    const killed = target.takeDamage(damage, p.x, p.z, sprinting ? SPRINT_ATTACK_KNOCKBACK_SCALE : 1);
     if (killed) this.killMob(target);
     return true;
   }

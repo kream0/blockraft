@@ -114,6 +114,8 @@ export const PLAYER_ATTACK_RANGE = 3.5;
 export const PLAYER_ATTACK_COOLDOWN_S = 0.4;
 /** Horizontal speed (blocks/s) imparted to a mob when hit, directed away from the attacker. */
 export const MOB_KNOCKBACK_SPEED = 6;
+/** Horizontal knockback multiplier for a melee hit landed while sprinting. MC parity: sprint-hits shove the target noticeably harder (spacing tool). Survival sprint requires hunger > SPRINT_MIN_HUNGER, so this only applies when actually sprinting. */
+export const SPRINT_ATTACK_KNOCKBACK_SCALE = 1.6;
 /** Vertical pop (blocks/s) added to a grounded mob when hit, for a small hop. */
 export const MOB_KNOCKBACK_POP = 4;
 /** Seconds a mob is stunned after a hit: its AI think() is suppressed so the knockback impulse isn't overwritten. */
