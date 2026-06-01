@@ -228,6 +228,24 @@ buffer (the dome included), so the raw-shader output never diverges from the fog
 `pow(2.2)`-linearizing the uniforms would *double-convert* and *create* the seam.) The bright sun halo
 exceeds 1.0 and **blooms for free** through the existing `UnrealBloomPass` — no pipeline change.
 
+## Cloud detail (P5)
+
+`cloudDetail` (low / medium / high / ultra) drives the resolution and density of the procedural
+cloud sheet that `Clouds` (`src/rendering/Clouds.ts`) bakes into a tileable `CanvasTexture`. The
+level maps to a `{ textureSize, blobCount }` pair via `CLOUD_DETAIL_PARAMS` — **128 px / 8 blobs**
+at Low up to **512 px / 48 blobs** at Ultra — so higher tiers paint a crisper, denser cloud field.
+Blob radius scales with `textureSize` (`scale = SIZE / 256`), so the clouds keep the same apparent
+size at every resolution; only the crispness and blob count change. The 3×3 wrapped-copy blob draw
+keeps the texture seamlessly tileable at any size.
+
+**Cost to change.** `Clouds.setDetail()` rebuilds just the procedural texture (a Canvas2D draw — no
+geometry change and **no chunk remesh**), swaps it onto the existing `MeshBasicMaterial.map`, and
+disposes the old one; it's a no-op when the level is unchanged. `GameSession` constructs `Clouds` at
+the saved detail and diffs `cloudDetail` in `applySettings`, live-applying via `setDetail`
+(side-effecting call first, then update `_lastCloudDetail` — matching the water-quality block's
+order). Switching detail is therefore cheap and instant; the only allocation is the replacement
+canvas + texture (the old one is disposed the same frame).
+
 ## SSAO is deferred to P5
 
 The SSAO checkbox + samples slider exist and persist, but **SSAO is not wired into the P1
