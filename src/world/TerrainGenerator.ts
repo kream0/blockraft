@@ -73,6 +73,15 @@ const CACTUS_CANDIDATES = 4;   // candidate interior spots tried per chunk
 const CACTUS_MIN_H = 1;        // min column height (blocks above the surface)
 const CACTUS_MAX_H = 3;        // max column height
 
+// Desert Temple: stepped sandstone pyramid on flat desert sand with a buried treasure chamber below.
+// Rare landmark (~1 in 25 desert chunks; rarer overall because of the desert biome gate).
+const STRUCT_SALT_TEMPLE = 0x7e3d10c5; // distinct from boulder/dungeon/village/cactus salts
+const TEMPLE_CHANCE = 0.04;       // ~1 in 25 desert chunks anchors a temple (desert-gated, so rarer overall)
+const TEMPLE_HALF = 4;            // 9x9 pyramid base (center +/- 4)
+const TEMPLE_MAX_SLOPE = 2;       // max (maxH - minH) over the footprint to allow building
+const TEMPLE_CHAMBER_HALF = 2;    // 5x5 chamber shell -> 3x3 interior
+const TEMPLE_CHAMBER_H = 2;       // chamber interior height in rows
+
 /** Deterministic int hash for tree placement, etc. */
 function hash3(a: number, b: number, c: number): number {
   return ((Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) >>> 0);
@@ -405,6 +414,109 @@ export class TerrainGenerator {
     }
   }
 
+  /**
+   * Place a stepped sandstone pyramid with a buried treasure chamber on flat desert sand if the
+   * chunk's roll succeeds. The pyramid sits on the surface (floorY = maxH over the footprint) and
+   * rises TEMPLE_HALF steps; the sealed chamber is directly below floorY.
+   *
+   * Bounds invariant: cxL,czL ∈ [TEMPLE_HALF, CHUNK_SIZE-1-TEMPLE_HALF] = [4, 11], so:
+   *   - Pyramid footprint (center ±TEMPLE_HALF = ±4) spans [0, 15] ⊆ [0, CHUNK_SIZE).
+   *   - Chamber footprint (center ±TEMPLE_CHAMBER_HALF = ±2) spans [2, 13] ⊆ [0, CHUNK_SIZE).
+   *   - chamberFloorY >= 2 (gate at step 12).
+   *   - floorY + TEMPLE_HALF <= CHUNK_HEIGHT - 2 (gate at step 11).
+   * Every Chunk.idx write below is therefore in-bounds without a per-write guard.
+   */
+  private placeDesertTemple(chunk: Chunk, heights: Int16Array): void {
+    // 1. Reseed deterministically; independent salt from all other structures.
+    this.oreState = (hash3(chunk.cx, chunk.cz, (this.seed ^ STRUCT_SALT_TEMPLE) >>> 0) >>> 0) || 1;
+    // 2. Chance roll — bail early before any computation if the chunk doesn't win.
+    if (this.oreNext() / 4294967296 >= TEMPLE_CHANCE) return;
+
+    // 3. Pick an interior center so the 9x9 footprint (center ±4) stays within [0, CHUNK_SIZE).
+    const range = CHUNK_SIZE - 2 * TEMPLE_HALF; // = 8; valid center range ∈ [4, 11]
+    const cxL = TEMPLE_HALF + (this.oreNext() % range);
+    const czL = TEMPLE_HALF + (this.oreNext() % range);
+
+    // 4. World-space base for loot chest registration.
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+
+    // 5. Desert biome gate (world coordinates required for noise-based query).
+    if (this.biomeAt(baseX + cxL, baseZ + czL) !== BIOME_DESERT) return;
+
+    // 6. Terrain flatness: measure min/max surface height over the full 9x9 footprint.
+    let minH = CHUNK_HEIGHT;
+    let maxH = 0;
+    for (let x = cxL - TEMPLE_HALF; x <= cxL + TEMPLE_HALF; x++) {
+      for (let z = czL - TEMPLE_HALF; z <= czL + TEMPLE_HALF; z++) {
+        const h = heights[x + z * CHUNK_SIZE]!;
+        if (h < minH) minH = h;
+        if (h > maxH) maxH = h;
+      }
+    }
+
+    // 7. No temple on beaches or submerged columns.
+    if (minH <= SEA_LEVEL) return;
+    // 8. Slope gate: reject if the ground is too uneven.
+    if (maxH - minH > TEMPLE_MAX_SLOPE) return;
+
+    // 9. Sand-surface gate at the center column.
+    const sH = heights[cxL + czL * CHUNK_SIZE]!;
+    const surfaceId = (chunk.blocks[Chunk.idx(cxL, sH, czL)] ?? BlockId.AIR) as BlockId;
+    if (surfaceId !== BlockId.SAND) return;
+
+    // 10. The pyramid base sits flush with the highest column in the footprint.
+    const floorY = maxH;
+
+    // 11. Vertical headroom: pyramid tip (floorY + TEMPLE_HALF) must fit below the chunk ceiling.
+    if (floorY + TEMPLE_HALF >= CHUNK_HEIGHT - 1) return;
+
+    // 12. Chamber geometry: sealed sandstone box sits just below floorY.
+    const chamberCeilY = floorY - 1;
+    const chamberFloorY = chamberCeilY - (TEMPLE_CHAMBER_H + 1);
+    if (chamberFloorY < 2) return;
+
+    // --- All gates passed; no more early returns below. ---
+
+    // A. Foundation fill: raise lower columns with SANDSTONE so the base is flush.
+    for (let x = cxL - TEMPLE_HALF; x <= cxL + TEMPLE_HALF; x++) {
+      for (let z = czL - TEMPLE_HALF; z <= czL + TEMPLE_HALF; z++) {
+        const cs = heights[x + z * CHUNK_SIZE]!;
+        for (let y = cs + 1; y <= floorY - 1; y++) {
+          chunk.blocks[Chunk.idx(x, y, z)] = BlockId.SANDSTONE;
+        }
+      }
+    }
+
+    // B. Buried chamber: sealed sandstone shell, AIR interior, one loot chest.
+    for (let x = cxL - TEMPLE_CHAMBER_HALF; x <= cxL + TEMPLE_CHAMBER_HALF; x++) {
+      for (let z = czL - TEMPLE_CHAMBER_HALF; z <= czL + TEMPLE_CHAMBER_HALF; z++) {
+        for (let y = chamberFloorY; y <= chamberCeilY; y++) {
+          const isShell =
+            x === cxL - TEMPLE_CHAMBER_HALF || x === cxL + TEMPLE_CHAMBER_HALF ||
+            z === czL - TEMPLE_CHAMBER_HALF || z === czL + TEMPLE_CHAMBER_HALF ||
+            y === chamberFloorY || y === chamberCeilY;
+          chunk.blocks[Chunk.idx(x, y, z)] = isShell ? BlockId.SANDSTONE : BlockId.AIR;
+        }
+      }
+    }
+    // Loot chest on the chamber floor, one cell above the stone floor slab (chamberFloorY+1 is interior AIR).
+    chunk.blocks[Chunk.idx(cxL, chamberFloorY + 1, czL)] = BlockId.CHEST;
+    chunk.lootChests.push({ x: baseX + cxL, y: chamberFloorY + 1, z: baseZ + czL });
+
+    // C. Stepped pyramid: solid sandstone. k=0 is the full 9x9 base layer at floorY; each step
+    //    narrows by 1 on every side and rises 1 block, forming TEMPLE_HALF+1 tiers total.
+    for (let k = 0; k <= TEMPLE_HALF; k++) {
+      const y = floorY + k;
+      const half = TEMPLE_HALF - k;
+      for (let x = cxL - half; x <= cxL + half; x++) {
+        for (let z = czL - half; z <= czL + half; z++) {
+          chunk.blocks[Chunk.idx(x, y, z)] = BlockId.SANDSTONE;
+        }
+      }
+    }
+  }
+
   /** Place sparse cactus columns in the desert biome. Desert-only, sand-surface, above sea level, interior positions, AIR-only writes. */
   private placeCacti(chunk: Chunk, heights: Int16Array): void {
     const baseX = chunk.cx * CHUNK_SIZE;
@@ -438,11 +550,12 @@ export class TerrainGenerator {
     }
   }
 
-  /** Dispatch surface boulders, underground dungeons, and villages for this chunk. */
+  /** Dispatch surface boulders, underground dungeons, villages, and desert temples for this chunk. */
   private placeStructures(chunk: Chunk, heights: Int16Array): void {
     this.placeBoulder(chunk, heights);
     this.placeDungeon(chunk, heights);
     this.placeVillage(chunk, heights);
+    this.placeDesertTemple(chunk, heights);
   }
 
   /** Regional mountain mask in [0,1]: 0 in lowlands, smoothly ramps to 1 where the low-frequency mountain noise is high. */
