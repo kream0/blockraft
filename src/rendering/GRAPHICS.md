@@ -246,6 +246,39 @@ the saved detail and diffs `cloudDetail` in `applySettings`, live-applying via `
 order). Switching detail is therefore cheap and instant; the only allocation is the replacement
 canvas + texture (the old one is disposed the same frame).
 
+## Emissive block bloom (P5)
+
+`emissiveBloom` (off at Low/Medium, on at High/Ultra) makes torches, glowstone and lava visibly
+**glow** at night by feeding the existing HDR bloom pass. It needs no new geometry, no new vertex
+attribute, and no remesh — it reuses the per-vertex light split the mesher already bakes.
+
+**How the channel split makes this free.** The mesher packs sky light and block (torch/glowstone/
+lava) light into *separate* vertex-color channels: `color.r = faceShade·AO·skyBrightness` and
+`color.g = faceShade·AO·blockBrightness`. The chunk shader's baked-light branch (injected by
+`patchChunkLighting` in `Materials.ts`, inside the `#ifdef USE_COLOR` block) already recovers
+`skyLit` and `blockLit` from those channels. Emissive bloom adds one term there:
+
+```glsl
+float emissiveAmt = smoothstep(0.55, 1.0, blockLit);
+totalEmissiveRadiance += diffuseColor.rgb * warmTint * emissiveAmt * uEmissiveBloom;
+```
+
+`smoothstep(0.55, 1.0, blockLit)` gates the glow to only strongly *block-lit* faces, so ordinary
+sky-lit daytime terrain never glows — a torch face (blockLit ≈ 1.0) ramps in, a grass field
+(blockLit ≈ 0) stays at zero. `warmTint` reuses the same firelight-orange tint the diffuse path
+uses. The result lands in `totalEmissiveRadiance`, which MeshStandard adds *after* tone-mapping
+clamps the lit diffuse — so when `uEmissiveBloom = 1.8` the face exceeds 1.0 in the HDR target and
+`UnrealBloomPass` (already in the P1 pipeline) blooms it. With bloom off the extra radiance is
+simply a slightly brighter emitter.
+
+**Cost to change.** `uEmissiveBloom` is a live uniform (`0.0` off, `EMISSIVE_BLOOM_STRENGTH = 1.8`
+on) held in `material.userData` and wired in `onBeforeCompile`. `setChunkEmissiveBloom()` flips it
+with **no shader recompile**; `GameSession.applySettings` diffs `emissiveBloom` and calls it
+(side-effecting call first, then update `_lastEmissiveBloom` — matching the cloud/water blocks).
+The term is injected unconditionally, so toggling is a pure uniform write; when off the term is
+multiplied by `0.0` and is exactly a no-op. Only the solid chunk material carries the uniform —
+`createWaterMaterial` never enables it, so water never glows.
+
 ## SSAO is deferred to P5
 
 The SSAO checkbox + samples slider exist and persist, but **SSAO is not wired into the P1
