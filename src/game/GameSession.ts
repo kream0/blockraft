@@ -83,6 +83,8 @@ import {
   FALL_DAMAGE_PER_BLOCK,
   HEALTH_REGEN_DELAY_S,
   HEALTH_REGEN_INTERVAL_S,
+  PLAYER_DEFAULT_SATURATION,
+  HEALTH_REGEN_FAST_INTERVAL_S,
   PLAYER_MAX_HUNGER,
   HUNGER_REGEN_THRESHOLD,
   EXHAUSTION_PER_HUNGER,
@@ -1045,8 +1047,13 @@ export class GameSession {
     if (wasOnGround && !st.onGround && st.velocity.y > 0) this.exhaustion += EXHAUSTION_JUMP;
     while (this.exhaustion >= EXHAUSTION_PER_HUNGER) {
       this.exhaustion -= EXHAUSTION_PER_HUNGER;
-      if (st.hunger > 0) st.hunger -= 1;
+      if (st.saturation > 0) {
+        st.saturation = Math.max(0, st.saturation - 1);
+      } else if (st.hunger > 0) {
+        st.hunger -= 1;
+      }
     }
+    if (st.saturation > st.hunger) st.saturation = st.hunger;
     if (st.hunger <= 0) {
       st.hunger = 0;
       this.starveTimer += FIXED_DT;
@@ -1076,10 +1083,12 @@ export class GameSession {
       this.healthRegenAcc = 0;
       return;
     }
+    const fastHeal = st.hunger >= PLAYER_MAX_HUNGER && st.saturation > 0;
+    const regenInterval = fastHeal ? HEALTH_REGEN_FAST_INTERVAL_S : HEALTH_REGEN_INTERVAL_S;
     this.healthRegenAcc += dt;
-    while (this.healthRegenAcc >= HEALTH_REGEN_INTERVAL_S && st.health < PLAYER_MAX_HEALTH) {
+    while (this.healthRegenAcc >= regenInterval && st.health < PLAYER_MAX_HEALTH) {
       st.health += 1;
-      this.healthRegenAcc -= HEALTH_REGEN_INTERVAL_S;
+      this.healthRegenAcc -= regenInterval;
       this.exhaustion += EXHAUSTION_PER_HEAL;
     }
     if (st.health >= PLAYER_MAX_HEALTH) this.healthRegenAcc = 0;
@@ -1246,6 +1255,7 @@ export class GameSession {
     this.player.state.onGround = true;
     this.player.state.health = PLAYER_MAX_HEALTH;
     this.player.state.hunger = PLAYER_MAX_HUNGER;
+    this.player.state.saturation = PLAYER_DEFAULT_SATURATION;
     this.exhaustion = 0;
     this.starveTimer = 0;
     this.eatProgress = 0;
@@ -1612,7 +1622,9 @@ export class GameSession {
     this.eatProgress += dt;
     if (this.eatProgress >= EAT_DURATION_S) {
       this.eatProgress = 0;
-      this.player.state.hunger = Math.min(PLAYER_MAX_HUNGER, this.player.state.hunger + food.hungerRestore);
+      const st = this.player.state;
+      st.hunger = Math.min(PLAYER_MAX_HUNGER, st.hunger + food.hungerRestore);
+      st.saturation = Math.min(st.hunger, st.saturation + food.saturationRestore);
       this.player.inventory.removeOne(slot);
       this.viewModel.triggerSwing();
     }

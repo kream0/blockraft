@@ -72,6 +72,10 @@ export const MOB_MAX_SAFE_DROP = 3;
 export const HEALTH_REGEN_DELAY_S = 6;
 /** Seconds per half-heart restored once regeneration is active. */
 export const HEALTH_REGEN_INTERVAL_S = 1.5;
+/** Default saturation on spawn / fresh load (mirrors hunger resetting to full). */
+export const PLAYER_DEFAULT_SATURATION = 5;
+/** Health-regen interval (s) while hunger is FULL and saturation > 0 — the "well-fed" fast heal. Must be < HEALTH_REGEN_INTERVAL_S. */
+export const HEALTH_REGEN_FAST_INTERVAL_S = 0.5;
 /** Seconds the player can stay fully submerged before drowning damage begins (survival only). */
 export const PLAYER_MAX_AIR_S = 15;
 /** Damage (half-heart points) per drowning tick once air is depleted. */
@@ -401,6 +405,8 @@ export interface ToolDef {
 export interface FoodDef {
   /** Half-hunger points restored when eaten. */
   hungerRestore: number;
+  /** Saturation points granted on eat (capped to the post-eat hunger level). Cooked food >> raw. */
+  saturationRestore: number;
 }
 
 /** Weapon behavior: the melee attack damage (half-heart points) dealt when this item is held. */
@@ -663,6 +669,8 @@ export interface PlayerState {
   health: number;
   /** Half-drumstick points, clamped [0, PLAYER_MAX_HUNGER]. Not persisted; resets to full each load. */
   hunger: number;
+  /** Hidden saturation buffer in [0, hunger]; drains before hunger and enables fast regen. Not persisted; resets each load. */
+  saturation: number;
   /** Equipped armor by ArmorSlot index; null = empty. Length ARMOR_SLOT_COUNT. Persisted (survival only). */
   armor: (ItemId | null)[];
 }
