@@ -15,6 +15,8 @@ const CREEPER_RADIUS = 0.3;   // matches Skeleton; keeps speed/60 < radius (no t
 const CREEPER_HEIGHT = 1.7;
 const WANDER_SPEED = 1.0;
 const WANDER_INTERVAL_S = 3;
+const CREEPER_EYE_HEIGHT = 1.4;   // line-of-sight origin: roughly the creeper's head
+const TARGET_CHEST_OFFSET = 1.0;  // aim at the player's chest (getTrackedTarget is the feet)
 
 /**
  * Hostile melee mob: chases the player on sight and triggers an explosion when
@@ -36,6 +38,9 @@ export class Creeper extends Mob {
   private fuseTimer = 0;     // seconds the fuse has been burning (0 = unlit)
   private wanderAngle = Math.random() * Math.PI * 2;
   private wanderTimer = 0;
+  // Reused scratch vectors for the line-of-sight raycast (no per-tick allocation).
+  private readonly losOrigin: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly losDir: Vec3 = { x: 0, y: 0, z: 0 };
 
   constructor(position: Vec3) {
     const mesh = Creeper.buildMesh();
@@ -57,8 +62,8 @@ export class Creeper extends Mob {
         // Face the player while engaged (yaw convention: -Z is forward at yaw=0).
         this.yaw = Math.atan2(-nx, -nz);
 
-        if (dist <= CREEPER_IGNITE_RANGE) {
-          // ---- FUSE: player is in blast range — freeze and burn the fuse ----
+        if (dist <= CREEPER_IGNITE_RANGE && this.canSeeTarget(world, target)) {
+          // ---- FUSE: player is in blast range AND visible — freeze and burn the fuse ----
           this.velocity.x = 0;
           this.velocity.z = 0;
           this.fuseTimer += dt;
@@ -101,6 +106,31 @@ export class Creeper extends Mob {
       this.wanderAngle = Math.random() * Math.PI * 2;
       this.wanderTimer = WANDER_INTERVAL_S;
     }
+  }
+
+  /**
+   * Clear line of sight from the creeper's head to the player's chest?
+   * Casts a ray and checks nothing solid blocks it before the player — so a
+   * creeper can't burn its fuse (and detonate) through a wall while you hide.
+   */
+  private canSeeTarget(world: IWorld, target: Vec3): boolean {
+    this.losOrigin.x = this.position.x;
+    this.losOrigin.y = this.position.y + CREEPER_EYE_HEIGHT;
+    this.losOrigin.z = this.position.z;
+
+    this.losDir.x = target.x - this.losOrigin.x;
+    this.losDir.y = target.y + TARGET_CHEST_OFFSET - this.losOrigin.y;
+    this.losDir.z = target.z - this.losOrigin.z;
+
+    const dist = Math.sqrt(
+      this.losDir.x * this.losDir.x +
+      this.losDir.y * this.losDir.y +
+      this.losDir.z * this.losDir.z,
+    );
+    if (dist <= 1e-4) return true; // degenerate (essentially on top of the player)
+
+    // raycast returns the first solid block within `dist`; null means nothing blocks the path.
+    return world.raycast(this.losOrigin, this.losDir, dist) === null;
   }
 
   /**
