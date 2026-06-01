@@ -271,6 +271,18 @@ export const SKY_BODY_DISTANCE = 400; // world units from camera; < camera far (
 export const SUN_RADIUS = 30;         // half-width of the sun quad
 export const MOON_RADIUS = 22;        // half-width of the moon quad
 
+// === Clouds (drifting overhead layer) ===
+/** World-Y of the flat cloud layer. Render-only and far above the 96-block terrain ceiling, so nothing ever intersects it. */
+export const CLOUD_ALTITUDE = 160;
+/** Half-width (world units) of the square cloud plane. It recenters on the camera each frame; fog dissolves the far edges. Kept so the plane corners (≈EXTENT·√2 horizontally + altitude) stay inside the 1000-unit camera far plane. */
+export const CLOUD_EXTENT = 600;
+/** Cloud drift speed in texture-UV units per second (slow, ~1 tile every few minutes). */
+export const CLOUD_DRIFT_SPEED = 0.004;
+/** How many times the cloud texture tiles across the plane (higher = smaller, denser cloud clusters). */
+export const CLOUD_TEXTURE_REPEAT = 8;
+/** Base opacity of the cloud layer at full daylight (eased down a little at night). */
+export const CLOUD_OPACITY = 0.85;
+
 /** Number of progressive crack stages drawn on a block as it's mined (Minecraft-style destroy stages). */
 export const BREAK_OVERLAY_STAGES = 10;
 /** Max items in one inventory stack. */

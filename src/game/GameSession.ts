@@ -6,6 +6,7 @@ import { createChunkMaterial, createWaterMaterial, setChunkDaylight } from '../r
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
+import { Clouds } from '../rendering/Clouds';
 import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
 import { World } from '../world/World';
@@ -195,6 +196,7 @@ export class GameSession {
   private particles: ParticleSystem;
   private weather!: WeatherSystem;
   private skyBodies!: SkyBodies;
+  private clouds!: Clouds;
   private breakOverlay: BreakOverlay;
   private audio: AudioManager;
   private dayNight: DayNightCycle;
@@ -441,6 +443,8 @@ export class GameSession {
     this.renderer.scene.add(this.weather.object3D);
     this.skyBodies = new SkyBodies();
     this.renderer.scene.add(this.skyBodies.object3D);
+    this.clouds = new Clouds();
+    this.renderer.scene.add(this.clouds.object3D);
 
     // Block-crack overlay.
     this.breakOverlay = new BreakOverlay();
@@ -714,6 +718,7 @@ export class GameSession {
       const camWorld = this.player.camera.getWorldPosition(this._scratchCam);
       this.weather.update(dt, camWorld, this.world);
       this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
+      this.clouds.update(this.dayNight.getSkyState(), camWorld, dt);
       this.particles.update(dt);
       this.renderer.render(this.player.camera);
 
@@ -826,6 +831,8 @@ export class GameSession {
     this.weather.dispose();
     this.renderer.scene.remove(this.skyBodies.object3D);
     this.skyBodies.dispose();
+    this.renderer.scene.remove(this.clouds.object3D);
+    this.clouds.dispose();
     this.renderer.scene.remove(this.breakOverlay.object3D);
     this.breakOverlay.dispose();
     this.viewModel.dispose();
