@@ -527,6 +527,14 @@ export class GameSession {
           }
           return;
         }
+        if (heldItem === BlockId.TORCH) {
+          if (this.interaction.placeTorch()) {
+            if (this.gameMode === GameMode.SURVIVAL) this.player.inventory.removeOne(this.player.state.selectedSlot);
+            this.audio.playPlace();
+            this.viewModel.triggerSwing();
+          }
+          return;
+        }
         if (this.interaction.placeBlock()) {
           if (this.gameMode === GameMode.SURVIVAL) {
             this.player.inventory.removeOne(this.player.state.selectedSlot);

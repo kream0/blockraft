@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { Player } from '../player/Player';
 import { isDoorBlock, doorBlockId, DoorFacing } from '../world/Door';
+import { wallTorchIdForNormal } from '../world/Torch';
 
 function facingFromDirection(dx: number, dz: number): DoorFacing {
   if (Math.abs(dx) > Math.abs(dz)) return dx > 0 ? DoorFacing.EAST : DoorFacing.WEST;
@@ -128,6 +129,50 @@ export class BlockInteraction {
     if (this.overlapsPlayer(tx, ty, tz)) return false;
 
     this.world.setBlock(tx, ty, tz, selected);
+    return true;
+  }
+
+  /** Raycast; if hit, place a torch (upright or wall-canted) at hit.normal offset.
+   * Top face → upright TORCH. Bottom/ceiling face → rejected. Side face → wall torch variant.
+   * Requires the clicked block to be solid (support) and the target cell to be AIR.
+   * Torches are non-solid; no player-overlap check needed. Returns true iff placed. */
+  placeTorch(): boolean {
+    const origin = this.player.camera.getWorldPosition(new THREE.Vector3());
+    const direction = new THREE.Vector3(0, 0, -1)
+      .applyQuaternion(this.player.camera.quaternion)
+      .normalize();
+
+    const hit = this.world.raycast(
+      { x: origin.x, y: origin.y, z: origin.z },
+      { x: direction.x, y: direction.y, z: direction.z },
+      REACH,
+    );
+    if (!hit) return false;
+
+    // The clicked block must be solid (acts as the support for the torch).
+    if (!this.world.isSolid(hit.block.x, hit.block.y, hit.block.z)) return false;
+
+    const tx = hit.block.x + hit.normal.x;
+    const ty = hit.block.y + hit.normal.y;
+    const tz = hit.block.z + hit.normal.z;
+
+    // Target cell must be AIR.
+    if (this.world.getBlock(tx, ty, tz) !== BlockId.AIR) return false;
+
+    // Determine torch variant by face normal.
+    let placeId: BlockId;
+    if (hit.normal.y > 0) {
+      // Clicked the top face → upright floor torch.
+      placeId = BlockId.TORCH;
+    } else if (hit.normal.y < 0) {
+      // Clicked the bottom/ceiling face → no ceiling torches.
+      return false;
+    } else {
+      // Clicked a horizontal side face → wall torch.
+      placeId = wallTorchIdForNormal(hit.normal.x, hit.normal.z);
+    }
+
+    this.world.setBlock(tx, ty, tz, placeId);
     return true;
   }
 

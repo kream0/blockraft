@@ -340,14 +340,23 @@ export const BlockId = {
   LAVA: 29, // opaque non-solid hazard liquid; emits max block light, burns on contact
   CACTUS: 30, // desert plant; opaque solid cube, harvestable, burns on contact (survival)
   SANDSTONE: 31, // desert building block; opaque solid cube, crafted from 4 sand, generates beneath desert sand
+  // Wall-torch orientation variants (ids 32..35): world-only — never held as items.
+  // They normalise to BlockId.TORCH (id 26) when dropped. The lean direction is the
+  // way the flame tips, matching the clicked face's outward normal.
+  TORCH_WALL_NORTH: 32, // leans -Z (toward -Z); supporting wall is at +Z side
+  TORCH_WALL_SOUTH: 33, // leans +Z; supporting wall is at -Z side
+  TORCH_WALL_EAST: 34,  // leans +X; supporting wall is at -X side
+  TORCH_WALL_WEST: 35,  // leans -X; supporting wall is at +X side
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..31) directly, so a persisted block stack {block,count} reads
-// back as {item,count} with item === block. ItemId is therefore the numeric union
-// of "any BlockId" plus these non-block ids.
+// numeric value (0..35) directly, so a persisted block stack {block,count} reads
+// back as {item,count} with item === block. Note: ids 32..35 are world-only block
+// variants (wall-torch orientations) that are never held as items — they normalise
+// to BlockId.TORCH on drop. ItemId is therefore the numeric union of "any BlockId"
+// plus these non-block ids.
 export const ItemId = {
   STICK: 100,
   WOODEN_PICKAXE: 101,
@@ -389,7 +398,7 @@ export const ItemId = {
   BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
   ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
-/** A BlockId value (0..31) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..35) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

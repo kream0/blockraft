@@ -12,6 +12,7 @@ import {
   type ArmorDef,
 } from '../types';
 import { isDoorBlock } from '../world/Door';
+import { isTorchBlock } from '../world/Torch';
 
 // === Canonical block swatch colors (copied from Hotbar.ts; integration agent will redirect Hotbar here) ===
 export const BLOCK_SWATCH_COLORS: Record<number, string> = {
@@ -52,7 +53,7 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
 // === Block item identity set — built once at module load ===
 const _blockIdSet = new Set<number>(Object.values(BlockId));
 
-/** True if id is one of the BlockId numeric values (0..31). */
+/** True if id is one of the BlockId numeric values (0..35). */
 export function isBlockItem(id: ItemId): boolean {
   return _blockIdSet.has(id);
 }
@@ -650,6 +651,7 @@ export function toolMultiplierFor(heldItem: ItemId, target: BlockId): number {
  */
 export function blockDropFor(block: BlockId): ItemId {
   if (isDoorBlock(block)) return ItemId.DOOR;
+  if (isTorchBlock(block)) return BlockId.TORCH;
   if (block === BlockId.STONE) return BlockId.COBBLESTONE;
   if (block === BlockId.DIAMOND_ORE) return ItemId.DIAMOND;
   return block;

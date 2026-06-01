@@ -28,6 +28,7 @@ import { ATLAS_TILE_PIXELS, ATLAS_COLS, ATLAS_SIZE } from '../rendering/TextureA
 import { TerrainGenerator } from './TerrainGenerator';
 import { EntityManager } from '../entities/EntityManager';
 import { isDoorBlock } from './Door';
+import { isTorchBlock } from './Torch';
 
 const MAX_NEW_CHUNKS_PER_UPDATE = 2;
 const MAX_REMESH_PER_UPDATE = 4;
@@ -402,7 +403,7 @@ export class World implements IWorld, ISkyLightAccess {
 
   private isRaycastTarget(x: number, y: number, z: number): boolean {
     const id = this.getBlock(x, y, z);
-    return this.registry.isSolid(id) || isDoorBlock(id) || id === BlockId.TORCH;
+    return this.registry.isSolid(id) || isDoorBlock(id) || isTorchBlock(id);
   }
 
   // --- ISkyLightAccess + IWorld.getSkyLight ---

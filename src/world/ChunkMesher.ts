@@ -21,7 +21,7 @@ import {
   DOOR_TILE_EDGE,
   type DoorMeshArrays,
 } from './Door';
-import { emitTorchGeometry, TORCH_TILE } from './Torch';
+import { emitTorchGeometry, isTorchBlock, wallTorchLean, emitWallTorchGeometry, TORCH_TILE } from './Torch';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -220,12 +220,17 @@ export class ChunkMesher {
             emitDoorGeometry(solidOut, wx, ly, wz, doorFacing(id), doorIsOpen(id), upper, faceUV, edgeUV, skyMul, blockMul);
             continue;
           }
-          if (id === BlockId.TORCH) {
+          if (isTorchBlock(id)) {
             const sky = sampleSkyLight(world, baseX, baseZ, lx, ly, lz);
             const block = sampleBlockLight(world, baseX, baseZ, lx, ly, lz);
             const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
             const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
-            emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(TORCH_TILE), skyMul, blockMul);
+            if (id === BlockId.TORCH) {
+              emitTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(TORCH_TILE), skyMul, blockMul);
+            } else {
+              const lean = wallTorchLean(id);
+              emitWallTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(TORCH_TILE), skyMul, blockMul, lean.x, lean.z);
+            }
             continue;
           }
           const def = this.registry.get(id);
