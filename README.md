@@ -50,6 +50,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 - **Hostile Creepers** stalk you at night too: a melee ambusher that chases you, then **freezes and lights a fuse** — visibly swelling and flashing faster as it burns — before **exploding**. The blast deals distance-falloff damage (reduced by armor) and **blows a spherical crater** out of the terrain (bedrock and water are spared). Back out of range and the fuse resets; **kill it before the fuse finishes** to defuse it entirely
 - **Hostile Spiders** skitter out at night as well: a low, wide, dark eight-legged melee rusher that's **faster than a zombie** but **bites for less** — it trades power for speed, closing the gap quickly and chipping at you on contact. Spawns capped and despawns at dawn like the rest
 - Melee combat: left-click swings at a mob within a forward cone/range (cooldown-gated), **dealing more damage when you're holding a sword**; zombies and spiders bite back for contact damage in Survival
+- **Critical hits**: time a swing for when you're **falling** (airborne and on the way down — jump, then strike on the descent) to land a **critical hit for +50% damage**, announced by a bright two-tone blip. Standing on the ground or still rising deals normal damage
 - **Ranged combat with the bow**: hold a bow and **right-click to fire arrows** in your look direction (half-second between shots). Player arrows fly straight and damage any mob they strike; in Survival each shot **spends one arrow** from your inventory (Creative is unlimited), and firing empty just clicks. Your arrows and skeleton arrows never cross-fire — yours hit mobs, theirs hit you
 - Full entity lifecycle: fixed-step physics, gravity, AABB collision, GPU-resource disposal
 - **Terrain step-climbing**: every mob — animals and hostiles alike — hops a 1-block ledge in its path via a shared step-up, so herds and pursuers walk up slopes instead of getting stuck
@@ -93,7 +94,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Audio
 - Procedural sound effects synthesized at runtime with the Web Audio API — **no audio files**
-- Cues for block break / place, melee swing, and taking damage, each built from oscillators + filtered noise bursts
+- Cues for block break / place, melee swing, **critical hit**, and taking damage, each built from oscillators + filtered noise bursts
 - **Ambient music**: a continuous, slowly-evolving drone pad — four detuned oscillators on an open A+E chord, each gently swelled by its own slow LFO, synthesized live (no audio files)
 - **Master**, **Music**, and **SFX** volume sliders are all live
 
