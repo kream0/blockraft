@@ -91,6 +91,7 @@ import {
   EXHAUSTION_IDLE_PER_S,
   EXHAUSTION_WALK_PER_BLOCK,
   EXHAUSTION_SPRINT_PER_BLOCK,
+  SPRINT_MIN_HUNGER,
   EXHAUSTION_JUMP,
   EXHAUSTION_PER_HEAL,
   STARVE_DAMAGE,
@@ -1042,7 +1043,8 @@ export class GameSession {
     const st = this.player.state;
     this.exhaustion += EXHAUSTION_IDLE_PER_S * FIXED_DT;
     const dist = Math.hypot(st.velocity.x, st.velocity.z) * FIXED_DT;
-    const rate = this.controls.input.sprint ? EXHAUSTION_SPRINT_PER_BLOCK : EXHAUSTION_WALK_PER_BLOCK;
+    const sprinting = this.controls.input.sprint && st.hunger > SPRINT_MIN_HUNGER;
+    const rate = sprinting ? EXHAUSTION_SPRINT_PER_BLOCK : EXHAUSTION_WALK_PER_BLOCK;
     this.exhaustion += dist * rate;
     if (wasOnGround && !st.onGround && st.velocity.y > 0) this.exhaustion += EXHAUSTION_JUMP;
     while (this.exhaustion >= EXHAUSTION_PER_HUNGER) {

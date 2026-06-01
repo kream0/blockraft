@@ -130,6 +130,8 @@ export const PASSIVE_FLEE_DURATION_S = 4;
 export const PLAYER_MAX_HUNGER = 20;
 /** Passive health regeneration only activates when hunger is at or above this value. */
 export const HUNGER_REGEN_THRESHOLD = 18;
+/** Sprint requires hunger strictly above this value (Survival). At or below it, sprint drops to a walk. MC parity: can't sprint at food level 6 or lower. */
+export const SPRINT_MIN_HUNGER = 6;
 /** Exhaustion units required to drain 1 hunger point. */
 export const EXHAUSTION_PER_HUNGER = 4.0;
 /** Passive exhaustion accumulated per second while alive. */

@@ -9,6 +9,7 @@ import {
   WALK_SPEED,
   SPRINT_SPEED,
   JUMP_VELOCITY,
+  SPRINT_MIN_HUNGER,
 } from '../types';
 
 const COLLISION_EPSILON = 1e-4;
@@ -32,7 +33,8 @@ export class Physics {
 
     const horizLen = Math.hypot(vx, vz);
     if (horizLen > 0) {
-      const speed = input.sprint ? SPRINT_SPEED : WALK_SPEED;
+      const canSprint = input.sprint && player.hunger > SPRINT_MIN_HUNGER;
+      const speed = canSprint ? SPRINT_SPEED : WALK_SPEED;
       vx = (vx / horizLen) * speed;
       vz = (vz / horizLen) * speed;
     }
