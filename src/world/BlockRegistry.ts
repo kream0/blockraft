@@ -292,6 +292,33 @@ const defs: Record<number, BlockDef> = {
     particleColor: 0xD9CB94,
     hardness: 0.8,
   },
+  [BlockId.TALL_GRASS]: {
+    id: BlockId.TALL_GRASS,
+    name: 'Tall Grass',
+    solid: false,
+    transparent: true,
+    textures: { top: 30, bottom: 30, side: 30 },
+    particleColor: 0x5DAD3A,
+    hardness: 0.1,
+  },
+  [BlockId.FLOWER_RED]: {
+    id: BlockId.FLOWER_RED,
+    name: 'Red Flower',
+    solid: false,
+    transparent: true,
+    textures: { top: 31, bottom: 31, side: 31 },
+    particleColor: 0xD9402F,
+    hardness: 0.1,
+  },
+  [BlockId.FLOWER_YELLOW]: {
+    id: BlockId.FLOWER_YELLOW,
+    name: 'Yellow Flower',
+    solid: false,
+    transparent: true,
+    textures: { top: 32, bottom: 32, side: 32 },
+    particleColor: 0xF2C84B,
+    hardness: 0.1,
+  },
 };
 
 const AIR_DEF: BlockDef = defs[BlockId.AIR]!;

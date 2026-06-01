@@ -566,6 +566,100 @@ function drawBlank(ctx: CanvasRenderingContext2D, col: number, row: number): voi
   fillTile(ctx, col, row, '#000000');
 }
 
+// Slot 30 — tall grass tuft: 4 blades, transparent background.
+// Roots cluster at high canvas-y (14–15 = bottom of tile = root of cross-quad).
+// Tips taper to low canvas-y (2–5 = top of tile = tip of cross-quad).
+function drawTallGrass(ctx: CanvasRenderingContext2D, col: number, row: number, _r: Rng): void {
+  // Each blade: [rootX, leanDir, height] — rootX is tile-local, leanDir ±1
+  const blades: Array<[number, number, number]> = [
+    [6,  -1, 12],  // left-center blade, leans left, 12px tall
+    [8,   1, 13],  // right-center blade, leans right, 13px tall
+    [5,  -1, 10],  // far-left blade, leans left, shorter
+    [9,   1, 11],  // far-right blade, leans right
+    [7,   0, 14],  // center blade, straight, tallest
+  ];
+  const baseGreen = '#5DAD3A';
+  const darkGreen  = '#3E7D27';
+  for (let b = 0; b < blades.length; b++) {
+    const blade = blades[b];
+    if (blade === undefined) continue;
+    const [rootX, lean, height] = blade;
+    const color = b % 2 === 0 ? baseGreen : darkGreen;
+    ctx.fillStyle = color;
+    for (let step = 0; step < height; step++) {
+      // Canvas y = 15 at root, decreasing to tip. Lean shifts x by 1 every 5px.
+      const canvasY = 15 - step;
+      const canvasX = rootX + lean * Math.floor(step / 5);
+      if (canvasX < 0 || canvasX >= TILE) continue;
+      pixel(ctx, col, row, canvasX, canvasY, color);
+    }
+  }
+}
+
+// Slot 31 — red flower: green stem from root (canvas-y 15) to canvas-y 7,
+// small red blossom (plus-shape) centered at canvas-y 4, yellow center pixel.
+// Transparent background — only stem and petal pixels are painted.
+function drawRedFlower(ctx: CanvasRenderingContext2D, col: number, row: number, _r: Rng): void {
+  const stemX = 8;
+  const stemColor  = '#3E7D27';
+  const petalColor = '#D9402F';
+  const centerColor = '#F2C84B';
+  // Stem: canvas-y 7 down to 15
+  ctx.fillStyle = stemColor;
+  for (let y = 7; y <= 15; y++) {
+    pixel(ctx, col, row, stemX, y, stemColor);
+  }
+  // Two small leaves on the stem at mid-height
+  pixel(ctx, col, row, stemX - 1, 11, stemColor);
+  pixel(ctx, col, row, stemX + 1, 10, stemColor);
+  // Blossom centered at (stemX, 4): a 5-pixel plus shape
+  const bx = stemX;
+  const by = 4;
+  pixel(ctx, col, row, bx,     by,     petalColor); // center
+  pixel(ctx, col, row, bx - 1, by,     petalColor); // left
+  pixel(ctx, col, row, bx + 1, by,     petalColor); // right
+  pixel(ctx, col, row, bx,     by - 1, petalColor); // top
+  pixel(ctx, col, row, bx,     by + 1, petalColor); // bottom
+  // Outer petal tips for a slightly fuller flower
+  pixel(ctx, col, row, bx - 1, by - 1, petalColor);
+  pixel(ctx, col, row, bx + 1, by - 1, petalColor);
+  pixel(ctx, col, row, bx - 1, by + 1, petalColor);
+  pixel(ctx, col, row, bx + 1, by + 1, petalColor);
+  // Yellow center pixel
+  pixel(ctx, col, row, bx, by, centerColor);
+}
+
+// Slot 32 — yellow flower: identical construction to red flower,
+// yellow petals with amber center. Roots at high canvas-y (15), tips at canvas-y ~3.
+function drawYellowFlower(ctx: CanvasRenderingContext2D, col: number, row: number, _r: Rng): void {
+  const stemX = 8;
+  const stemColor   = '#3E7D27';
+  const petalColor  = '#F2C84B';
+  const centerColor = '#E08A1E';
+  // Stem: canvas-y 7 down to 15
+  ctx.fillStyle = stemColor;
+  for (let y = 7; y <= 15; y++) {
+    pixel(ctx, col, row, stemX, y, stemColor);
+  }
+  // Two small leaves offset opposite to the red flower for variety
+  pixel(ctx, col, row, stemX + 1, 11, stemColor);
+  pixel(ctx, col, row, stemX - 1, 10, stemColor);
+  // Blossom centered at (stemX, 4)
+  const bx = stemX;
+  const by = 4;
+  pixel(ctx, col, row, bx,     by,     petalColor);
+  pixel(ctx, col, row, bx - 1, by,     petalColor);
+  pixel(ctx, col, row, bx + 1, by,     petalColor);
+  pixel(ctx, col, row, bx,     by - 1, petalColor);
+  pixel(ctx, col, row, bx,     by + 1, petalColor);
+  pixel(ctx, col, row, bx - 1, by - 1, petalColor);
+  pixel(ctx, col, row, bx + 1, by - 1, petalColor);
+  pixel(ctx, col, row, bx - 1, by + 1, petalColor);
+  pixel(ctx, col, row, bx + 1, by + 1, petalColor);
+  // Amber center pixel
+  pixel(ctx, col, row, bx, by, centerColor);
+}
+
 export class TextureAtlas implements ITextureAtlas {
   texture: THREE.Texture;
   readonly tileCount = COLS * ROWS;
@@ -615,6 +709,9 @@ export class TextureAtlas implements ITextureAtlas {
       drawCactusTop,        // tile 27 — cactus top cross-section
       drawSandstoneTop,  // tile 28 — sandstone top (pale tan, speckled)
       drawSandstoneSide, // tile 29 — sandstone side (layered sediment bands)
+      drawTallGrass,     // tile 30 — tall grass tuft (transparent, cross-quad foliage)
+      drawRedFlower,     // tile 31 — red flower (transparent, cross-quad foliage)
+      drawYellowFlower,  // tile 32 — yellow flower (transparent, cross-quad foliage)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {

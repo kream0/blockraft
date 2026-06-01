@@ -73,6 +73,10 @@ const CACTUS_CANDIDATES = 4;   // candidate interior spots tried per chunk
 const CACTUS_MIN_H = 1;        // min column height (blocks above the surface)
 const CACTUS_MAX_H = 3;        // max column height
 
+// Vegetation: decorative cross-quad plants (tall grass, red/yellow flowers) scattered on plains grass.
+const STRUCT_SALT_VEGETATION = 0x9e3a7b1d;
+const VEGETATION_CANDIDATES = 32;
+
 // Desert Temple: stepped sandstone pyramid on flat desert sand with a buried treasure chamber below.
 // Rare landmark (~1 in 25 desert chunks; rarer overall because of the desert biome gate).
 const STRUCT_SALT_TEMPLE = 0x7e3d10c5; // distinct from boulder/dungeon/village/cactus salts
@@ -550,6 +554,35 @@ export class TerrainGenerator {
     }
   }
 
+  /** Scatter decorative cross-quad plants (tall grass + occasional flowers) on plains grass. Plains-only, grass-surface, above sea level, AIR-only writes at surface+1. */
+  private placeVegetation(chunk: Chunk, heights: Int16Array): void {
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseZ = chunk.cz * CHUNK_SIZE;
+    for (let i = 0; i < VEGETATION_CANDIDATES; i++) {
+      const h1 = hash3(chunk.cx, chunk.cz, this.seed ^ STRUCT_SALT_VEGETATION ^ (i * 1299709));
+      const h2 = hash3(chunk.cx ^ 0x6b43a9b5, chunk.cz ^ 0x35fbe3a1, this.seed ^ STRUCT_SALT_VEGETATION ^ (i * 2396957));
+      const h3 = hash3(chunk.cx ^ 0x1b873593, chunk.cz ^ 0xcc9e2d51, this.seed ^ STRUCT_SALT_VEGETATION ^ (i * 999983));
+      const lx = h1 % CHUNK_SIZE;
+      const lz = h2 % CHUNK_SIZE;
+      const surface = heights[lx + lz * CHUNK_SIZE]!;
+      // Plains biome only; world coords required for the noise-based biome query.
+      if (this.biomeAt(baseX + lx, baseZ + lz) !== BIOME_PLAINS) continue;
+      if (surface <= SEA_LEVEL) continue;
+      // Surface must be GRASS (not sand/snow/stone/water).
+      const surfaceId = (chunk.blocks[Chunk.idx(lx, surface, lz)] ?? BlockId.AIR) as BlockId;
+      if (surfaceId !== BlockId.GRASS) continue;
+      const aboveY = surface + 1;
+      if (aboveY >= CHUNK_HEIGHT) continue;
+      const aboveIdx = Chunk.idx(lx, aboveY, lz);
+      // AIR-only write so we never overwrite trees, structures, or terrain.
+      if ((chunk.blocks[aboveIdx] ?? BlockId.AIR) !== BlockId.AIR) continue;
+      // ~1 in 6 plants is a flower (red at roll===0, yellow at roll===1); the rest are tall grass.
+      const roll = h3 % 12;
+      const plant = roll === 0 ? BlockId.FLOWER_RED : roll === 1 ? BlockId.FLOWER_YELLOW : BlockId.TALL_GRASS;
+      chunk.blocks[aboveIdx] = plant;
+    }
+  }
+
   /** Dispatch surface boulders, underground dungeons, villages, and desert temples for this chunk. */
   private placeStructures(chunk: Chunk, heights: Int16Array): void {
     this.placeBoulder(chunk, heights);
@@ -687,6 +720,8 @@ export class TerrainGenerator {
 
     // Cacti: sparse desert plants on sand dunes (after trees; desert-only).
     this.placeCacti(chunk, heights);
+    // Vegetation: tall grass and flowers scattered on plains grass (after cacti).
+    this.placeVegetation(chunk, heights);
 
     chunk.dirty = true;
   }

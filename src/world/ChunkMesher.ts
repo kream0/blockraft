@@ -22,6 +22,7 @@ import {
   type DoorMeshArrays,
 } from './Door';
 import { emitTorchGeometry, isTorchBlock, wallTorchLean, emitWallTorchGeometry, TORCH_TILE } from './Torch';
+import { isCrossBlock, crossBlockTile, emitCrossGeometry } from './Foliage';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -231,6 +232,14 @@ export class ChunkMesher {
               const lean = wallTorchLean(id);
               emitWallTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(TORCH_TILE), skyMul, blockMul, lean.x, lean.z);
             }
+            continue;
+          }
+          if (isCrossBlock(id)) {
+            const sky = sampleSkyLight(world, baseX, baseZ, lx, ly, lz);
+            const block = sampleBlockLight(world, baseX, baseZ, lx, ly, lz);
+            const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
+            const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
+            emitCrossGeometry(solidOut, baseX + lx, ly, baseZ + lz, this.atlas.getUV(crossBlockTile(id)), skyMul, blockMul);
             continue;
           }
           const def = this.registry.get(id);

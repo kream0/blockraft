@@ -359,12 +359,18 @@ export const BlockId = {
   TORCH_WALL_SOUTH: 33, // leans +Z; supporting wall is at -Z side
   TORCH_WALL_EAST: 34,  // leans +X; supporting wall is at -X side
   TORCH_WALL_WEST: 35,  // leans -X; supporting wall is at +X side
+  // Surface vegetation: decorative cross-quad plants (rendered as two crossed vertical
+  // DoubleSide quads, not cubes). Non-solid (no collision, walk-through), transparent
+  // (don't occlude neighbor faces or light). Terrain-scattered on plains grass.
+  TALL_GRASS: 36,
+  FLOWER_RED: 37,
+  FLOWER_YELLOW: 38,
 } as const;
 export type BlockId = typeof BlockId[keyof typeof BlockId];
 
 // === Item IDs ===
 // A non-block item id starts at 100. Block items are represented by their BlockId
-// numeric value (0..35) directly, so a persisted block stack {block,count} reads
+// numeric value (0..38) directly, so a persisted block stack {block,count} reads
 // back as {item,count} with item === block. Note: ids 32..35 are world-only block
 // variants (wall-torch orientations) that are never held as items — they normalise
 // to BlockId.TORCH on drop. ItemId is therefore the numeric union of "any BlockId"
@@ -410,7 +416,7 @@ export const ItemId = {
   BOW: 151,             // ranged weapon; fires Arrow entities (handled in GameSession)
   ARROW: 152,           // ammo for the bow; also dropped by skeletons
 } as const;
-/** A BlockId value (0..35) OR one of the ItemId.* non-block ids (>=100). */
+/** A BlockId value (0..38) OR one of the ItemId.* non-block ids (>=100). */
 export type ItemId = number;
 
 // === Tools ===

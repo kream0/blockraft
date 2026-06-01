@@ -48,12 +48,15 @@ export const BLOCK_SWATCH_COLORS: Record<number, string> = {
   [BlockId.LAVA]:        '#D8401A',
   [BlockId.CACTUS]:      '#3C7D32',
   [BlockId.SANDSTONE]:   '#D9CB94',
+  [BlockId.TALL_GRASS]:    '#5DAD3A',
+  [BlockId.FLOWER_RED]:    '#D9402F',
+  [BlockId.FLOWER_YELLOW]: '#F2C84B',
 };
 
 // === Block item identity set — built once at module load ===
 const _blockIdSet = new Set<number>(Object.values(BlockId));
 
-/** True if id is one of the BlockId numeric values (0..35). */
+/** True if id is one of the BlockId numeric values (0..38). */
 export function isBlockItem(id: ItemId): boolean {
   return _blockIdSet.has(id);
 }

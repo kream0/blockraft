@@ -43,7 +43,9 @@ export function createChunkMaterial(atlas: ITextureAtlas): THREE.Material {
     map: atlas.texture,
     side: THREE.DoubleSide,
     transparent: false,
-    alphaTest: 0,
+    // Cutout for cross-quad foliage: discard fully-transparent texels. Safe — every cube tile is
+    // fully opaque (alpha 255), so only foliage's transparent background is ever discarded.
+    alphaTest: 0.5,
     vertexColors: true,
   });
   patchChunkLighting(mat);
