@@ -272,6 +272,8 @@ export const WEATHER_SNOW_MIN_Y = 72;
 export const SKY_BODY_DISTANCE = 400; // world units from camera; < camera far (1000)
 export const SUN_RADIUS = 30;         // half-width of the sun quad
 export const MOON_RADIUS = 22;        // half-width of the moon quad
+/** Radius (world units) of the gradient sky dome sphere. Drawn inward-facing behind everything; < camera far (1000) and recentered on the camera each frame, so it never clips. */
+export const SKY_DOME_RADIUS = 500;
 
 // === Clouds (drifting overhead layer) ===
 /** World-Y of the flat cloud layer. Render-only and far above the 96-block terrain ceiling, so nothing ever intersects it. */

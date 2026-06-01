@@ -6,6 +6,7 @@ import { createChunkMaterial, createWaterMaterial, setChunkDaylight, setWaterTim
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
+import { SkyDome } from '../rendering/SkyDome';
 import { Clouds } from '../rendering/Clouds';
 import { BreakOverlay } from '../rendering/BreakOverlay';
 import { AudioManager } from '../audio/AudioManager';
@@ -199,6 +200,7 @@ export class GameSession {
   private particles: ParticleSystem;
   private weather!: WeatherSystem;
   private skyBodies!: SkyBodies;
+  private skyDome!: SkyDome;
   private clouds!: Clouds;
   private breakOverlay: BreakOverlay;
   private audio: AudioManager;
@@ -474,6 +476,8 @@ export class GameSession {
     this.renderer.scene.add(this.weather.object3D);
     this.skyBodies = new SkyBodies();
     this.renderer.scene.add(this.skyBodies.object3D);
+    this.skyDome = new SkyDome();
+    this.renderer.scene.add(this.skyDome.object3D);
     this.clouds = new Clouds();
     this.renderer.scene.add(this.clouds.object3D);
 
@@ -757,6 +761,7 @@ export class GameSession {
       const camWorld = this.player.camera.getWorldPosition(this._scratchCam);
       this.weather.update(dt, camWorld, this.world);
       this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
+      this.skyDome.update(this.dayNight.getSkyState(), camWorld);
       this.clouds.update(this.dayNight.getSkyState(), camWorld, dt);
       this.particles.update(dt);
       if (this._lastWaterQuality !== WaterQuality.BASIC) {
@@ -875,6 +880,8 @@ export class GameSession {
     this.weather.dispose();
     this.renderer.scene.remove(this.skyBodies.object3D);
     this.skyBodies.dispose();
+    this.renderer.scene.remove(this.skyDome.object3D);
+    this.skyDome.dispose();
     this.renderer.scene.remove(this.clouds.object3D);
     this.clouds.dispose();
     this.renderer.scene.remove(this.breakOverlay.object3D);
