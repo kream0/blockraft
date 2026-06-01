@@ -1,8 +1,14 @@
 import * as THREE from 'three';
-import { CHUNK_SIZE, RENDER_DISTANCE, type SkyState } from '../types';
+import { CHUNK_HEIGHT, CHUNK_SIZE, RENDER_DISTANCE, type SkyState } from '../types';
 
 const SKY_COLOR = 0x87ceeb;
 const FOG_NEAR = 20;
+
+const SHADOW_RADIUS = 80;
+const SHADOW_MAP_SIZE = 1024;
+const SHADOW_FAR = CHUNK_HEIGHT * 3;
+const SHADOW_BIAS = -0.0005;
+const SHADOW_NORMAL_BIAS = 0.0;
 
 export class Renderer {
   renderer: THREE.WebGLRenderer;
@@ -10,6 +16,7 @@ export class Renderer {
 
   private dirLight: THREE.DirectionalLight;
   private ambient: THREE.AmbientLight;
+  private _sunDir = new THREE.Vector3(0, -1, 0);
 
   constructor(canvas?: HTMLCanvasElement, fogFar: number = RENDER_DISTANCE * CHUNK_SIZE) {
     const params: THREE.WebGLRendererParameters = {
@@ -35,6 +42,22 @@ export class Renderer {
     this.dirLight.position.set(50, 100, 30);
     this.scene.add(this.dirLight);
     this.scene.add(this.dirLight.target);
+
+    // Enable shadow maps on the renderer and configure the directional light's shadow camera.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.dirLight.castShadow = true;
+    const sc = this.dirLight.shadow.camera as THREE.OrthographicCamera;
+    sc.left = -SHADOW_RADIUS;
+    sc.right = SHADOW_RADIUS;
+    sc.top = SHADOW_RADIUS;
+    sc.bottom = -SHADOW_RADIUS;
+    sc.near = 0.1;
+    sc.far = SHADOW_FAR;
+    sc.updateProjectionMatrix();
+    this.dirLight.shadow.mapSize.set(SHADOW_MAP_SIZE, SHADOW_MAP_SIZE);
+    this.dirLight.shadow.bias = SHADOW_BIAS;
+    this.dirLight.shadow.normalBias = SHADOW_NORMAL_BIAS;
   }
 
   setSize(width: number, height: number): void {
@@ -62,8 +85,17 @@ export class Renderer {
     this.ambient.intensity = state.ambientIntensity;
     this.dirLight.color.copy(state.sunColor);
     this.dirLight.intensity = state.sunIntensity;
-    // Position the light opposite its travel direction; target stays at origin.
-    this.dirLight.position.copy(state.sunDirection).multiplyScalar(-100);
+    // Store sun direction for per-frame shadow frustum repositioning (updateSunShadow).
+    // Initial position is a fallback; the frame loop overrides it via updateSunShadow.
+    this._sunDir.copy(state.sunDirection);
+    this.dirLight.position.copy(state.sunDirection).multiplyScalar(-150);
+  }
+
+  /** Re-center the shadow ortho frustum on the player each frame so shadows track the camera. */
+  updateSunShadow(camWorld: THREE.Vector3): void {
+    this.dirLight.target.position.copy(camWorld);
+    this.dirLight.position.copy(camWorld).addScaledVector(this._sunDir, -150);
+    this.dirLight.target.updateMatrixWorld();
   }
 
   render(camera: THREE.Camera): void {
@@ -80,6 +112,7 @@ export class Renderer {
     this.scene.remove(this.ambient);
     this.scene.remove(this.dirLight);
     this.scene.remove(this.dirLight.target);
+    this.dirLight.shadow.dispose();
     this.renderer.dispose();
   }
 }

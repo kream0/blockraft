@@ -725,6 +725,7 @@ export class GameSession {
       this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
       this.clouds.update(this.dayNight.getSkyState(), camWorld, dt);
       this.particles.update(dt);
+      this.renderer.updateSunShadow(camWorld);
       this.renderer.render(this.player.camera);
 
       this.rafId = requestAnimationFrame(this.frame);

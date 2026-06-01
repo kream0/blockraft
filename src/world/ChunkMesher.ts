@@ -413,6 +413,8 @@ export class ChunkMesher {
     const solidMesh = new THREE.Mesh(solidGeometry, solidMaterial);
     solidMesh.name = `chunk_${chunk.cx}_${chunk.cz}`;
     solidMesh.frustumCulled = true;
+    solidMesh.castShadow = true;
+    solidMesh.receiveShadow = true;
 
     let waterMesh: THREE.Mesh | null = null;
     if (waterIndices.length > 0) {
@@ -427,6 +429,7 @@ export class ChunkMesher {
       waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
       waterMesh.name = `chunk_${chunk.cx}_${chunk.cz}_water`;
       waterMesh.frustumCulled = true;
+      waterMesh.receiveShadow = true;
     }
 
     return { solid: solidMesh, water: waterMesh };

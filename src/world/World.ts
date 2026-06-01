@@ -105,6 +105,8 @@ export class World implements IWorld, ISkyLightAccess {
     const solidMesh = new THREE.Mesh(solidGeo, this.material);
     solidMesh.name = `chunk_${result.cx}_${result.cz}`;
     solidMesh.frustumCulled = true;
+    solidMesh.castShadow = true;
+    solidMesh.receiveShadow = true;
     chunk.mesh = solidMesh;
     this.group.add(solidMesh);
     if (result.water) {
@@ -112,6 +114,7 @@ export class World implements IWorld, ISkyLightAccess {
       const waterMesh = new THREE.Mesh(waterGeo, this.waterMaterial);
       waterMesh.name = `chunk_${result.cx}_${result.cz}_water`;
       waterMesh.frustumCulled = true;
+      waterMesh.receiveShadow = true;
       chunk.waterMesh = waterMesh;
       this.group.add(waterMesh);
     }
@@ -820,9 +823,12 @@ export class World implements IWorld, ISkyLightAccess {
       this.material,
       this.waterMaterial,
     );
+    solid.castShadow = true;
+    solid.receiveShadow = true;
     chunk.mesh = solid;
     this.group.add(solid);
     if (water) {
+      water.receiveShadow = true;
       chunk.waterMesh = water;
       this.group.add(water);
     }

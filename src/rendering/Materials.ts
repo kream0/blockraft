@@ -15,17 +15,68 @@ const DAYLIGHT_UNIFORM_KEY = 'blockraftDaylight';
  * night), so torches NEVER tint surfaces already in full daylight. A warm tint is mixed in only
  * in proportion to how much block light exceeds sky light. Because MeshBasicMaterial is UNLIT,
  * the scene's directional + ambient lights never touch terrain, so light cannot leak through walls.
+ *
+ * Shadow support: Three's shadow includes are injected via onBeforeCompile. MeshBasicMaterial's
+ * vertex shader only computes normals inside USE_ENVMAP/USE_SKINNING, so we inject
+ * <beginnormal_vertex> + <defaultnormal_vertex> unconditionally (guarded to avoid a double-define
+ * under envmap) before <shadowmap_vertex>. The fragment shader multiplies ONLY the sky-lit term
+ * by the shadow factor, scaled by daylight — block/torch light is never shadowed.
  */
 function patchChunkLighting(material: THREE.MeshBasicMaterial): void {
   const daylight = { value: 1 };
   material.userData[DAYLIGHT_UNIFORM_KEY] = daylight;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uDayNight = daylight;
-    shader.fragmentShader = 'uniform float uDayNight;\n' + shader.fragmentShader.replace(
+
+    // --- Vertex shader: inject shadow coordinate computation ---
+    // 1. Add shadow pars after fog pars (both declare varyings, order matters for unrolling).
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <fog_pars_vertex>',
+      '#include <fog_pars_vertex>\n#include <shadowmap_pars_vertex>',
+    );
+    // 2. Before fog_vertex: compute normals (not done unconditionally by MeshBasicMaterial —
+    //    only done inside USE_ENVMAP || USE_SKINNING), then compute the shadow coords.
+    //    Guard with #ifndef USE_ENVMAP so we don't re-declare objectNormal/transformedNormal.
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <fog_vertex>',
+      [
+        '#ifndef USE_ENVMAP',
+        '  #include <beginnormal_vertex>',
+        '  #include <defaultnormal_vertex>',
+        '#endif',
+        '#include <shadowmap_vertex>',
+        '#include <fog_vertex>',
+      ].join('\n'),
+    );
+
+    // --- Fragment shader: add shadow machinery + apply to skyLit ---
+    // 1. Inject packing + shadow pars immediately after <common> (common must precede them).
+    //    Also declare uDayNight and receiveShadow here instead of prepending to top.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      [
+        '#include <common>',
+        '#include <packing>',
+        '#include <shadowmap_pars_fragment>',
+        '#include <shadowmask_pars_fragment>',
+        'uniform float uDayNight;',
+        'uniform bool receiveShadow;',
+      ].join('\n'),
+    );
+    // 2. Replace <color_fragment> with shadow-aware sky/block lighting.
+    //    Shadow is applied ONLY to the sky-lit channel, scaled by daylight so nights are unaffected.
+    shader.fragmentShader = shader.fragmentShader.replace(
       '#include <color_fragment>',
       [
         '#ifdef USE_COLOR',
-        '\tfloat skyLit = vColor.r * mix(' + NIGHT_SKY_FLOOR.toFixed(3) + ', 1.0, uDayNight);',
+        '#ifdef USE_SHADOWMAP',
+        '\tfloat shadow = getShadowMask();',
+        '\tconst float SHADOW_MIN = 0.35;',
+        '\tfloat shadowScale = mix(1.0, SHADOW_MIN, (1.0 - shadow) * uDayNight);',
+        '#else',
+        '\tfloat shadowScale = 1.0;',
+        '#endif',
+        '\tfloat skyLit = vColor.r * mix(' + NIGHT_SKY_FLOOR.toFixed(3) + ', 1.0, uDayNight) * shadowScale;',
         '\tfloat blockLit = vColor.g;',
         '\tfloat lum = max(skyLit, blockLit);',
         '\tfloat warmth = clamp((blockLit - skyLit) * 1.5, 0.0, 1.0);',
