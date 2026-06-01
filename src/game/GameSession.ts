@@ -278,6 +278,11 @@ export class GameSession {
   /** Armed after ESC closes an overlay: re-grab pointer lock on the next movement keydown. */
   private wantRelock = false;
 
+  private _lastAtlasTileSize = 16;
+  private _lastAnisotropy = 4;
+  private _rebuildTotal = 0;
+  private _rebuildActive = false;
+
   private viewModel: ViewModel;
   private mouseUpHandler: (e: MouseEvent) => void;
   /** True while the left mouse button is held (drives hold-to-mine). */
@@ -332,7 +337,10 @@ export class GameSession {
     this.renderer.applySky(this.dayNight.getSkyState());
 
     // Atlas + materials.
-    this.atlas = new TextureAtlas();
+    this.atlas = new TextureAtlas(settings.atlasTileSize ?? 16);
+    this._lastAtlasTileSize = settings.atlasTileSize ?? 16;
+    this._lastAnisotropy = settings.anisotropy ?? 4;
+    this.atlas.setAnisotropy(this.resolveAnisotropy(this._lastAnisotropy));
     this.iconRenderer = new ItemIconRenderer(this.atlas);
     this.chunkMaterial = createChunkMaterial(this.atlas);
     this.waterMaterial = createWaterMaterial(this.atlas);
@@ -705,6 +713,12 @@ export class GameSession {
       }
       this.hud.update(this.player.state, dtMs);
       this.hud.updateMinimap(this.world, this.player.state.position.x, this.player.state.position.z, this.player.state.yaw, dtMs);
+      if (this._rebuildActive) {
+        const pending = this.world.meshPending();
+        const done = Math.max(0, this._rebuildTotal - pending);
+        this.hud.setRebuildProgress(done, this._rebuildTotal);
+        if (pending === 0) this._rebuildActive = false;
+      }
       this.hud.setHotbarStacks(this.player.inventory.hotbarSlots());
       this.skyAcc += dt;
       if (this.skyAcc >= SKY_UPDATE_INTERVAL_S) {
@@ -909,6 +923,12 @@ export class GameSession {
     await this.worldStorage.saveSeededLoot(this.worldName, Array.from(this.seededLootChests));
   }
 
+  /** Resolve an anisotropy setting (0 = "max") to a concrete level clamped to the GPU maximum. */
+  private resolveAnisotropy(level: number): number {
+    const max = this.renderer.getMaxAnisotropy();
+    return level <= 0 ? max : Math.min(level, max);
+  }
+
   /** Apply settings live (FOV, mouse sensitivity, invertY, keybindings, render distance, show FPS). */
   applySettings(settings: Settings): void {
     this.player.setFov(settings.fov);
@@ -927,6 +947,23 @@ export class GameSession {
       // shadow GLSL on USE_SHADOWMAP / SHADOWMAP_TYPE_* defines, so force a recompile to pick it up.
       this.chunkMaterial.needsUpdate = true;
       this.waterMaterial.needsUpdate = true;
+    }
+    // Anisotropy: live texture-filter change, no remesh.
+    const aniso = settings.anisotropy ?? 4;
+    if (aniso !== this._lastAnisotropy) {
+      this._lastAnisotropy = aniso;
+      this.atlas.setAnisotropy(this.resolveAnisotropy(aniso));
+    }
+    // Atlas tile size: repaint the atlas at the new resolution and remesh all loaded chunks.
+    const tileSize = settings.atlasTileSize ?? 16;
+    if (tileSize !== this._lastAtlasTileSize) {
+      this._lastAtlasTileSize = tileSize;
+      this.atlas.rebuild(tileSize); // re-applies the stored (already-resolved) anisotropy internally
+      const params = this.atlas.getAtlasParams();
+      const total = this.world.rebuildForAtlas(params);
+      this._rebuildTotal = total;
+      this._rebuildActive = total > 0;
+      this.hud.setRebuildProgress(0, total);
     }
   }
 

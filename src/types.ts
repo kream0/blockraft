@@ -718,6 +718,8 @@ export interface ITextureAtlas {
   readonly texture: THREE.Texture;
   /** Tile dimensions for shader use. */
   readonly tileCount: number;
+  /** Current atlas geometry (tile size, grid, gutter) — the worker's UV source of truth. */
+  getAtlasParams(): WorkerAtlasParams;
 }
 
 // === App state machine ===
@@ -1085,11 +1087,23 @@ export interface WorkerBlockTable {
   texSide: Uint8Array;      // atlas tile index for side faces
 }
 
-/** Atlas geometry constants so the worker computes UVs without a canvas. */
+/**
+ * Atlas geometry so the worker can compute tile UVs without a canvas.
+ *
+ * Tiles sit on an `atlasCols` × `atlasRows` grid. Each tile occupies a square
+ * cell of side `cellPitch = tilePixels + 2 * gutterPixels`; the drawn content is
+ * inset by `gutterPixels` inside its cell, and the gutter holds edge-extruded
+ * "bleed" so trilinear/mip sampling never crosses a tile boundary. The atlas
+ * canvas is square: `atlasSize = atlasCols * cellPitch` (atlasCols === atlasRows
+ * today, so the same denominator works for both U and V). At `gutterPixels === 0`
+ * the layout collapses to the classic tight grid (`atlasSize = atlasCols * tilePixels`).
+ */
 export interface WorkerAtlasParams {
-  tilePixels: number;  // TILE (16)
-  atlasCols: number;   // COLS (6)
-  atlasSize: number;   // SIZE = TILE * COLS (96) — used for BOTH U and V denominators
+  tilePixels: number;   // drawn tile size in px: 16 | 32 | 64
+  atlasCols: number;    // grid columns (6)
+  atlasRows: number;    // grid rows (6)
+  atlasSize: number;    // full SQUARE canvas dimension = atlasCols * cellPitch
+  gutterPixels: number; // padding around each tile's content (0 at 16px; >0 at 32/64)
 }
 
 /** One-time init message: main thread -> worker. */

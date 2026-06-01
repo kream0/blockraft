@@ -339,6 +339,11 @@ export class Renderer {
     }
   }
 
+  /** Largest anisotropy level the GPU/driver supports (to resolve the "max" anisotropy option). */
+  getMaxAnisotropy(): number {
+    return this.renderer.capabilities.getMaxAnisotropy();
+  }
+
   dispose(): void {
     this.disposeComposer();
     this.scene.traverse((obj) => {

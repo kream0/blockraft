@@ -1,14 +1,10 @@
 import * as THREE from 'three';
-import type { ITextureAtlas } from '../types';
+import type { ITextureAtlas, WorkerAtlasParams } from '../types';
 
 const TILE = 16;
 const COLS = 6;
 const ROWS = 6;
 const SIZE = TILE * COLS;
-
-export const ATLAS_TILE_PIXELS = TILE;
-export const ATLAS_COLS = COLS;
-export const ATLAS_SIZE = SIZE;
 
 type Rng = () => number;
 
@@ -687,17 +683,64 @@ export class TextureAtlas implements ITextureAtlas {
   texture: THREE.Texture;
   readonly tileCount = COLS * ROWS;
 
-  constructor() {
+  private currentTileSize = TILE;
+  private gutter = 0;
+  private atlasSize = SIZE;
+  private anisotropy = 1;
+
+  constructor(tileSize: number = TILE) {
+    const canvas = this.paint(tileSize);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.anisotropy = this.anisotropy;
+    tex.needsUpdate = true;
+    this.texture = tex;
+  }
+
+  /** Repaint the atlas at a new tile size, reusing the same THREE.Texture (materials keep their binding). */
+  rebuild(tileSize: number): void {
+    const canvas = this.paint(tileSize);
+    this.texture.image = canvas;
+    this.texture.anisotropy = this.anisotropy;
+    this.texture.needsUpdate = true;
+  }
+
+  /** Live anisotropy (caller resolves 0=>max and clamps to GPU max). */
+  setAnisotropy(level: number): void {
+    this.anisotropy = level;
+    this.texture.anisotropy = level;
+    this.texture.needsUpdate = true;
+  }
+
+  getAtlasParams(): WorkerAtlasParams {
+    return {
+      tilePixels: this.currentTileSize,
+      atlasCols: COLS,
+      atlasRows: ROWS,
+      atlasSize: this.atlasSize,
+      gutterPixels: this.gutter,
+    };
+  }
+
+  /** Paints a fresh canvas at the given tile size; updates currentTileSize/gutter/atlasSize; returns the canvas. */
+  private paint(tileSize: number): HTMLCanvasElement {
+    const gutter = TextureAtlas.gutterFor(tileSize);
+    const cellPitch = tileSize + 2 * gutter;
+    const atlasSize = COLS * cellPitch;
     const canvas = document.createElement('canvas');
-    canvas.width = SIZE;
-    canvas.height = SIZE;
+    canvas.width = atlasSize;
+    canvas.height = atlasSize;
     const ctx = canvas.getContext('2d');
-    if (ctx === null) {
-      throw new Error('TextureAtlas: failed to get 2D context');
-    }
+    if (ctx === null) throw new Error('TextureAtlas: failed to get 2D context');
     ctx.imageSmoothingEnabled = false;
 
     const rng = makeRng(0xdeadbeef);
+    const scale = tileSize / TILE;
 
     // 6x6 grid: index = row * COLS + col
     // Tiles 0..29 are real.
@@ -743,33 +786,59 @@ export class TextureAtlas implements ITextureAtlas {
     for (let i = 0; i < this.tileCount; i++) {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
+      const originX = col * cellPitch + gutter;
+      const originY = row * cellPitch + gutter;
+      ctx.setTransform(scale, 0, 0, scale, originX, originY);
       const drawer = drawers[i];
-      if (drawer !== undefined) {
-        drawer(ctx, col, row, rng);
-      } else {
-        drawBlank(ctx, col, row);
+      if (drawer !== undefined) drawer(ctx, 0, 0, rng);
+      else drawBlank(ctx, 0, 0);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // Edge-extrude each tile's content into its gutter so mip/trilinear sampling
+    // never crosses a tile boundary (no bleed from neighbors or transparent black).
+    if (gutter > 0) {
+      for (let i = 0; i < this.tileCount; i++) {
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const x = col * cellPitch + gutter;
+        const y = row * cellPitch + gutter;
+        const s = tileSize;
+        ctx.drawImage(canvas, x, y, s, 1, x, y - gutter, s, gutter);              // top
+        ctx.drawImage(canvas, x, y + s - 1, s, 1, x, y + s, s, gutter);           // bottom
+        ctx.drawImage(canvas, x, y, 1, s, x - gutter, y, gutter, s);              // left
+        ctx.drawImage(canvas, x + s - 1, y, 1, s, x + s, y, gutter, s);           // right
+        ctx.drawImage(canvas, x, y, 1, 1, x - gutter, y - gutter, gutter, gutter);                 // TL
+        ctx.drawImage(canvas, x + s - 1, y, 1, 1, x + s, y - gutter, gutter, gutter);               // TR
+        ctx.drawImage(canvas, x, y + s - 1, 1, 1, x - gutter, y + s, gutter, gutter);               // BL
+        ctx.drawImage(canvas, x + s - 1, y + s - 1, 1, 1, x + s, y + s, gutter, gutter);            // BR
       }
     }
 
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestMipmapLinearFilter;
-    tex.generateMipmaps = true;
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = THREE.ClampToEdgeWrapping;
-    tex.wrapT = THREE.ClampToEdgeWrapping;
-    tex.needsUpdate = true;
-    this.texture = tex;
+    this.currentTileSize = tileSize;
+    this.gutter = gutter;
+    this.atlasSize = atlasSize;
+    return canvas;
+  }
+
+  private static gutterFor(tileSize: number): number {
+    return tileSize <= TILE ? 0 : Math.round(tileSize / TILE); // 0 @16, 2 @32, 4 @64
   }
 
   getUV(tileIndex: number): [number, number, number, number] {
     const col = tileIndex % COLS;
     const row = Math.floor(tileIndex / COLS);
-    const u0 = (col * TILE) / SIZE;
-    const u1 = ((col + 1) * TILE) / SIZE;
-    const v1 = 1 - (row * TILE) / SIZE;
-    const v0 = 1 - ((row + 1) * TILE) / SIZE;
-    const eps = 0.5 / SIZE;
+    const cellPitch = this.currentTileSize + 2 * this.gutter;
+    const x0 = col * cellPitch + this.gutter;
+    const x1 = x0 + this.currentTileSize;
+    const yTop = row * cellPitch + this.gutter;
+    const yBot = yTop + this.currentTileSize;
+    const size = this.atlasSize;
+    const u0 = x0 / size;
+    const u1 = x1 / size;
+    const v1 = 1 - yTop / size;
+    const v0 = 1 - yBot / size;
+    const eps = 0.5 / size;
     return [u0 + eps, v0 + eps, u1 - eps, v1 - eps];
   }
 }

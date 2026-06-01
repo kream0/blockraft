@@ -207,15 +207,21 @@ function tileForFace(t: WorkerBlockTable, id: BlockId, face: Face): number {
   return t.texSide[id] ?? 0;
 }
 
-/** UV for a tile — identical math to TextureAtlas.getUV, parameterised. */
+/** UV for a tile — identical math to TextureAtlas.getUV, parameterised (gutter-aware). */
 function getUV(p: WorkerAtlasParams, tile: number): [number, number, number, number] {
   const col = tile % p.atlasCols;
   const row = Math.floor(tile / p.atlasCols);
-  const u0 = (col * p.tilePixels) / p.atlasSize;
-  const u1 = ((col + 1) * p.tilePixels) / p.atlasSize;
-  const v1 = 1 - (row * p.tilePixels) / p.atlasSize;
-  const v0 = 1 - ((row + 1) * p.tilePixels) / p.atlasSize;
-  const eps = 0.5 / p.atlasSize;
+  const cellPitch = p.tilePixels + 2 * p.gutterPixels;
+  const x0 = col * cellPitch + p.gutterPixels;
+  const x1 = x0 + p.tilePixels;
+  const yTop = row * cellPitch + p.gutterPixels;
+  const yBot = yTop + p.tilePixels;
+  const size = p.atlasSize;
+  const u0 = x0 / size;
+  const u1 = x1 / size;
+  const v1 = 1 - yTop / size;
+  const v0 = 1 - yBot / size;
+  const eps = 0.5 / size;
   return [u0 + eps, v0 + eps, u1 - eps, v1 - eps];
 }
 

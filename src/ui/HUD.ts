@@ -48,6 +48,8 @@ function ensureStyle(): void {
 .mc-armor-bg::before, .mc-armor-fg::before { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; clip-path: polygon(50% 0, 100% 22%, 100% 60%, 50% 100%, 0 60%, 0 22%); }
 .mc-armor-bg::before { background: #444; }
 .mc-armor-fg::before { background: #c8d2dc; }
+.mc-rebuild { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); color: white; text-shadow: 1px 1px 2px black; font-family: monospace; font-size: 14px; padding: 6px 14px; background: rgba(0,0,0,0.55); border-radius: 4px; pointer-events: none; }
+.mc-rebuild[hidden] { display: none; }
 `;
   document.head.appendChild(style);
 }
@@ -74,6 +76,8 @@ export class HUD {
   private armorFills: HTMLElement[] = [];
   hotbar: Hotbar;
   private minimap: Minimap;
+  private rebuildEl: HTMLElement;
+  private rebuildHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   private fpsEma: number = 0;
   private fpsInitialized: boolean = false;
@@ -224,6 +228,12 @@ export class HUD {
     vignette.className = 'mc-damage-vignette';
     container.appendChild(vignette);
     this.damageVignetteEl = vignette;
+
+    const rebuild = document.createElement('div');
+    rebuild.className = 'mc-rebuild';
+    rebuild.hidden = true;
+    container.appendChild(rebuild);
+    this.rebuildEl = rebuild;
 
     this.hotbar = new Hotbar(container, hotbarStacks, showCounts, iconRenderer);
     this.minimap = new Minimap(container);
@@ -402,10 +412,39 @@ export class HUD {
       'conic-gradient(rgba(255,255,255,0.55) ' + deg + 'deg, rgba(0,0,0,0.30) ' + deg + 'deg)';
   }
 
+  /**
+   * Show terrain-rebuild progress (after an atlas-resolution change). `total <= 0`
+   * hides immediately. Once `done >= total` the banner lingers ~2s then auto-hides.
+   * Safe to call every frame; re-arming is debounced.
+   */
+  setRebuildProgress(done: number, total: number): void {
+    if (total <= 0) { this.hideRebuild(); return; }
+    this.rebuildEl.hidden = false;
+    const d = Math.max(0, Math.min(total, done));
+    this.rebuildEl.textContent = 'Rebuilding terrain ' + d + '/' + total + '…';
+    if (d >= total) {
+      if (this.rebuildHideTimer === null) {
+        this.rebuildHideTimer = setTimeout(() => { this.hideRebuild(); }, 2000);
+      }
+    } else if (this.rebuildHideTimer !== null) {
+      clearTimeout(this.rebuildHideTimer);
+      this.rebuildHideTimer = null;
+    }
+  }
+
+  private hideRebuild(): void {
+    if (this.rebuildHideTimer !== null) {
+      clearTimeout(this.rebuildHideTimer);
+      this.rebuildHideTimer = null;
+    }
+    this.rebuildEl.hidden = true;
+  }
+
   dispose(): void {
     this.hotbar.dispose();
     this.minimap.dispose();
-    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl, this.dayEl]) {
+    if (this.rebuildHideTimer !== null) { clearTimeout(this.rebuildHideTimer); this.rebuildHideTimer = null; }
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl, this.dayEl, this.rebuildEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }

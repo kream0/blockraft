@@ -6,6 +6,7 @@ import {
   type ChunkMeshRequest,
   type ChunkMeshResult,
   type MeshBuffers,
+  type WorkerAtlasParams,
 } from '../types';
 
 export function buildGeometryFromBuffers(buffers: MeshBuffers): THREE.BufferGeometry {
@@ -27,9 +28,11 @@ export class MeshQueue {
   private results: ChunkMeshResult[] = [];
   private inFlight = 0;
   private onUpload: MeshUploadCallback;
+  private initMsg: WorkerInitMsg;
 
   constructor(initMsg: WorkerInitMsg, onUpload: MeshUploadCallback) {
     this.onUpload = onUpload;
+    this.initMsg = initMsg;
     this.worker = new Worker(new URL('./ChunkMeshWorker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<ChunkMeshResult>): void => {
       this.inFlight--;
@@ -59,6 +62,17 @@ export class MeshQueue {
       this.onUpload(res);
       uploaded++;
     }
+  }
+
+  /** Re-post the worker init with new atlas params (idempotent in the worker). Updates UV math for all future mesh jobs. */
+  updateAtlasParams(atlasParams: WorkerAtlasParams): void {
+    this.initMsg = { ...this.initMsg, atlasParams };
+    this.worker.postMessage(this.initMsg);
+  }
+
+  /** Count of mesh work not yet applied to the scene: queued + in-flight + meshed-but-not-yet-uploaded. */
+  pending(): number {
+    return this.queue.length + this.inFlight + this.results.length;
   }
 
   dispose(): void {

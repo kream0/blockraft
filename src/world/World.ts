@@ -24,7 +24,6 @@ import { Chunk } from './Chunk';
 import { ChunkMesher } from './ChunkMesher';
 import { LightEngine } from './LightEngine';
 import { MeshQueue, buildGeometryFromBuffers } from './MeshQueue';
-import { ATLAS_TILE_PIXELS, ATLAS_COLS, ATLAS_SIZE } from '../rendering/TextureAtlas';
 import { TerrainGenerator } from './TerrainGenerator';
 import { EntityManager } from '../entities/EntityManager';
 import { isDoorBlock } from './Door';
@@ -155,11 +154,7 @@ export class World implements IWorld, ISkyLightAccess {
       blockTable.texBottom[id] = def.textures.bottom;
       blockTable.texSide[id] = def.textures.side;
     }
-    const atlasParams: WorkerAtlasParams = {
-      tilePixels: ATLAS_TILE_PIXELS,
-      atlasCols: ATLAS_COLS,
-      atlasSize: ATLAS_SIZE,
-    };
+    const atlasParams = atlas.getAtlasParams();
     const initMsg: WorkerInitMsg = { type: 'init', blockTable, atlasParams };
     try {
       this.meshQueue = new MeshQueue(initMsg, this.onMeshResult);
@@ -855,6 +850,28 @@ export class World implements IWorld, ISkyLightAccess {
       n++;
       if (n >= limit) break;
     }
+  }
+
+  /** Mesh work not yet applied to the scene (0 when synchronous fallback is active). */
+  meshPending(): number {
+    return this.meshQueue !== null ? this.meshQueue.pending() : 0;
+  }
+
+  /**
+   * Atlas-resolution change: push the new UV params to the worker, then remesh every
+   * loaded chunk so geometry re-samples the repainted atlas. Returns the chunk count queued.
+   * (Lighting is untouched — remeshChunk only relights when chunk.lightDirty, which stays false here.)
+   * Precondition: the caller must have already called atlas.rebuild(newTileSize) — the
+   * synchronous-fallback mesher reads UV params straight from the (repainted) atlas instance.
+   */
+  rebuildForAtlas(atlasParams: WorkerAtlasParams): number {
+    if (this.meshQueue !== null) this.meshQueue.updateAtlasParams(atlasParams);
+    let n = 0;
+    for (const chunk of this.chunks.values()) {
+      this.remeshChunk(chunk);
+      n++;
+    }
+    return n;
   }
 
   /** Despawn all entities and remove all chunk meshes. Idempotent. */
