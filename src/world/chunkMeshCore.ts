@@ -20,6 +20,7 @@ import {
   type DoorMeshArrays,
 } from './Door';
 import { emitTorchGeometry, isTorchBlock, wallTorchLean, emitWallTorchGeometry, TORCH_TILE } from './Torch';
+import { isCrossBlock, crossBlockTile, emitCrossGeometry, isFlowerBlock, flowerPetalTile, FLOWER_STEM_TILE, emitFlowerGeometry } from './Foliage';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -283,6 +284,22 @@ export function buildChunkMeshBuffers(
             const lean = wallTorchLean(id);
             emitWallTorchGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, TORCH_TILE), skyMul, blockMul, lean.x, lean.z);
           }
+          continue;
+        }
+        if (isFlowerBlock(id)) {
+          const sky = sampleSkyLight(skyLightHalo, lx, ly, lz);
+          const block = sampleBlockLight(blockLightHalo, lx, ly, lz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
+          const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
+          emitFlowerGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, FLOWER_STEM_TILE), getUV(atlasParams, flowerPetalTile(id)), skyMul, blockMul);
+          continue;
+        }
+        if (isCrossBlock(id)) {
+          const sky = sampleSkyLight(skyLightHalo, lx, ly, lz);
+          const block = sampleBlockLight(blockLightHalo, lx, ly, lz);
+          const skyMul = SKY_LIGHT_BRIGHTNESS[sky] ?? 1.0;
+          const blockMul = BLOCK_LIGHT_BRIGHTNESS[block] ?? 0;
+          emitCrossGeometry(solidOut, baseX + lx, ly, baseZ + lz, getUV(atlasParams, crossBlockTile(id)), skyMul, blockMul);
           continue;
         }
         const isCurrentTransparent = isTransparentId(blockTable, id);
