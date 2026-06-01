@@ -2,6 +2,7 @@ import { INVENTORY_SIZE, HOTBAR_SIZE, CHEST_SLOTS, type ItemId, type ItemStack, 
 import type { Inventory } from '../player/Inventory';
 import { itemMaxStack } from '../items/ItemRegistry';
 import type { ItemIconRenderer } from '../rendering/ItemIconRenderer';
+import { Tooltip, itemDisplayName } from './Tooltip';
 
 // Synthetic slot indices for the 27 chest slots — must not collide with real
 // inventory indices 0..35, furnace indices 300..302, or craft indices 100..200.
@@ -20,6 +21,7 @@ export class ChestScreen {
   private cursorEl: HTMLElement;
   private cursor: ItemStack | null = null;
   private onMouseMove: (e: MouseEvent) => void;
+  private tooltip: Tooltip;
 
   private onSpill: ((item: ItemId, count: number) => void) | null;
 
@@ -47,6 +49,7 @@ export class ChestScreen {
     root.addEventListener('contextmenu', e => e.preventDefault());
     container.appendChild(root);
     this.root = root;
+    this.tooltip = new Tooltip(root);
 
     // Centered panel
     const panel = document.createElement('div');
@@ -178,6 +181,17 @@ export class ChestScreen {
       e.stopPropagation();
       this.handleSlotMouseDown(invIndex, e.button);
     });
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const stack = this.getCell(invIndex);
+      if (stack !== null) {
+        this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
+      } else {
+        this.tooltip.hide();
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      this.tooltip.hide();
+    });
     this.slotEls[invIndex] = el;
     return el;
   }
@@ -191,6 +205,17 @@ export class ChestScreen {
       e.preventDefault();
       e.stopPropagation();
       this.handleSlotMouseDown(synthIndex, e.button);
+    });
+    el.addEventListener('mousemove', (e: MouseEvent) => {
+      const stack = this.getCell(synthIndex);
+      if (stack !== null) {
+        this.tooltip.show(itemDisplayName(stack.item), e.clientX, e.clientY);
+      } else {
+        this.tooltip.hide();
+      }
+    });
+    el.addEventListener('mouseleave', () => {
+      this.tooltip.hide();
     });
     this.chestSlotEls[chestI] = el;
     return el;
@@ -359,11 +384,13 @@ export class ChestScreen {
     this.root.style.display = 'none';
     this.updateCursorEl();
     window.removeEventListener('mousemove', this.onMouseMove);
+    this.tooltip.hide();
   }
 
   dispose(): void {
     // Route through close() so the cursor is returned and the mousemove listener removed.
     this.close();
+    this.tooltip.dispose();
     if (this.root.parentNode !== null) {
       this.root.parentNode.removeChild(this.root);
     }
