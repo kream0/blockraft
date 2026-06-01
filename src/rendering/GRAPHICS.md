@@ -51,7 +51,8 @@ the minimum work. Cost tiers, cheapest first:
 - **Live, no rebuild** — applied in place every call: `pixelRatioCap`, `toneMapping`,
   `fogType` (swaps the `scene.fog` object between `Fog`/`FogExp2`), `bloomIntensity`,
   `bloomThreshold`. Also handled live in `GameSession.applySettings`: `fov`,
-  `renderDistance` (fog far + chunk streaming), sensitivity, volumes, FPS toggle.
+  `renderDistance` (fog far + chunk streaming), `anisotropy` (atlas texture re-upload,
+  no remesh), sensitivity, volumes, FPS toggle.
 - **Structural composer rebuild** — disposes and recreates the `EffectComposer`:
   changing `antiAlias` (off/fxaa/smaa) or toggling `bloom`. Cheap (a few GPU allocations),
   but not per-frame; only on a settings change.
@@ -59,8 +60,10 @@ the minimum work. Cost tiers, cheapest first:
   so the unlit chunk/water shaders re-link. Triggered by `applyGraphics` returning
   `shadowRecompileNeeded`: when `shadowMapSize` toggles shadows **on↔off**, or when
   `shadowSoftness` changes **while shadows are on**.
-- **Remesh all chunks** _(P2)_ — `atlasTileSize` / UV-gutter changes will rebuild every
-  loaded chunk's geometry. Not yet wired.
+- **Remesh all chunks** _(P2)_ — changing `atlasTileSize` rebuilds the atlas at the new
+  tile resolution and remeshes every loaded chunk (the new UV gutters change the geometry's
+  UVs). Driven by `GameSession.applySettings` → `World.rebuildForAtlas`; progress shows in a
+  HUD banner. See "Tiered atlas resolution & anisotropy" below.
 - **Material recreate** _(P3)_ — `normalMaps` / `edgeRounding=normalmap` will swap the
   unlit chunk material for a `MeshStandardMaterial`. Not yet wired.
 
@@ -70,6 +73,34 @@ the minimum work. Cost tiers, cheapest first:
 unlit chunk material bakes the PCF filter type into a GLSL `#define` (`SHADOWMAP_TYPE_*`).
 The recompile is gated on shadows being enabled: flipping softness with `shadowMapSize === 0`
 is inert (the define isn't present), so we skip the `needsUpdate` to avoid a pointless stutter.
+
+## Tiered atlas resolution & anisotropy (P2)
+
+`atlasTileSize` (16 / 32 / 64 px per tile) trades texture memory for surface crispness. The
+`TextureAtlas` redraws its 4×4 procedural grid at the chosen resolution and surrounds every
+tile with a **gutter** — a `gutterFor(tileSize)` border of `0 / 2 / 4` px at 16 / 32 / 64 —
+whose edge texels are duplicated outward. The gutter stops neighbouring tiles bleeding into
+each other once mipmapping and anisotropic filtering sample beyond a tile's nominal bounds;
+at 16 px the gutter is 0, so the atlas is byte-for-byte the original.
+
+Because UVs must land inside the gutter-inset tile, the mesh worker needs the same atlas
+geometry the main thread used. `WorkerAtlasParams` carries `tilePixels`, `atlasCols`,
+`atlasRows`, `atlasSize`, and `gutterPixels`; `TextureAtlas.getUV` and the worker's
+`chunkMeshCore.getUV` run **identical** gutter-aware math that reduces to the original
+formula when `gutterPixels === 0`.
+
+**Runtime change path.** `GameSession.applySettings` detects an `atlasTileSize` change,
+calls `atlas.rebuild(tileSize)`, reads the fresh `atlas.getAtlasParams()`, and hands them to
+`World.rebuildForAtlas(params)`. That re-posts the worker init message
+(`MeshQueue.updateAtlasParams`, so every future mesh job uses the new UV math) and
+re-enqueues a remesh for each loaded chunk, returning the count. The HUD shows a
+`Rebuilding terrain N/total…` banner that the frame loop updates from `World.meshPending()`
+and auto-hides at completion.
+
+**`anisotropy`** (1 / 4 / 8 / max, where `max` resolves to the GPU's
+`capabilities.getMaxAnisotropy()`) is applied live by `atlas.setAnisotropy`: it sets the
+texture's `anisotropy` and flags `needsUpdate`, a texture re-upload with **no** geometry
+remesh.
 
 ## SSAO is deferred to P5
 
