@@ -113,8 +113,8 @@ remesh.
 ## Normal/roughness maps & the MeshStandard chunk material (P3)
 
 P3 replaces the unlit chunk/water materials with `onBeforeCompile`-patched
-`MeshStandardMaterial`s, so terrain picks up PBR roughness, normal-mapped surface relief, and a
-sun specular highlight — **without** losing the baked, leak-free voxel lighting. The patch
+`MeshStandardMaterial`s — **without** losing the baked, leak-free voxel lighting (terrain is
+rendered fully matte; see the specular policy below). The patch
 (`patchChunkLighting` in `Materials.ts`) keeps baked vertex light authoritative for diffuse:
 
 - The mesher packs two light terms into the vertex `color`: **`r` = sky**
@@ -122,8 +122,11 @@ sun specular highlight — **without** losing the baked, leak-free voxel lightin
   `faceShade` is a fixed per-face directional shade (top 1.0, bottom 0.5, N/S 0.8, E/W 0.6) so
   even flat ambient light keeps each face's 3D form.
 - In the fragment shader the patch **zeroes `reflectedLight.directDiffuse`**, writes the baked
-  term into **`indirectDiffuse`**, and **zeroes `indirectSpecular`** — but **keeps
-  `directSpecular`**, so the sun adds a roughness-shaped glint on top of the baked diffuse.
+  term into **`indirectDiffuse`**, and **zeroes `indirectSpecular`**. For **opaque terrain** it
+  also **zeroes `directSpecular`** so blocks are **fully matte** — removing a sun-synced highlight
+  band that swept across surfaces and a dielectric grazing-angle Fresnel sheen that made distant
+  vertical faces mirror the sun. The **water** material keeps `directSpecular`, so water still
+  shows a roughness-shaped sun glint.
 - The `uDayNight` uniform fades the **sky** channel between a night floor (`NIGHT_SKY_FLOOR`
   = 0.15) and full daylight; the directional-light **shadow** term darkens only the sky channel
   and only in daylight (`SHADOW_MIN` = 0.35 · `uDayNight`), so torch-lit blocks and cave faces
@@ -145,7 +148,11 @@ its tile grid and gutter. `paintNormal` bakes a uniform **chamfer bevel** into e
 `tileSize/8` edge band smoothstep-tilts the tangent-space normal outward, interior stays flat
 (RGB 128,128,255). `paintRoughness` writes greyscale roughness (read from `.g`) with a default
 of **0.85** (matte) and glossy per-tile-index overrides. The chunk material binds these as
-`normalMap` + `roughnessMap` with `roughness:1.0`, `metalness:0`, `envMapIntensity:0`.
+`normalMap` + `roughnessMap` with `roughness:1.0`, `metalness:0`, `envMapIntensity:0`. Since
+opaque terrain is now matte (no specular), these maps and both edge-relief modes above no longer
+have any visible effect on terrain — they only ever shaped the now-removed sun specular — and
+today they shape the **water** surface only. The atlases, tangents, and settings still build, so
+terrain relief can be revived later if blocks regain a (clamped) specular term.
 
 **Tangents.** The `tangent` attribute (4 floats: xyz + handedness) is only needed for
 tangent-space normal mapping, so `includeTangents = normalMaps || edgeRounding === 'normalmap'`
