@@ -6,7 +6,22 @@ import {
   CLOUD_DRIFT_SPEED,
   CLOUD_TEXTURE_REPEAT,
   CLOUD_OPACITY,
+  CloudDetail,
 } from '../types';
+
+interface CloudDetailParams {
+  /** Procedural cloud texture resolution (px, square). Higher = crisper blob edges. */
+  textureSize: number;
+  /** Number of soft radial blobs drawn into the texture. Higher = denser coverage. */
+  blobCount: number;
+}
+
+const CLOUD_DETAIL_PARAMS: Record<CloudDetail, CloudDetailParams> = {
+  [CloudDetail.LOW]:    { textureSize: 128, blobCount: 8 },
+  [CloudDetail.MEDIUM]: { textureSize: 256, blobCount: 18 },
+  [CloudDetail.HIGH]:   { textureSize: 384, blobCount: 32 },
+  [CloudDetail.ULTRA]:  { textureSize: 512, blobCount: 48 },
+};
 
 /**
  * Flat cloud plane sitting at CLOUD_ALTITUDE (160 blocks) above Y=0. The plane is a square
@@ -23,7 +38,8 @@ import {
 export class Clouds {
   readonly object3D: THREE.Group;
   private readonly mesh: THREE.Mesh;
-  private readonly texture: THREE.Texture;
+  private texture: THREE.CanvasTexture;
+  private _detail: CloudDetail;
 
   // Scratch Color instances — built once, mutated each frame; NEVER allocate inside update().
   private readonly _white = new THREE.Color(0xffffff);
@@ -32,56 +48,10 @@ export class Clouds {
   /** Accumulated UV scroll distance; wrapped to prevent float precision drift over long sessions. */
   private offset = 0;
 
-  constructor() {
-    // ── Procedural cloud texture (256×256, seamlessly tileable) ─────────────────────────────
-    // Deterministic LCG so the texture is identical every run (same seed, same blobs).
-    // The repo draws all procedural textures deterministically — never Math.random.
-    const SIZE = 256;
-    const canvas = document.createElement('canvas');
-    canvas.width  = SIZE;
-    canvas.height = SIZE;
-    const ctx = canvas.getContext('2d')!;
-
-    ctx.clearRect(0, 0, SIZE, SIZE);
-
-    // Deterministic LCG (matching the repo's Noise.ts / TextureAtlas.ts style).
-    let s = 0x1a2b3c4d >>> 0;
-    const rnd = (): number => {
-      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-      return s / 0x100000000;
-    };
-
-    // Draw ~18 soft radial-gradient blobs. Each blob is drawn up to 9 times (3×3 offsets of
-    // ±SIZE) so blobs that straddle an edge wrap seamlessly onto the opposite side.
-    const BLOB_COUNT = 18;
-    for (let i = 0; i < BLOB_COUNT; i++) {
-      const cx    = rnd() * SIZE;
-      const cy    = rnd() * SIZE;
-      const r     = 18 + rnd() * 28;   // radius 18–46 px
-      const alpha = 0.5 + rnd() * 0.4; // opacity 0.5–0.9
-
-      ctx.globalAlpha = alpha;
-
-      // 9 wrapped copies to guarantee seamless tiling.
-      for (const dx of [-SIZE, 0, SIZE]) {
-        for (const dy of [-SIZE, 0, SIZE]) {
-          const bx = cx + dx;
-          const by = cy + dy;
-          const grad = ctx.createRadialGradient(bx, by, 0, bx, by, r);
-          grad.addColorStop(0,   'rgba(255,255,255,1)');
-          grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
-          grad.addColorStop(1,   'rgba(255,255,255,0)');
-          ctx.fillStyle = grad;
-          ctx.fillRect(bx - r, by - r, r * 2, r * 2);
-        }
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    this.texture = new THREE.CanvasTexture(canvas);
-    this.texture.wrapS = THREE.RepeatWrapping;
-    this.texture.wrapT = THREE.RepeatWrapping;
-    this.texture.repeat.set(CLOUD_TEXTURE_REPEAT, CLOUD_TEXTURE_REPEAT);
+  constructor(detail: CloudDetail) {
+    // ── Procedural cloud texture (seamlessly tileable, resolution driven by detail) ──────────
+    this._detail = detail;
+    this.texture = this.buildTexture(CLOUD_DETAIL_PARAMS[detail]);
 
     // ── Plane geometry ───────────────────────────────────────────────────────────────────────
     const geo = new THREE.PlaneGeometry(2 * CLOUD_EXTENT, 2 * CLOUD_EXTENT);
@@ -112,6 +82,75 @@ export class Clouds {
 
     this.object3D = new THREE.Group();
     this.object3D.add(this.mesh);
+  }
+
+  /** Build a seamlessly-tileable procedural cloud CanvasTexture for the given params. */
+  private buildTexture(params: CloudDetailParams): THREE.CanvasTexture {
+    const SIZE = params.textureSize;
+    const BLOB_COUNT = params.blobCount;
+    const canvas = document.createElement('canvas');
+    canvas.width  = SIZE;
+    canvas.height = SIZE;
+    const ctx = canvas.getContext('2d')!;
+
+    ctx.clearRect(0, 0, SIZE, SIZE);
+
+    // Deterministic LCG (matching the repo's Noise.ts / TextureAtlas.ts style).
+    // Fixed seed so the texture is identical every run for a given detail level.
+    let s = 0x1a2b3c4d >>> 0;
+    const rnd = (): number => {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      return s / 0x100000000;
+    };
+
+    // Scale blob radius proportionally so blobs look the same at any textureSize.
+    const scale = SIZE / 256;
+
+    // Draw soft radial-gradient blobs. Each blob is drawn up to 9 times (3×3 offsets of
+    // ±SIZE) so blobs that straddle an edge wrap seamlessly onto the opposite side.
+    for (let i = 0; i < BLOB_COUNT; i++) {
+      const cx    = rnd() * SIZE;
+      const cy    = rnd() * SIZE;
+      const r     = (18 + rnd() * 28) * scale; // radius 18–46 px at 256px, scaled for other sizes
+      const alpha = 0.5 + rnd() * 0.4;          // opacity 0.5–0.9
+
+      ctx.globalAlpha = alpha;
+
+      // 9 wrapped copies to guarantee seamless tiling.
+      for (const dx of [-SIZE, 0, SIZE]) {
+        for (const dy of [-SIZE, 0, SIZE]) {
+          const bx = cx + dx;
+          const by = cy + dy;
+          const grad = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+          grad.addColorStop(0,   'rgba(255,255,255,1)');
+          grad.addColorStop(0.6, 'rgba(255,255,255,0.6)');
+          grad.addColorStop(1,   'rgba(255,255,255,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(bx - r, by - r, r * 2, r * 2);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(CLOUD_TEXTURE_REPEAT, CLOUD_TEXTURE_REPEAT);
+    return tex;
+  }
+
+  /** Swap the cloud texture to a new detail level. Cheap: regenerates the procedural
+   *  texture (no geometry change, no remesh) and disposes the old one. No-op if unchanged. */
+  setDetail(detail: CloudDetail): void {
+    if (detail === this._detail) return;
+    this._detail = detail;
+    const next = this.buildTexture(CLOUD_DETAIL_PARAMS[detail]);
+    const mat = this.mesh.material as THREE.MeshBasicMaterial;
+    const old = this.texture;
+    mat.map = next;
+    mat.needsUpdate = true;
+    this.texture = next;
+    old.dispose();
   }
 
   /**

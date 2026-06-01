@@ -111,6 +111,7 @@ import {
   HOTBAR_SIZE,
   EdgeRounding,
   WaterQuality,
+  CloudDetail,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -287,6 +288,7 @@ export class GameSession {
   private _lastNormalMaps = false;
   private _lastEdgeRounding: EdgeRounding = EdgeRounding.OFF;
   private _lastWaterQuality: WaterQuality = WaterQuality.BASIC;
+  private _lastCloudDetail: CloudDetail = CloudDetail.MEDIUM;
   private _waterTime = 0;
   private _rebuildTotal = 0;
   private _rebuildActive = false;
@@ -352,6 +354,7 @@ export class GameSession {
     this._lastNormalMaps = settings.normalMaps ?? false;
     this._lastEdgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
     this._lastWaterQuality = settings.waterQuality ?? WaterQuality.BASIC;
+    this._lastCloudDetail = settings.cloudDetail ?? CloudDetail.MEDIUM;
     const initialMatOpts: ChunkMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding };
     const initialWaterOpts: WaterMaterialOptions = { ...initialMatOpts, waterQuality: this._lastWaterQuality };
     const initialNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
@@ -478,7 +481,7 @@ export class GameSession {
     this.renderer.scene.add(this.skyBodies.object3D);
     this.skyDome = new SkyDome();
     this.renderer.scene.add(this.skyDome.object3D);
-    this.clouds = new Clouds();
+    this.clouds = new Clouds(this._lastCloudDetail);
     this.renderer.scene.add(this.clouds.object3D);
 
     // Block-crack overlay.
@@ -1049,6 +1052,13 @@ export class GameSession {
       this._rebuildTotal = total;
       this._rebuildActive = total > 0;
       this.hud.setRebuildProgress(0, total);
+    }
+
+    // --- Cloud detail: regenerate the procedural cloud texture (cheap, no remesh) ---
+    const cloudDetail = settings.cloudDetail ?? CloudDetail.MEDIUM;
+    if (cloudDetail !== this._lastCloudDetail) {
+      this.clouds.setDetail(cloudDetail);
+      this._lastCloudDetail = cloudDetail;
     }
   }
 
