@@ -23,6 +23,7 @@ import {
 } from './Door';
 import { emitTorchGeometry, isTorchBlock, wallTorchLean, emitWallTorchGeometry, TORCH_TILE } from './Torch';
 import { isCrossBlock, crossBlockTile, emitCrossGeometry, isFlowerBlock, flowerPetalTile, FLOWER_STEM_TILE, emitFlowerGeometry } from './Foliage';
+import { buildTangents } from './chunkMeshCore';
 
 /**
  * Standard voxel AO formula (0fps "Ambient occlusion for Minecraft-like worlds").
@@ -163,6 +164,16 @@ const FACES: Record<Face, FaceData> = {
 
 const ALL_FACES: Face[] = [Face.TOP, Face.BOTTOM, Face.NORTH, Face.SOUTH, Face.EAST, Face.WEST];
 
+/** Fixed per-face directional shade (Minecraft-style) baked into vertex color so unlit terrain keeps 3D form. */
+const FACE_SHADE: Record<Face, number> = {
+  [Face.TOP]: 1.0,
+  [Face.BOTTOM]: 0.5,
+  [Face.NORTH]: 0.8,
+  [Face.SOUTH]: 0.8,
+  [Face.EAST]: 0.6,
+  [Face.WEST]: 0.6,
+};
+
 export class ChunkMesher {
   constructor(
     private atlas: ITextureAtlas,
@@ -259,6 +270,7 @@ export class ChunkMesher {
 
           for (const face of ALL_FACES) {
             const data = FACES[face];
+            const faceShade = FACE_SHADE[face] ?? 1.0;
             const dx = data.neighbor[0];
             const dy = data.neighbor[1];
             const dz = data.neighbor[2];
@@ -377,7 +389,7 @@ export class ChunkMesher {
               positions.push(wx + corner[0], ly + corner[1], wz + corner[2]);
               normals.push(normX, normY, normZ);
               const ao = aoBrightness[c] ?? 1.0;
-              colors.push(ao * (skyMulC[c] ?? skyBase), ao * (blockMulC[c] ?? blockBase), 0);
+              colors.push(faceShade * ao * (skyMulC[c] ?? skyBase), faceShade * ao * (blockMulC[c] ?? blockBase), 0);
             }
             // UV mapping: v0 → (u0,v0), v1 → (u1,v0), v2 → (u1,v1), v3 → (u0,v1)
             uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
@@ -405,6 +417,9 @@ export class ChunkMesher {
     const solidGeometry = new THREE.BufferGeometry();
     solidGeometry.setAttribute('position', new THREE.Float32BufferAttribute(solidPositions, 3));
     solidGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(solidNormals, 3));
+    // Always emit tangents in the sync fallback path — an unused tangent attribute is harmless
+    // when no normalMap is bound (Three.js defines USE_TANGENT but no visual change occurs).
+    solidGeometry.setAttribute('tangent', new THREE.Float32BufferAttribute(buildTangents(solidNormals), 4));
     solidGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(solidUvs, 2));
     solidGeometry.setAttribute('color', new THREE.Float32BufferAttribute(solidColors, 3));
     solidGeometry.setIndex(solidIndices);
@@ -421,6 +436,8 @@ export class ChunkMesher {
       const waterGeometry = new THREE.BufferGeometry();
       waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
       waterGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(waterNormals, 3));
+      // Always emit tangents in the sync fallback path (see solid geometry comment above).
+      waterGeometry.setAttribute('tangent', new THREE.Float32BufferAttribute(buildTangents(waterNormals), 4));
       waterGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(waterUvs, 2));
       waterGeometry.setAttribute('color', new THREE.Float32BufferAttribute(waterColors, 3));
       waterGeometry.setIndex(waterIndices);

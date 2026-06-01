@@ -13,6 +13,9 @@ export function buildGeometryFromBuffers(buffers: MeshBuffers): THREE.BufferGeom
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(buffers.positions, 3));
   g.setAttribute('normal', new THREE.BufferAttribute(buffers.normals, 3));
+  if (buffers.tangents !== undefined) {
+    g.setAttribute('tangent', new THREE.BufferAttribute(buffers.tangents, 4));
+  }
   g.setAttribute('uv', new THREE.BufferAttribute(buffers.uvs, 2));
   g.setAttribute('color', new THREE.BufferAttribute(buffers.colors, 3));
   g.setIndex(new THREE.BufferAttribute(buffers.indices, 1));

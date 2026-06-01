@@ -226,6 +226,77 @@ function getUV(p: WorkerAtlasParams, tile: number): [number, number, number, num
 }
 
 // ---------------------------------------------------------------------------
+// Tangent helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a per-vertex tangent (xyz + handedness w=1) from the per-vertex normal array.
+ * For the 6 axis-aligned cube-face normals this yields a deterministic tangent matching the
+ * spec table (+X→+Z, +Y→+X, +Z→+X). For non-axis normals (diagonal foliage/leaning torch) it
+ * Gram-Schmidt-orthogonalizes a reasonable base tangent against the normal.
+ * Output length === (normals.length / 3) * 4 — one (tx, ty, tz, 1.0) per vertex.
+ */
+export function buildTangents(normals: ArrayLike<number>): Float32Array {
+  const vertexCount = Math.floor(normals.length / 3);
+  const out = new Float32Array(vertexCount * 4);
+  for (let i = 0; i < vertexCount; i++) {
+    const nx = normals[i * 3] ?? 0;
+    const ny = normals[i * 3 + 1] ?? 0;
+    const nz = normals[i * 3 + 2] ?? 0;
+
+    // Normalize the normal defensively; fall back to (0,0,1) if zero-length.
+    const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    let nnx: number, nny: number, nnz: number;
+    if (nLen < 1e-8) {
+      nnx = 0; nny = 0; nnz = 1;
+    } else {
+      nnx = nx / nLen; nny = ny / nLen; nnz = nz / nLen;
+    }
+
+    // Pick a base tangent by the dominant axis of n:
+    //   dominant X → base t = (0,0,1)
+    //   dominant Y → base t = (1,0,0)
+    //   dominant Z → base t = (1,0,0)
+    const absX = Math.abs(nnx);
+    const absY = Math.abs(nny);
+    const absZ = Math.abs(nnz);
+    let bx: number, by: number, bz: number;
+    if (absX >= absY && absX >= absZ) {
+      bx = 0; by = 0; bz = 1; // dominant X → base (0,0,1)
+    } else {
+      bx = 1; by = 0; bz = 0; // dominant Y or Z → base (1,0,0)
+    }
+
+    // Gram-Schmidt orthogonalization: t = base - dot(base, n) * n
+    const dot = bx * nnx + by * nny + bz * nnz;
+    let tx = bx - dot * nnx;
+    let ty = by - dot * nny;
+    let tz = bz - dot * nnz;
+
+    // Guard against degenerate result; retry with (0,1,0) if too short.
+    let tLen = Math.sqrt(tx * tx + ty * ty + tz * tz);
+    if (tLen < 1e-4) {
+      const dot2 = 0 * nnx + 1 * nny + 0 * nnz;
+      tx = 0 - dot2 * nnx;
+      ty = 1 - dot2 * nny;
+      tz = 0 - dot2 * nnz;
+      tLen = Math.sqrt(tx * tx + ty * ty + tz * tz);
+    }
+    if (tLen > 1e-8) {
+      tx /= tLen; ty /= tLen; tz /= tLen;
+    } else {
+      tx = 1; ty = 0; tz = 0; // absolute fallback
+    }
+
+    out[i * 4] = tx;
+    out[i * 4 + 1] = ty;
+    out[i * 4 + 2] = tz;
+    out[i * 4 + 3] = 1.0; // handedness always +1 for this geometry
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 
@@ -237,6 +308,7 @@ export function buildChunkMeshBuffers(
   blockLightHalo: Uint8Array,
   blockTable: WorkerBlockTable,
   atlasParams: WorkerAtlasParams,
+  includeTangents: boolean,
 ): { solid: MeshBuffers; water: MeshBuffers | null } {
   const solidPositions: number[] = [];
   const solidNormals: number[] = [];
@@ -469,5 +541,15 @@ export function buildChunkMeshBuffers(
     colors: new Float32Array(waterColors),
     indices: new Uint32Array(waterIndices),
   } : null;
+
+  // Post-pass: derive tangents from the final normals arrays (covers cube, door, torch, foliage
+  // vertices in one sweep — no per-emitter changes needed, counts never desync).
+  if (includeTangents) {
+    solid.tangents = buildTangents(solidNormals);
+    if (water !== null) {
+      water.tangents = buildTangents(waterNormals);
+    }
+  }
+
   return { solid, water };
 }

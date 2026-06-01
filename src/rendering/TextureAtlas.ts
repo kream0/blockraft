@@ -688,6 +688,12 @@ export class TextureAtlas implements ITextureAtlas {
   private atlasSize = SIZE;
   private anisotropy = 1;
 
+  private _normalTexture: THREE.CanvasTexture;
+  private _roughnessTexture: THREE.CanvasTexture;
+
+  get normalTexture(): THREE.Texture { return this._normalTexture; }
+  get roughnessTexture(): THREE.Texture { return this._roughnessTexture; }
+
   constructor(tileSize: number = TILE) {
     const canvas = this.paint(tileSize);
     const tex = new THREE.CanvasTexture(canvas);
@@ -700,6 +706,30 @@ export class TextureAtlas implements ITextureAtlas {
     tex.anisotropy = this.anisotropy;
     tex.needsUpdate = true;
     this.texture = tex;
+
+    const normalCanvas = this.paintNormal(tileSize);
+    const normalTex = new THREE.CanvasTexture(normalCanvas);
+    normalTex.magFilter = THREE.LinearFilter;
+    normalTex.minFilter = THREE.LinearMipmapLinearFilter;
+    normalTex.generateMipmaps = true;
+    normalTex.colorSpace = THREE.NoColorSpace;
+    normalTex.wrapS = THREE.ClampToEdgeWrapping;
+    normalTex.wrapT = THREE.ClampToEdgeWrapping;
+    normalTex.anisotropy = this.anisotropy;
+    normalTex.needsUpdate = true;
+    this._normalTexture = normalTex;
+
+    const roughnessCanvas = this.paintRoughness(tileSize);
+    const roughnessTex = new THREE.CanvasTexture(roughnessCanvas);
+    roughnessTex.magFilter = THREE.LinearFilter;
+    roughnessTex.minFilter = THREE.LinearMipmapLinearFilter;
+    roughnessTex.generateMipmaps = true;
+    roughnessTex.colorSpace = THREE.NoColorSpace;
+    roughnessTex.wrapS = THREE.ClampToEdgeWrapping;
+    roughnessTex.wrapT = THREE.ClampToEdgeWrapping;
+    roughnessTex.anisotropy = this.anisotropy;
+    roughnessTex.needsUpdate = true;
+    this._roughnessTexture = roughnessTex;
   }
 
   /** Repaint the atlas at a new tile size, reusing the same THREE.Texture (materials keep their binding). */
@@ -708,6 +738,16 @@ export class TextureAtlas implements ITextureAtlas {
     this.texture.image = canvas;
     this.texture.anisotropy = this.anisotropy;
     this.texture.needsUpdate = true;
+
+    const normalCanvas = this.paintNormal(tileSize);
+    this._normalTexture.image = normalCanvas;
+    this._normalTexture.anisotropy = this.anisotropy;
+    this._normalTexture.needsUpdate = true;
+
+    const roughnessCanvas = this.paintRoughness(tileSize);
+    this._roughnessTexture.image = roughnessCanvas;
+    this._roughnessTexture.anisotropy = this.anisotropy;
+    this._roughnessTexture.needsUpdate = true;
   }
 
   /** Live anisotropy (caller resolves 0=>max and clamps to GPU max). */
@@ -715,6 +755,10 @@ export class TextureAtlas implements ITextureAtlas {
     this.anisotropy = level;
     this.texture.anisotropy = level;
     this.texture.needsUpdate = true;
+    this._normalTexture.anisotropy = level;
+    this._normalTexture.needsUpdate = true;
+    this._roughnessTexture.anisotropy = level;
+    this._roughnessTexture.needsUpdate = true;
   }
 
   getAtlasParams(): WorkerAtlasParams {
@@ -727,7 +771,37 @@ export class TextureAtlas implements ITextureAtlas {
     };
   }
 
-  /** Paints a fresh canvas at the given tile size; updates currentTileSize/gutter/atlasSize; returns the canvas. */
+  /**
+   * Shared gutter-extrude step: copies tile edge pixels into the surrounding gutter region
+   * so mip/trilinear sampling never crosses tile boundaries. Identical math to albedo.
+   */
+  private static extrudeGutters(
+    ctx: CanvasRenderingContext2D,
+    canvas: HTMLCanvasElement,
+    tileCount: number,
+    tileSize: number,
+    gutter: number,
+  ): void {
+    if (gutter === 0) return;
+    const cellPitch = tileSize + 2 * gutter;
+    for (let i = 0; i < tileCount; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const x = col * cellPitch + gutter;
+      const y = row * cellPitch + gutter;
+      const s = tileSize;
+      ctx.drawImage(canvas, x, y, s, 1, x, y - gutter, s, gutter);              // top
+      ctx.drawImage(canvas, x, y + s - 1, s, 1, x, y + s, s, gutter);           // bottom
+      ctx.drawImage(canvas, x, y, 1, s, x - gutter, y, gutter, s);              // left
+      ctx.drawImage(canvas, x + s - 1, y, 1, s, x + s, y, gutter, s);           // right
+      ctx.drawImage(canvas, x, y, 1, 1, x - gutter, y - gutter, gutter, gutter);        // TL
+      ctx.drawImage(canvas, x + s - 1, y, 1, 1, x + s, y - gutter, gutter, gutter);    // TR
+      ctx.drawImage(canvas, x, y + s - 1, 1, 1, x - gutter, y + s, gutter, gutter);    // BL
+      ctx.drawImage(canvas, x + s - 1, y + s - 1, 1, 1, x + s, y + s, gutter, gutter); // BR
+    }
+  }
+
+  /** Paints a fresh albedo canvas; updates currentTileSize/gutter/atlasSize; returns the canvas. */
   private paint(tileSize: number): HTMLCanvasElement {
     const gutter = TextureAtlas.gutterFor(tileSize);
     const cellPitch = tileSize + 2 * gutter;
@@ -797,27 +871,170 @@ export class TextureAtlas implements ITextureAtlas {
 
     // Edge-extrude each tile's content into its gutter so mip/trilinear sampling
     // never crosses a tile boundary (no bleed from neighbors or transparent black).
-    if (gutter > 0) {
-      for (let i = 0; i < this.tileCount; i++) {
-        const col = i % COLS;
-        const row = Math.floor(i / COLS);
-        const x = col * cellPitch + gutter;
-        const y = row * cellPitch + gutter;
-        const s = tileSize;
-        ctx.drawImage(canvas, x, y, s, 1, x, y - gutter, s, gutter);              // top
-        ctx.drawImage(canvas, x, y + s - 1, s, 1, x, y + s, s, gutter);           // bottom
-        ctx.drawImage(canvas, x, y, 1, s, x - gutter, y, gutter, s);              // left
-        ctx.drawImage(canvas, x + s - 1, y, 1, s, x + s, y, gutter, s);           // right
-        ctx.drawImage(canvas, x, y, 1, 1, x - gutter, y - gutter, gutter, gutter);                 // TL
-        ctx.drawImage(canvas, x + s - 1, y, 1, 1, x + s, y - gutter, gutter, gutter);               // TR
-        ctx.drawImage(canvas, x, y + s - 1, 1, 1, x - gutter, y + s, gutter, gutter);               // BL
-        ctx.drawImage(canvas, x + s - 1, y + s - 1, 1, 1, x + s, y + s, gutter, gutter);            // BR
-      }
-    }
+    TextureAtlas.extrudeGutters(ctx, canvas, this.tileCount, tileSize, gutter);
 
     this.currentTileSize = tileSize;
     this.gutter = gutter;
     this.atlasSize = atlasSize;
+    return canvas;
+  }
+
+  /**
+   * Paints the normal-map atlas: a soft chamfer bevel on every tile edge.
+   * All 36 tiles get the same procedural bevel — tangent-space, OpenGL +Y-up convention.
+   * Center = flat (128,128,255). Border band tilts outward with a smoothstep ramp.
+   * Uses a single ImageData pass for efficiency, then extrudes gutters.
+   */
+  private paintNormal(tileSize: number): HTMLCanvasElement {
+    const gutter = TextureAtlas.gutterFor(tileSize);
+    const cellPitch = tileSize + 2 * gutter;
+    const atlasSize = COLS * cellPitch;
+    const canvas = document.createElement('canvas');
+    canvas.width = atlasSize;
+    canvas.height = atlasSize;
+    const ctx = canvas.getContext('2d');
+    if (ctx === null) throw new Error('TextureAtlas: failed to get 2D context (normal)');
+    ctx.imageSmoothingEnabled = false;
+
+    // band width in output pixels: 2@16, 4@32, 8@64
+    const band = Math.max(2, Math.round(tileSize / 8));
+    // Max tilt slope: normal at the very edge ≈ normalize(±0.5, ±0.5, 1)
+    const maxSlope = 0.5;
+
+    // Pre-compute per-output-pixel normal values for a single tile (reused for all 36 tiles)
+    // px, py are in [0, tileSize)
+    const tileNormals = new Uint8Array(tileSize * tileSize * 4);
+    for (let py = 0; py < tileSize; py++) {
+      for (let px = 0; px < tileSize; px++) {
+        const dLeft   = px;
+        const dRight  = tileSize - 1 - px;
+        const dTop    = py;    // canvas top = small y; +G toward smaller canvas-y = OpenGL +Y
+        const dBottom = tileSize - 1 - py;
+
+        // Ramp factor [0,1]: 0 at edge, 1 at band inner boundary
+        const tLeft   = dLeft   < band ? dLeft   / band : 1;
+        const tRight  = dRight  < band ? dRight  / band : 1;
+        const tTop    = dTop    < band ? dTop    / band : 1;
+        const tBottom = dBottom < band ? dBottom / band : 1;
+
+        // Smoothstep for soft chamfer
+        const sLeft   = tLeft   * tLeft   * (3 - 2 * tLeft);
+        const sRight  = tRight  * tRight  * (3 - 2 * tRight);
+        const sTop    = tTop    * tTop    * (3 - 2 * tTop);
+        const sBottom = tBottom * tBottom * (3 - 2 * tBottom);
+
+        // Tilt: left edge → -X, right → +X, top (small canvas-y) → +Y, bottom → -Y
+        let nx = 0;
+        let ny = 0;
+        if (dLeft   < band) nx += -(1 - sLeft)   * maxSlope;
+        if (dRight  < band) nx +=  (1 - sRight)  * maxSlope;
+        if (dTop    < band) ny +=  (1 - sTop)    * maxSlope;
+        if (dBottom < band) ny += -(1 - sBottom) * maxSlope;
+
+        const nz = 1.0;
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+
+        const r = Math.round(Math.min(255, Math.max(0, (nx / len * 0.5 + 0.5) * 255)));
+        const g = Math.round(Math.min(255, Math.max(0, (ny / len * 0.5 + 0.5) * 255)));
+        const b = Math.round(Math.min(255, Math.max(0, (nz / len * 0.5 + 0.5) * 255)));
+
+        const pi = (py * tileSize + px) * 4;
+        tileNormals[pi]     = r;
+        tileNormals[pi + 1] = g;
+        tileNormals[pi + 2] = b;
+        tileNormals[pi + 3] = 255;
+      }
+    }
+
+    // Write the same bevel tile into every atlas slot in one ImageData pass
+    const imageData = ctx.createImageData(atlasSize, atlasSize);
+    const data = imageData.data;
+
+    for (let i = 0; i < this.tileCount; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const originX = col * cellPitch + gutter;
+      const originY = row * cellPitch + gutter;
+
+      for (let py = 0; py < tileSize; py++) {
+        for (let px = 0; px < tileSize; px++) {
+          const pi = (py * tileSize + px) * 4;
+          const ci = ((originY + py) * atlasSize + (originX + px)) * 4;
+          data[ci]     = tileNormals[pi]     ?? 128;
+          data[ci + 1] = tileNormals[pi + 1] ?? 128;
+          data[ci + 2] = tileNormals[pi + 2] ?? 255;
+          data[ci + 3] = 255;
+        }
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    TextureAtlas.extrudeGutters(ctx, canvas, this.tileCount, tileSize, gutter);
+    return canvas;
+  }
+
+  /**
+   * Paints the roughness atlas. Roughness written to R+G+B (greyscale; MeshStandardMaterial
+   * reads roughness from .g). Default 0.85 (matte). Glossy tile overrides via index.
+   * A faint LCG speckle (seeded per-tile) avoids perfectly uniform fills.
+   */
+  private paintRoughness(tileSize: number): HTMLCanvasElement {
+    const gutter = TextureAtlas.gutterFor(tileSize);
+    const cellPitch = tileSize + 2 * gutter;
+    const atlasSize = COLS * cellPitch;
+    const canvas = document.createElement('canvas');
+    canvas.width = atlasSize;
+    canvas.height = atlasSize;
+    const ctx = canvas.getContext('2d');
+    if (ctx === null) throw new Error('TextureAtlas: failed to get 2D context (roughness)');
+    ctx.imageSmoothingEnabled = false;
+
+    // Per-tile roughness overrides (index → roughness in [0,1])
+    const roughnessOverrides: Record<number, number> = {
+      10: 0.25,  // glass
+      12: 0.30,  // water
+      15: 0.55,  // ironOre
+      18: 0.40,  // diamondOre
+      23: 0.55,  // glowstone
+      25: 0.50,  // lava
+      4:  0.95,  // cobblestone
+      9:  0.92,  // sand
+      13: 0.80,  // snow
+    };
+    const defaultRoughness = 0.85;
+    const speckleStrength = 0.04; // ±4% roughness variation → byte range ±10
+
+    const imageData = ctx.createImageData(atlasSize, atlasSize);
+    const data = imageData.data;
+
+    for (let i = 0; i < this.tileCount; i++) {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const originX = col * cellPitch + gutter;
+      const originY = row * cellPitch + gutter;
+
+      const roughness = roughnessOverrides[i] ?? defaultRoughness;
+      const baseByte = Math.round(Math.min(255, Math.max(0, roughness * 255)));
+      const speckleRange = Math.round(speckleStrength * 255);
+
+      // Per-tile seeded RNG for consistent, deterministic speckle
+      const tileRng = makeRng((0xabcd1234 + i * 2654435761) >>> 0);
+
+      for (let py = 0; py < tileSize; py++) {
+        for (let px = 0; px < tileSize; px++) {
+          const delta = Math.round((tileRng() * 2 - 1) * speckleRange);
+          const byte = Math.min(255, Math.max(0, baseByte + delta));
+          const ci = ((originY + py) * atlasSize + (originX + px)) * 4;
+          data[ci]     = byte;
+          data[ci + 1] = byte;
+          data[ci + 2] = byte;
+          data[ci + 3] = 255;
+        }
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    TextureAtlas.extrudeGutters(ctx, canvas, this.tileCount, tileSize, gutter);
     return canvas;
   }
 

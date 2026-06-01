@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from '../rendering/Renderer';
 import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
-import { createChunkMaterial, createWaterMaterial, setChunkDaylight } from '../rendering/Materials';
+import { createChunkMaterial, createWaterMaterial, setChunkDaylight, type ChunkMaterialOptions } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
@@ -108,6 +108,7 @@ import {
   DROPPED_ITEM_PICKUP_RADIUS,
   CHEST_SLOTS,
   HOTBAR_SIZE,
+  EdgeRounding,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -280,6 +281,8 @@ export class GameSession {
 
   private _lastAtlasTileSize = 16;
   private _lastAnisotropy = 4;
+  private _lastNormalMaps = false;
+  private _lastEdgeRounding: EdgeRounding = EdgeRounding.OFF;
   private _rebuildTotal = 0;
   private _rebuildActive = false;
 
@@ -341,9 +344,13 @@ export class GameSession {
     this._lastAtlasTileSize = settings.atlasTileSize ?? 16;
     this._lastAnisotropy = settings.anisotropy ?? 4;
     this.atlas.setAnisotropy(this.resolveAnisotropy(this._lastAnisotropy));
+    this._lastNormalMaps = settings.normalMaps ?? false;
+    this._lastEdgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
+    const initialMatOpts: ChunkMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding };
+    const initialNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
     this.iconRenderer = new ItemIconRenderer(this.atlas);
-    this.chunkMaterial = createChunkMaterial(this.atlas);
-    this.waterMaterial = createWaterMaterial(this.atlas);
+    this.chunkMaterial = createChunkMaterial(this.atlas, initialMatOpts);
+    this.waterMaterial = createWaterMaterial(this.atlas, initialMatOpts);
     const initialSky = this.dayNight.getSkyState();
     setChunkDaylight(this.chunkMaterial, initialSky.daylight);
     setChunkDaylight(this.waterMaterial, initialSky.daylight);
@@ -357,6 +364,7 @@ export class GameSession {
       meta.seed,
       opts.initialSave.overrides,
       settings.renderDistance,
+      initialNeedTangents,
     );
     this.renderer.scene.add(this.world.group);
 
@@ -870,6 +878,8 @@ export class GameSession {
     this.chunkMaterial.dispose();
     this.waterMaterial.dispose();
     this.atlas.texture.dispose();
+    this.atlas.normalTexture.dispose();
+    this.atlas.roughnessTexture.dispose();
     this.iconRenderer.dispose();
   }
 
@@ -954,13 +964,48 @@ export class GameSession {
       this._lastAnisotropy = aniso;
       this.atlas.setAnisotropy(this.resolveAnisotropy(aniso));
     }
-    // Atlas tile size: repaint the atlas at the new resolution and remesh all loaded chunks.
+    // --- Normal-map / edge-rounding: recompile the chunk + water materials ---
+    // A normal map (or normalmap bevel) needs per-vertex tangents; analytic/off do not.
+    // Recompiling always swaps the material on every loaded mesh; a remesh-all is only needed
+    // when the TANGENT REQUIREMENT flips (adding/removing the tangent attribute needs new geometry).
+    const normalMaps = settings.normalMaps ?? false;
+    const edgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
+    const materialFeaturesChanged = normalMaps !== this._lastNormalMaps || edgeRounding !== this._lastEdgeRounding;
+    const needTangents = normalMaps === true || edgeRounding === EdgeRounding.NORMALMAP;
+    const prevNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
+    if (materialFeaturesChanged) {
+      this._lastNormalMaps = normalMaps;
+      this._lastEdgeRounding = edgeRounding;
+      const matOpts: ChunkMaterialOptions = { normalMaps, edgeRounding };
+      const oldChunk = this.chunkMaterial;
+      const oldWater = this.waterMaterial;
+      this.chunkMaterial = createChunkMaterial(this.atlas, matOpts);
+      this.waterMaterial = createWaterMaterial(this.atlas, matOpts);
+      const sky = this.dayNight.getSkyState();
+      setChunkDaylight(this.chunkMaterial, sky.daylight);
+      setChunkDaylight(this.waterMaterial, sky.daylight);
+      // Update World's stored materials + tangent flag, reassign to all loaded meshes, THEN
+      // dispose the now-unreferenced old materials (free their compiled programs).
+      this.world.setChunkMaterials(this.chunkMaterial, this.waterMaterial, needTangents);
+      oldChunk.dispose();
+      oldWater.dispose();
+    }
+
+    // --- Atlas tile size and/or tangent-requirement change → one remesh-all (shared banner) ---
     const tileSize = settings.atlasTileSize ?? 16;
-    if (tileSize !== this._lastAtlasTileSize) {
+    const tileSizeChanged = tileSize !== this._lastAtlasTileSize;
+    if (tileSizeChanged) {
       this._lastAtlasTileSize = tileSize;
       this.atlas.rebuild(tileSize); // re-applies the stored (already-resolved) anisotropy internally
-      const params = this.atlas.getAtlasParams();
-      const total = this.world.rebuildForAtlas(params);
+    }
+    const tangentReqChanged = materialFeaturesChanged && needTangents !== prevNeedTangents;
+    if (tileSizeChanged || tangentReqChanged) {
+      // rebuildForAtlas pushes new UV params to the worker AND remeshes all; when only the tangent
+      // requirement changed (no UV change) a plain remesh-all is enough. Either way the freshly-set
+      // includeTangents flag (via setChunkMaterials above) is honoured because it ran first.
+      const total = tileSizeChanged
+        ? this.world.rebuildForAtlas(this.atlas.getAtlasParams())
+        : this.world.remeshAllChunks();
       this._rebuildTotal = total;
       this._rebuildActive = total > 0;
       this.hud.setRebuildProgress(0, total);

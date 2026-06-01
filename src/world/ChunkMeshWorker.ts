@@ -5,13 +5,15 @@ let blockTable: WorkerInitMsg['blockTable'] | null = null;
 let atlasParams: WorkerInitMsg['atlasParams'] | null = null;
 
 function buffersTransferList(b: MeshBuffers): ArrayBuffer[] {
-  return [
+  const list: ArrayBuffer[] = [
     b.positions.buffer as ArrayBuffer,
     b.normals.buffer as ArrayBuffer,
     b.uvs.buffer as ArrayBuffer,
     b.colors.buffer as ArrayBuffer,
     b.indices.buffer as ArrayBuffer,
   ];
+  if (b.tangents) list.push(b.tangents.buffer as ArrayBuffer);
+  return list;
 }
 
 self.addEventListener('message', (e: MessageEvent<WorkerInitMsg | ChunkMeshRequest>): void => {
@@ -23,7 +25,7 @@ self.addEventListener('message', (e: MessageEvent<WorkerInitMsg | ChunkMeshReque
   }
   // msg.type === 'mesh_request'
   if (blockTable === null || atlasParams === null) return;
-  const { solid, water } = buildChunkMeshBuffers(msg.cx, msg.cz, msg.halo, msg.skyLightHalo, msg.blockLightHalo, blockTable, atlasParams);
+  const { solid, water } = buildChunkMeshBuffers(msg.cx, msg.cz, msg.halo, msg.skyLightHalo, msg.blockLightHalo, blockTable, atlasParams, msg.includeTangents);
   const response: ChunkMeshResult = {
     type: 'mesh_result',
     cx: msg.cx,

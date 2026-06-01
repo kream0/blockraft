@@ -512,6 +512,10 @@ export interface BlockDef {
   hardness: number;
   /** Block-light emission level 0..15. Omitted (never undefined) for non-emitters. */
   light?: number;
+  /** PBR surface roughness 0..1 for the P3 MeshStandard chunk material. Omitted (never undefined) → mesher/material use the default (~0.85, matte). */
+  roughness?: number;
+  /** Strength of the normal-map bevel/detail for this block, 0..1. Omitted → material default. */
+  normalStrength?: number;
 }
 
 /** A stack of a single item type held in an inventory slot or carried by a dropped item. item is never AIR for a real stack; count is in [1, item's maxStack]. */
@@ -720,6 +724,10 @@ export interface ITextureAtlas {
   readonly tileCount: number;
   /** Current atlas geometry (tile size, grid, gutter) — the worker's UV source of truth. */
   getAtlasParams(): WorkerAtlasParams;
+  /** Companion tangent-space normal map, same tile grid + gutter as `texture`. P3+. */
+  readonly normalTexture: THREE.Texture;
+  /** Companion roughness/AO map (roughness in G), same tile grid + gutter as `texture`. P3+. */
+  readonly roughnessTexture: THREE.Texture;
 }
 
 // === App state machine ===
@@ -1142,6 +1150,8 @@ export interface ChunkMeshRequest {
   skyLightHalo: Uint8Array;
   /** Parallel BLOCK-light (emitter) halo: same shape/indexing; each element is the block-light level (0..15). Transferred zero-copy. */
   blockLightHalo: Uint8Array;
+  /** When true the worker also emits a `tangents` buffer (4 floats/vertex) for normal mapping. False on Low/Medium to save work. */
+  includeTangents: boolean;
 }
 
 /** Geometry buffers for one mesh. All arrays are typed and Transferable. */
@@ -1151,6 +1161,7 @@ export interface MeshBuffers {
   uvs: Float32Array;       // vertexCount * 2
   colors: Float32Array;    // vertexCount * 3
   indices: Uint32Array;    // faceCount * 6 (two triangles per quad)
+  tangents?: Float32Array; // vertexCount * 4 (xyz + handedness w = ±1); present only when includeTangents was true
 }
 
 /** Per-chunk mesh result: worker -> main thread. `water` is null if no water faces. */

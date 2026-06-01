@@ -89,6 +89,8 @@ export class World implements IWorld, ISkyLightAccess {
    * edit, or the chunk unloaded).
    */
   private liveMeshVersion = new Map<string, number>();
+  /** Whether mesh requests should carry per-vertex tangents (true once a normal map is bound). */
+  private includeTangents = false;
 
   /** Arrow-function field so `this` is bound when passed as a callback to MeshQueue. */
   private onMeshResult = (result: ChunkMeshResult): void => {
@@ -127,9 +129,11 @@ export class World implements IWorld, ISkyLightAccess {
     seed: number = WORLD_SEED,
     initialOverrides: ChunkOverrides = {},
     renderDistance: number = RENDER_DISTANCE,
+    includeTangents: boolean = false,
   ) {
     this.material = material;
     this.waterMaterial = waterMaterial;
+    this.includeTangents = includeTangents;
     this.registry = registry;
     this.terrainGen = new TerrainGenerator(seed);
     this.mesher = new ChunkMesher(atlas, registry);
@@ -795,7 +799,7 @@ export class World implements IWorld, ISkyLightAccess {
       const halo = this.gatherNeighbourHalo(chunk.cx, chunk.cz);
       const skyLightHalo = this.gatherSkyLightHalo(chunk.cx, chunk.cz);
       const blockLightHalo = this.gatherBlockLightHalo(chunk.cx, chunk.cz);
-      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo, skyLightHalo, blockLightHalo };
+      const req: ChunkMeshRequest = { type: 'mesh_request', cx: chunk.cx, cz: chunk.cz, version, halo, skyLightHalo, blockLightHalo, includeTangents: this.includeTangents };
       this.meshQueue.enqueue(req);
       chunk.dirty = false;
       this.dirtyChunks.delete(chunk);
@@ -858,6 +862,33 @@ export class World implements IWorld, ISkyLightAccess {
   }
 
   /**
+   * Swap the chunk + water materials at runtime (after a normal-map / edge-rounding change).
+   * Reassigns the material on every loaded chunk mesh and records whether future mesh requests
+   * must include tangents. Does NOT remesh — call remeshAllChunks() when the tangent requirement
+   * actually changed (adding/removing the tangent attribute needs fresh geometry).
+   */
+  setChunkMaterials(solid: THREE.Material, water: THREE.Material, includeTangents: boolean): void {
+    this.material = solid;
+    this.waterMaterial = water;
+    this.includeTangents = includeTangents;
+    for (const chunk of this.chunks.values()) {
+      if (chunk.mesh) chunk.mesh.material = solid;
+      if (chunk.waterMesh) chunk.waterMesh.material = water;
+    }
+  }
+
+  /** Remesh every loaded chunk (no atlas/UV change). Returns chunk count queued. Used after a
+   *  material-feature change that adds/removes the tangent attribute. */
+  remeshAllChunks(): number {
+    let n = 0;
+    for (const chunk of this.chunks.values()) {
+      this.remeshChunk(chunk);
+      n++;
+    }
+    return n;
+  }
+
+  /**
    * Atlas-resolution change: push the new UV params to the worker, then remesh every
    * loaded chunk so geometry re-samples the repainted atlas. Returns the chunk count queued.
    * (Lighting is untouched — remeshChunk only relights when chunk.lightDirty, which stays false here.)
@@ -866,12 +897,7 @@ export class World implements IWorld, ISkyLightAccess {
    */
   rebuildForAtlas(atlasParams: WorkerAtlasParams): number {
     if (this.meshQueue !== null) this.meshQueue.updateAtlasParams(atlasParams);
-    let n = 0;
-    for (const chunk of this.chunks.values()) {
-      this.remeshChunk(chunk);
-      n++;
-    }
-    return n;
+    return this.remeshAllChunks();
   }
 
   /** Despawn all entities and remove all chunk meshes. Idempotent. */
