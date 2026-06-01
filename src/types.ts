@@ -880,6 +880,7 @@ export interface Settings {
   bloom?: boolean;
   bloomIntensity?: number;
   bloomThreshold?: number;
+  emissiveBloom?: boolean;
   waterQuality?: WaterQuality;
   cloudDetail?: CloudDetail;
 }
@@ -911,6 +912,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bloom: false,
   bloomIntensity: 0.4,
   bloomThreshold: 0.85,
+  emissiveBloom: false,
   waterQuality: WaterQuality.BASIC,
   cloudDetail: CloudDetail.MEDIUM,
 };
@@ -932,14 +934,14 @@ export const SETTINGS_RANGES = {
 export type GraphicsPreset = Pick<Required<Settings>,
   'pixelRatioCap' | 'antiAlias' | 'shadowMapSize' | 'shadowSoftness' | 'ssao' | 'ssaoSamples'
   | 'normalMaps' | 'edgeRounding' | 'atlasTileSize' | 'anisotropy' | 'toneMapping' | 'fogType'
-  | 'bloom' | 'bloomIntensity' | 'waterQuality' | 'cloudDetail'>;
+  | 'bloom' | 'bloomIntensity' | 'emissiveBloom' | 'waterQuality' | 'cloudDetail'>;
 
 /** Selecting a quality preset writes ALL these knob values (Implementation Brief B3). 'custom' has no preset entry — it just means "user-edited". */
 export const GRAPHICS_PRESETS: Record<Exclude<GraphicsQuality, 'custom'>, GraphicsPreset> = {
-  low:    { pixelRatioCap: 1.0, antiAlias: AntiAlias.OFF,  shadowMapSize: 0,    shadowSoftness: ShadowSoftness.PCF,      ssao: false, ssaoSamples: 8,  normalMaps: false, edgeRounding: EdgeRounding.OFF,       atlasTileSize: 16, anisotropy: 1, toneMapping: ToneMapping.NONE,   fogType: FogType.LINEAR, bloom: false, bloomIntensity: 0.0, waterQuality: WaterQuality.BASIC,      cloudDetail: CloudDetail.LOW },
-  medium: { pixelRatioCap: 1.5, antiAlias: AntiAlias.FXAA, shadowMapSize: 512,  shadowSoftness: ShadowSoftness.PCF,      ssao: false, ssaoSamples: 8,  normalMaps: false, edgeRounding: EdgeRounding.ANALYTIC,  atlasTileSize: 16, anisotropy: 4, toneMapping: ToneMapping.LINEAR, fogType: FogType.LINEAR, bloom: false, bloomIntensity: 0.0, waterQuality: WaterQuality.BASIC,      cloudDetail: CloudDetail.MEDIUM },
-  high:   { pixelRatioCap: 2.0, antiAlias: AntiAlias.SMAA, shadowMapSize: 1024, shadowSoftness: ShadowSoftness.PCF_SOFT, ssao: false, ssaoSamples: 8,  normalMaps: true,  edgeRounding: EdgeRounding.NORMALMAP, atlasTileSize: 32, anisotropy: 8, toneMapping: ToneMapping.ACES,   fogType: FogType.EXP2,   bloom: true,  bloomIntensity: 0.4, waterQuality: WaterQuality.ANIMATED,   cloudDetail: CloudDetail.HIGH },
-  ultra:  { pixelRatioCap: 3.0, antiAlias: AntiAlias.SMAA, shadowMapSize: 2048, shadowSoftness: ShadowSoftness.PCF_SOFT, ssao: false, ssaoSamples: 16, normalMaps: true,  edgeRounding: EdgeRounding.NORMALMAP, atlasTileSize: 64, anisotropy: 0, toneMapping: ToneMapping.ACES,   fogType: FogType.EXP2,   bloom: true,  bloomIntensity: 0.6, waterQuality: WaterQuality.REFLECTIVE, cloudDetail: CloudDetail.ULTRA },
+  low:    { pixelRatioCap: 1.0, antiAlias: AntiAlias.OFF,  shadowMapSize: 0,    shadowSoftness: ShadowSoftness.PCF,      ssao: false, ssaoSamples: 8,  normalMaps: false, edgeRounding: EdgeRounding.OFF,       atlasTileSize: 16, anisotropy: 1, toneMapping: ToneMapping.NONE,   fogType: FogType.LINEAR, bloom: false, bloomIntensity: 0.0, emissiveBloom: false, waterQuality: WaterQuality.BASIC,      cloudDetail: CloudDetail.LOW },
+  medium: { pixelRatioCap: 1.5, antiAlias: AntiAlias.FXAA, shadowMapSize: 512,  shadowSoftness: ShadowSoftness.PCF,      ssao: false, ssaoSamples: 8,  normalMaps: false, edgeRounding: EdgeRounding.ANALYTIC,  atlasTileSize: 16, anisotropy: 4, toneMapping: ToneMapping.LINEAR, fogType: FogType.LINEAR, bloom: false, bloomIntensity: 0.0, emissiveBloom: false, waterQuality: WaterQuality.BASIC,      cloudDetail: CloudDetail.MEDIUM },
+  high:   { pixelRatioCap: 2.0, antiAlias: AntiAlias.SMAA, shadowMapSize: 1024, shadowSoftness: ShadowSoftness.PCF_SOFT, ssao: false, ssaoSamples: 8,  normalMaps: true,  edgeRounding: EdgeRounding.NORMALMAP, atlasTileSize: 32, anisotropy: 8, toneMapping: ToneMapping.ACES,   fogType: FogType.EXP2,   bloom: true,  bloomIntensity: 0.4, emissiveBloom: true,  waterQuality: WaterQuality.ANIMATED,   cloudDetail: CloudDetail.HIGH },
+  ultra:  { pixelRatioCap: 3.0, antiAlias: AntiAlias.SMAA, shadowMapSize: 2048, shadowSoftness: ShadowSoftness.PCF_SOFT, ssao: false, ssaoSamples: 16, normalMaps: true,  edgeRounding: EdgeRounding.NORMALMAP, atlasTileSize: 64, anisotropy: 0, toneMapping: ToneMapping.ACES,   fogType: FogType.EXP2,   bloom: true,  bloomIntensity: 0.6, emissiveBloom: true,  waterQuality: WaterQuality.REFLECTIVE, cloudDetail: CloudDetail.ULTRA },
 };
 
 // === World save ===

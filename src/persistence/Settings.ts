@@ -28,7 +28,7 @@ export function validateSettings(input: unknown): Settings {
     return clamp(raw, range.min, range.max);
   };
 
-  const bool = (key: 'invertY' | 'showFps' | 'ssao' | 'normalMaps' | 'bloom', fallback: boolean): boolean => {
+  const bool = (key: 'invertY' | 'showFps' | 'ssao' | 'normalMaps' | 'bloom' | 'emissiveBloom', fallback: boolean): boolean => {
     const raw = obj[key];
     return typeof raw === 'boolean' ? raw : fallback;
   };
@@ -87,6 +87,7 @@ export function validateSettings(input: unknown): Settings {
     bloom: bool('bloom', DEFAULT_SETTINGS.bloom!),
     bloomIntensity: num('bloomIntensity', DEFAULT_SETTINGS.bloomIntensity!),
     bloomThreshold: num('bloomThreshold', DEFAULT_SETTINGS.bloomThreshold!),
+    emissiveBloom: bool('emissiveBloom', DEFAULT_SETTINGS.emissiveBloom!),
     waterQuality: enumVal<WaterQuality>('waterQuality', Object.values(WQ), DEFAULT_SETTINGS.waterQuality!),
     cloudDetail: enumVal<CloudDetail>('cloudDetail', Object.values(CD), DEFAULT_SETTINGS.cloudDetail!),
   };

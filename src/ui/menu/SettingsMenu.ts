@@ -428,9 +428,10 @@ export class SettingsMenu extends MenuScreen {
     details.appendChild(this.makeSliderRow('bloomThreshold', () => this.markCustom()));
 
     // ── Graphics checkboxes ─────────────────────────────────────────────────
-    details.appendChild(this.makeGraphicsCheckboxRow('ssao',       'SSAO'));
-    details.appendChild(this.makeGraphicsCheckboxRow('normalMaps', 'Normal Maps'));
-    details.appendChild(this.makeGraphicsCheckboxRow('bloom',      'Bloom'));
+    details.appendChild(this.makeGraphicsCheckboxRow('ssao',          'SSAO'));
+    details.appendChild(this.makeGraphicsCheckboxRow('normalMaps',    'Normal Maps'));
+    details.appendChild(this.makeGraphicsCheckboxRow('bloom',         'Bloom'));
+    details.appendChild(this.makeGraphicsCheckboxRow('emissiveBloom', 'Emissive Block Glow'));
 
     gfxList.appendChild(details);
     this.root.appendChild(gfxList);
@@ -574,7 +575,7 @@ export class SettingsMenu extends MenuScreen {
   }
 
   private makeGraphicsCheckboxRow(
-    field: 'ssao' | 'normalMaps' | 'bloom',
+    field: 'ssao' | 'normalMaps' | 'bloom' | 'emissiveBloom',
     labelText: string,
   ): HTMLElement {
     const row = document.createElement('div');

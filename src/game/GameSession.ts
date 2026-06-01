@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from '../rendering/Renderer';
 import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
-import { createChunkMaterial, createWaterMaterial, setChunkDaylight, setWaterTime, setWaterAnimated, type ChunkMaterialOptions, type WaterMaterialOptions } from '../rendering/Materials';
+import { createChunkMaterial, createWaterMaterial, setChunkDaylight, setWaterTime, setWaterAnimated, setChunkEmissiveBloom, type ChunkMaterialOptions, type WaterMaterialOptions } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
@@ -289,6 +289,7 @@ export class GameSession {
   private _lastEdgeRounding: EdgeRounding = EdgeRounding.OFF;
   private _lastWaterQuality: WaterQuality = WaterQuality.BASIC;
   private _lastCloudDetail: CloudDetail = CloudDetail.MEDIUM;
+  private _lastEmissiveBloom = false;
   private _waterTime = 0;
   private _rebuildTotal = 0;
   private _rebuildActive = false;
@@ -355,8 +356,9 @@ export class GameSession {
     this._lastEdgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
     this._lastWaterQuality = settings.waterQuality ?? WaterQuality.BASIC;
     this._lastCloudDetail = settings.cloudDetail ?? CloudDetail.MEDIUM;
-    const initialMatOpts: ChunkMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding };
-    const initialWaterOpts: WaterMaterialOptions = { ...initialMatOpts, waterQuality: this._lastWaterQuality };
+    this._lastEmissiveBloom = settings.emissiveBloom ?? false;
+    const initialMatOpts: ChunkMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding, emissiveBloom: this._lastEmissiveBloom };
+    const initialWaterOpts: WaterMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding, waterQuality: this._lastWaterQuality };
     const initialNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
     this.iconRenderer = new ItemIconRenderer(this.atlas);
     this.chunkMaterial = createChunkMaterial(this.atlas, initialMatOpts);
@@ -996,11 +998,11 @@ export class GameSession {
     if (materialFeaturesChanged) {
       this._lastNormalMaps = normalMaps;
       this._lastEdgeRounding = edgeRounding;
-      const matOpts: ChunkMaterialOptions = { normalMaps, edgeRounding };
+      const matOpts: ChunkMaterialOptions = { normalMaps, edgeRounding, emissiveBloom: this._lastEmissiveBloom };
       const oldChunk = this.chunkMaterial;
       const oldWater = this.waterMaterial;
       this.chunkMaterial = createChunkMaterial(this.atlas, matOpts);
-      this.waterMaterial = createWaterMaterial(this.atlas, { ...matOpts, waterQuality });
+      this.waterMaterial = createWaterMaterial(this.atlas, { normalMaps, edgeRounding, waterQuality });
       const sky = this.dayNight.getSkyState();
       setChunkDaylight(this.chunkMaterial, sky.daylight);
       setChunkDaylight(this.waterMaterial, sky.daylight);
@@ -1059,6 +1061,13 @@ export class GameSession {
     if (cloudDetail !== this._lastCloudDetail) {
       this.clouds.setDetail(cloudDetail);
       this._lastCloudDetail = cloudDetail;
+    }
+
+    // --- Emissive block bloom: live uniform toggle, no recompile needed ---
+    const emissiveBloom = settings.emissiveBloom ?? false;
+    if (emissiveBloom !== this._lastEmissiveBloom) {
+      setChunkEmissiveBloom(this.chunkMaterial, emissiveBloom);
+      this._lastEmissiveBloom = emissiveBloom;
     }
   }
 

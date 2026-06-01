@@ -12,11 +12,18 @@ const BEVEL_NORMAL_SCALE = 0.6;
 const WATER_TIME_UNIFORM_KEY = 'blockraftWaterTime';
 /** userData key: live water animation enable flag (0 = static "basic", 1 = animated). */
 const WATER_ANIM_UNIFORM_KEY = 'blockraftWaterAnim';
+/** userData key: live emissive bloom strength (0 = off, EMISSIVE_BLOOM_STRENGTH = on). */
+const EMISSIVE_BLOOM_UNIFORM_KEY = 'blockraftEmissiveBloom';
+/** How strongly block-lit faces exceed 1.0 in HDR when emissive bloom is on.
+ * smoothstep(0.55, 1.0, blockLit) gates the effect so only torch/glowstone/lava-level faces glow. */
+const EMISSIVE_BLOOM_STRENGTH = 1.8;
 
 /** Options for chunk/water material creation. All fields are optional; defaults match legacy behaviour (no normal map, no analytic bevel). */
 export interface ChunkMaterialOptions {
   normalMaps?: boolean;
   edgeRounding?: EdgeRounding;
+  /** When true the solid chunk shader emits block-lit faces past 1.0 HDR so UnrealBloomPass blooms them. */
+  emissiveBloom?: boolean;
 }
 
 /** Water-specific material options. `waterQuality` selects static (basic) vs animated ripple vs reflective sky-tint. */
@@ -50,9 +57,12 @@ export interface WaterMaterialOptions extends ChunkMaterialOptions {
  * after <shadowmap_pars_fragment> so getShadowMask() is defined with all its dependencies in
  * scope.  We do NOT re-inject <packing> (already present; re-including would double-define it).
  */
-function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { animated: boolean }): void {
+function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { animated: boolean }, initialEmissiveBloom = false): void {
   const daylight = { value: 1 };
   material.userData[DAYLIGHT_UNIFORM_KEY] = daylight;
+
+  const emissiveBloom = { value: initialEmissiveBloom ? EMISSIVE_BLOOM_STRENGTH : 0.0 };
+  material.userData[EMISSIVE_BLOOM_UNIFORM_KEY] = emissiveBloom;
 
   const waterTime = { value: 0 };
   const waterAnim = { value: 0 };
@@ -64,6 +74,7 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { anim
 
   material.onBeforeCompile = (shader) => {
     shader.uniforms['uDayNight'] = daylight;
+    shader.uniforms['uEmissiveBloom'] = emissiveBloom;
 
     if (water !== undefined) {
       shader.uniforms['uWaterTime'] = waterTime;
@@ -128,6 +139,7 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { anim
         '  varying vec3 vBkWorldPos;',
         '#endif',
         'uniform float uDayNight;',
+        'uniform float uEmissiveBloom;',
       ].join('\n'),
     );
 
@@ -184,6 +196,10 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { anim
       '  float lum      = max(skyLit, blockLit);',
       '  float warmth   = clamp((blockLit - skyLit) * 1.5, 0.0, 1.0);',
       '  vec3 warmTint  = mix(vec3(1.0), vec3(1.0, 0.82, 0.55), warmth);',
+      '  // Emissive block glow: strongly block-lit faces (torch/glowstone/lava) emit past 1.0 so the',
+      '  // HDR bloom pass blooms them. Gated on blockLit so sky-lit daytime faces never glow.',
+      '  float emissiveAmt = smoothstep(0.55, 1.0, blockLit);',
+      '  totalEmissiveRadiance += diffuseColor.rgb * warmTint * emissiveAmt * uEmissiveBloom;',
       '  vec3 bakedDiffuse = diffuseColor.rgb * lum * warmTint;',
       '#else',
       '  vec3 bakedDiffuse = diffuseColor.rgb;',
@@ -332,7 +348,7 @@ export function createChunkMaterial(atlas: ITextureAtlas, opts: ChunkMaterialOpt
     mat.defines = { ...mat.defines, ANALYTIC_BEVEL: '' };
   }
 
-  patchChunkLighting(mat);
+  patchChunkLighting(mat, undefined, opts.emissiveBloom === true);
   return mat;
 }
 
@@ -401,4 +417,15 @@ export function setWaterTime(material: THREE.Material, seconds: number): void {
 export function setWaterAnimated(material: THREE.Material, on: boolean): void {
   const holder = material.userData[WATER_ANIM_UNIFORM_KEY] as { value: number } | undefined;
   if (holder !== undefined) holder.value = on ? 1 : 0;
+}
+
+/**
+ * Toggle emissive block bloom on the solid chunk material without a shader recompile.
+ * When `on`, strongly block-lit faces (torch / glowstone / lava level) emit past 1.0 HDR
+ * so UnrealBloomPass blooms them. When `off`, uEmissiveBloom = 0 → term is exactly 0 (no-op).
+ * No-op for non-chunk materials (e.g. water).
+ */
+export function setChunkEmissiveBloom(material: THREE.Material, on: boolean): void {
+  const holder = material.userData[EMISSIVE_BLOOM_UNIFORM_KEY] as { value: number } | undefined;
+  if (holder !== undefined) holder.value = on ? EMISSIVE_BLOOM_STRENGTH : 0.0;
 }
