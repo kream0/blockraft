@@ -877,6 +877,15 @@ export class World implements IWorld, ISkyLightAccess {
     }
   }
 
+  /** Swap ONLY the water material at runtime (water-quality reflective recompile). Reassigns it
+   *  to every loaded water mesh. Leaves solid meshes untouched and does not remesh. */
+  setWaterMaterial(water: THREE.Material): void {
+    this.waterMaterial = water;
+    for (const chunk of this.chunks.values()) {
+      if (chunk.waterMesh) chunk.waterMesh.material = water;
+    }
+  }
+
   /** Remesh every loaded chunk (no atlas/UV change). Returns chunk count queued. Used after a
    *  material-feature change that adds/removes the tangent attribute. */
   remeshAllChunks(): number {

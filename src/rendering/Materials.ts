@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { ITextureAtlas } from '../types';
-import { EdgeRounding } from '../types';
+import { EdgeRounding, WaterQuality } from '../types';
 
 /** Darkest the open sky gets at deep night, so nights stay navigable instead of pure black. */
 const NIGHT_SKY_FLOOR = 0.15;
@@ -8,11 +8,20 @@ const NIGHT_SKY_FLOOR = 0.15;
 const DAYLIGHT_UNIFORM_KEY = 'blockraftDaylight';
 /** Normal-map bevel strength: how prominently the per-tile normal map tilts the surface. */
 const BEVEL_NORMAL_SCALE = 0.6;
+/** userData key: live water animation time (seconds), pushed each frame. */
+const WATER_TIME_UNIFORM_KEY = 'blockraftWaterTime';
+/** userData key: live water animation enable flag (0 = static "basic", 1 = animated). */
+const WATER_ANIM_UNIFORM_KEY = 'blockraftWaterAnim';
 
 /** Options for chunk/water material creation. All fields are optional; defaults match legacy behaviour (no normal map, no analytic bevel). */
 export interface ChunkMaterialOptions {
   normalMaps?: boolean;
   edgeRounding?: EdgeRounding;
+}
+
+/** Water-specific material options. `waterQuality` selects static (basic) vs animated ripple vs reflective sky-tint. */
+export interface WaterMaterialOptions extends ChunkMaterialOptions {
+  waterQuality?: WaterQuality;
 }
 
 /**
@@ -41,12 +50,25 @@ export interface ChunkMaterialOptions {
  * after <shadowmap_pars_fragment> so getShadowMask() is defined with all its dependencies in
  * scope.  We do NOT re-inject <packing> (already present; re-including would double-define it).
  */
-function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
+function patchChunkLighting(material: THREE.MeshStandardMaterial, water?: { animated: boolean }): void {
   const daylight = { value: 1 };
   material.userData[DAYLIGHT_UNIFORM_KEY] = daylight;
 
+  const waterTime = { value: 0 };
+  const waterAnim = { value: 0 };
+  if (water !== undefined) {
+    waterAnim.value = water.animated ? 1 : 0;
+    material.userData[WATER_TIME_UNIFORM_KEY] = waterTime;
+    material.userData[WATER_ANIM_UNIFORM_KEY] = waterAnim;
+  }
+
   material.onBeforeCompile = (shader) => {
     shader.uniforms['uDayNight'] = daylight;
+
+    if (water !== undefined) {
+      shader.uniforms['uWaterTime'] = waterTime;
+      shader.uniforms['uWaterAnim'] = waterAnim;
+    }
 
     // -------------------------------------------------------------------------
     // VERTEX SHADER — analytic bevel world-position varying
@@ -64,6 +86,13 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
       ].join('\n'),
     );
 
+    if (water !== undefined) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vWaterWorldPos;',
+      );
+    }
+
     // After <begin_vertex> the `transformed` local is available.
     // We compute world position here before projection.
     shader.vertexShader = shader.vertexShader.replace(
@@ -75,6 +104,13 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
         '#endif',
       ].join('\n'),
     );
+
+    if (water !== undefined) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvWaterWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+      );
+    }
 
     // -------------------------------------------------------------------------
     // FRAGMENT SHADER — step 1: uniforms + world-pos varying after <common>
@@ -94,6 +130,13 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
         'uniform float uDayNight;',
       ].join('\n'),
     );
+
+    if (water !== undefined) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        '#include <common>\nuniform float uWaterTime;\nuniform float uWaterAnim;\nvarying vec3 vWaterWorldPos;',
+      );
+    }
 
     // -------------------------------------------------------------------------
     // FRAGMENT SHADER — define getShadowMask() for the baked sky-shadow term.
@@ -173,6 +216,31 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
       '#endif',
     ].join('\n');
 
+    // --- P4 water: time-scrolled ripple perturbs the shading normal (top faces only) ---
+    const waterRippleBlock = water === undefined ? '' : [
+      '// --- P4 water: time-scrolled ripple perturbs the shading normal (top faces only) ---',
+      'if (uWaterAnim > 0.5) {',
+      '  vec3 dpx = dFdx(vWaterWorldPos);',
+      '  vec3 dpy = dFdy(vWaterWorldPos);',
+      '  vec3 geomWorldN = normalize(cross(dpx, dpy));',
+      '  if (abs(geomWorldN.y) > 0.5) {',
+      '    vec2 wp = vWaterWorldPos.xz;',
+      '    float t = uWaterTime;',
+      '    const float K1 = 0.85;',
+      '    const float K2 = 0.55;',
+      '    const float S1 = 1.30;',
+      '    const float S2 = 0.90;',
+      '    const float RIPPLE_STRENGTH = 0.22;',
+      '    vec2 grad = vec2(',
+      '      K1 * cos(wp.x * K1 + t * S1) + K2 * cos((wp.x + wp.y) * K2 + t * S2),',
+      '      K1 * cos(wp.y * K1 - t * S1) + K2 * cos((wp.x + wp.y) * K2 - t * S2)',
+      '    );',
+      '    vec3 perturbWorld = vec3(-grad.x, 0.0, -grad.y) * RIPPLE_STRENGTH;',
+      '    normal = normalize(normal + mat3(viewMatrix) * perturbWorld);',
+      '  }',
+      '}',
+    ].join('\n');
+
     // The injection point is AFTER <roughnessmap_fragment> and <normal_fragment_maps>,
     // just BEFORE <lights_fragment_begin>.
     // In Three 0.160's meshphysical_frag.glsl the order is:
@@ -181,7 +249,7 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
     // We target <lights_fragment_begin> and prepend before it.
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <lights_fragment_begin>',
-      bakedDiffuseBlock + '\n#include <lights_fragment_begin>',
+      bakedDiffuseBlock + waterRippleBlock + '\n#include <lights_fragment_begin>',
     );
 
     // -------------------------------------------------------------------------
@@ -201,6 +269,33 @@ function patchChunkLighting(material: THREE.MeshStandardMaterial): void {
         '// reflectedLight.directSpecular is left intact — that is the sun specular glint',
       ].join('\n'),
     );
+
+    // -------------------------------------------------------------------------
+    // FRAGMENT SHADER — P4 water: Fresnel opacity + reflective sky tint
+    // -------------------------------------------------------------------------
+    // Inject after <opaque_fragment> (which sets gl_FragColor), before tonemapping.
+    if (water !== undefined) {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        [
+          '#include <opaque_fragment>',
+          '// --- P4 water: Fresnel-driven opacity (+ reflective sky tint) ---',
+          'if (uWaterAnim > 0.5) {',
+          '  vec3 Vdir = normalize(vViewPosition);',
+          '  float ndv = clamp(dot(normalize(normal), Vdir), 0.0, 1.0);',
+          '  float fres = pow(1.0 - ndv, 5.0);',
+          '  const float FRESNEL_OPACITY = 0.5;',
+          '  gl_FragColor.a = clamp(mix(diffuseColor.a, 1.0, fres * FRESNEL_OPACITY), 0.0, 1.0);',
+          '  #ifdef WATER_REFLECTIVE',
+          '    vec3 skyTint = vec3(0.55, 0.72, 0.95) * mix(' + NIGHT_SKY_FLOOR.toFixed(3) + ', 1.0, uDayNight);',
+          '    const float REFLECT_STRENGTH = 0.6;',
+          '    gl_FragColor.rgb = mix(gl_FragColor.rgb, skyTint, fres * REFLECT_STRENGTH);',
+          '    gl_FragColor.a = clamp(mix(gl_FragColor.a, 1.0, fres * 0.35), 0.0, 1.0);',
+          '  #endif',
+          '}',
+        ].join('\n'),
+      );
+    }
   };
 }
 
@@ -242,10 +337,11 @@ export function createChunkMaterial(atlas: ITextureAtlas, opts: ChunkMaterialOpt
 }
 
 /** Translucent water material; shares the atlas + same baked-light shader as opaque terrain.
+ * Supports time-scrolled ripple (animated/reflective quality tiers) via `waterQuality`.
  * @param atlas - The texture atlas.
  * @param opts  - Optional material features; all default to off for backward-compat.
  */
-export function createWaterMaterial(atlas: ITextureAtlas, opts: ChunkMaterialOptions = {}): THREE.Material {
+export function createWaterMaterial(atlas: ITextureAtlas, opts: WaterMaterialOptions = {}): THREE.Material {
   const useNormalMap = opts.normalMaps === true || opts.edgeRounding === EdgeRounding.NORMALMAP;
   const useAnalyticBevel = opts.edgeRounding === EdgeRounding.ANALYTIC;
 
@@ -274,7 +370,15 @@ export function createWaterMaterial(atlas: ITextureAtlas, opts: ChunkMaterialOpt
     mat.defines = { ...mat.defines, ANALYTIC_BEVEL: '' };
   }
 
-  patchChunkLighting(mat);
+  const waterQuality = opts.waterQuality ?? WaterQuality.BASIC;
+  const animated = waterQuality !== WaterQuality.BASIC;
+  const reflective = waterQuality === WaterQuality.REFLECTIVE;
+
+  if (reflective) {
+    mat.defines = { ...mat.defines, WATER_REFLECTIVE: '' };
+  }
+
+  patchChunkLighting(mat, { animated });
   return mat;
 }
 
@@ -285,4 +389,16 @@ export function createWaterMaterial(atlas: ITextureAtlas, opts: ChunkMaterialOpt
 export function setChunkDaylight(material: THREE.Material, value: number): void {
   const holder = material.userData[DAYLIGHT_UNIFORM_KEY] as { value: number } | undefined;
   if (holder !== undefined) holder.value = value;
+}
+
+/** Push the running water animation time (seconds) into a water material. No-op for non-water materials. Call each frame when water is animated. */
+export function setWaterTime(material: THREE.Material, seconds: number): void {
+  const holder = material.userData[WATER_TIME_UNIFORM_KEY] as { value: number } | undefined;
+  if (holder !== undefined) holder.value = seconds;
+}
+
+/** Toggle water surface animation live (basic <-> animated) without a shader recompile. No-op for non-water materials. */
+export function setWaterAnimated(material: THREE.Material, on: boolean): void {
+  const holder = material.userData[WATER_ANIM_UNIFORM_KEY] as { value: number } | undefined;
+  if (holder !== undefined) holder.value = on ? 1 : 0;
 }

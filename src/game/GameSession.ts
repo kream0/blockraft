@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Renderer } from '../rendering/Renderer';
 import { DayNightCycle } from '../rendering/DayNightCycle';
 import { TextureAtlas } from '../rendering/TextureAtlas';
-import { createChunkMaterial, createWaterMaterial, setChunkDaylight, type ChunkMaterialOptions } from '../rendering/Materials';
+import { createChunkMaterial, createWaterMaterial, setChunkDaylight, setWaterTime, setWaterAnimated, type ChunkMaterialOptions, type WaterMaterialOptions } from '../rendering/Materials';
 import { ParticleSystem } from '../rendering/ParticleSystem';
 import { WeatherSystem } from '../rendering/Weather';
 import { SkyBodies } from '../rendering/SkyBodies';
@@ -109,6 +109,7 @@ import {
   CHEST_SLOTS,
   HOTBAR_SIZE,
   EdgeRounding,
+  WaterQuality,
   type INetworkAdapter,
   type IWorld,
   type Settings,
@@ -283,6 +284,8 @@ export class GameSession {
   private _lastAnisotropy = 4;
   private _lastNormalMaps = false;
   private _lastEdgeRounding: EdgeRounding = EdgeRounding.OFF;
+  private _lastWaterQuality: WaterQuality = WaterQuality.BASIC;
+  private _waterTime = 0;
   private _rebuildTotal = 0;
   private _rebuildActive = false;
 
@@ -346,11 +349,13 @@ export class GameSession {
     this.atlas.setAnisotropy(this.resolveAnisotropy(this._lastAnisotropy));
     this._lastNormalMaps = settings.normalMaps ?? false;
     this._lastEdgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
+    this._lastWaterQuality = settings.waterQuality ?? WaterQuality.BASIC;
     const initialMatOpts: ChunkMaterialOptions = { normalMaps: this._lastNormalMaps, edgeRounding: this._lastEdgeRounding };
+    const initialWaterOpts: WaterMaterialOptions = { ...initialMatOpts, waterQuality: this._lastWaterQuality };
     const initialNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
     this.iconRenderer = new ItemIconRenderer(this.atlas);
     this.chunkMaterial = createChunkMaterial(this.atlas, initialMatOpts);
-    this.waterMaterial = createWaterMaterial(this.atlas, initialMatOpts);
+    this.waterMaterial = createWaterMaterial(this.atlas, initialWaterOpts);
     const initialSky = this.dayNight.getSkyState();
     setChunkDaylight(this.chunkMaterial, initialSky.daylight);
     setChunkDaylight(this.waterMaterial, initialSky.daylight);
@@ -754,6 +759,10 @@ export class GameSession {
       this.skyBodies.update(this.dayNight.getSkyState(), camWorld);
       this.clouds.update(this.dayNight.getSkyState(), camWorld, dt);
       this.particles.update(dt);
+      if (this._lastWaterQuality !== WaterQuality.BASIC) {
+        this._waterTime += dt;
+        setWaterTime(this.waterMaterial, this._waterTime);
+      }
       this.renderer.updateSunShadow(camWorld);
       this.renderer.render(this.player.camera);
 
@@ -970,6 +979,7 @@ export class GameSession {
     // when the TANGENT REQUIREMENT flips (adding/removing the tangent attribute needs new geometry).
     const normalMaps = settings.normalMaps ?? false;
     const edgeRounding = settings.edgeRounding ?? EdgeRounding.OFF;
+    const waterQuality = settings.waterQuality ?? WaterQuality.BASIC;
     const materialFeaturesChanged = normalMaps !== this._lastNormalMaps || edgeRounding !== this._lastEdgeRounding;
     const needTangents = normalMaps === true || edgeRounding === EdgeRounding.NORMALMAP;
     const prevNeedTangents = this._lastNormalMaps === true || this._lastEdgeRounding === EdgeRounding.NORMALMAP;
@@ -980,15 +990,38 @@ export class GameSession {
       const oldChunk = this.chunkMaterial;
       const oldWater = this.waterMaterial;
       this.chunkMaterial = createChunkMaterial(this.atlas, matOpts);
-      this.waterMaterial = createWaterMaterial(this.atlas, matOpts);
+      this.waterMaterial = createWaterMaterial(this.atlas, { ...matOpts, waterQuality });
       const sky = this.dayNight.getSkyState();
       setChunkDaylight(this.chunkMaterial, sky.daylight);
       setChunkDaylight(this.waterMaterial, sky.daylight);
+      setWaterTime(this.waterMaterial, this._waterTime);
+      this._lastWaterQuality = waterQuality;
       // Update World's stored materials + tangent flag, reassign to all loaded meshes, THEN
       // dispose the now-unreferenced old materials (free their compiled programs).
       this.world.setChunkMaterials(this.chunkMaterial, this.waterMaterial, needTangents);
       oldChunk.dispose();
       oldWater.dispose();
+    }
+
+    // --- Water quality (independent of normal-map/edge changes) ---
+    // basic <-> animated is a live uniform flip; crossing the reflective boundary needs a
+    // recompile (the WATER_REFLECTIVE define toggles), so recreate + reassign the water material.
+    if (!materialFeaturesChanged && waterQuality !== this._lastWaterQuality) {
+      const reflectiveBoundaryCrossed =
+        (waterQuality === WaterQuality.REFLECTIVE) !== (this._lastWaterQuality === WaterQuality.REFLECTIVE);
+      if (reflectiveBoundaryCrossed) {
+        const waterOpts: WaterMaterialOptions = { normalMaps, edgeRounding, waterQuality };
+        const oldWater = this.waterMaterial;
+        this.waterMaterial = createWaterMaterial(this.atlas, waterOpts);
+        const sky = this.dayNight.getSkyState();
+        setChunkDaylight(this.waterMaterial, sky.daylight);
+        setWaterTime(this.waterMaterial, this._waterTime);
+        this.world.setWaterMaterial(this.waterMaterial);
+        oldWater.dispose();
+      } else {
+        setWaterAnimated(this.waterMaterial, waterQuality !== WaterQuality.BASIC);
+      }
+      this._lastWaterQuality = waterQuality;
     }
 
     // --- Atlas tile size and/or tangent-requirement change → one remesh-all (shared banner) ---
