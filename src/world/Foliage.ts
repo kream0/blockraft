@@ -5,6 +5,75 @@ export const TALL_GRASS_TILE = 30;
 export const FLOWER_RED_TILE = 31;
 export const FLOWER_YELLOW_TILE = 32;
 
+// Atlas tile-slot indices (0-based into the 6x6 atlas grid), a DIFFERENT namespace
+// from BlockId — the numeric overlap with BlockId.TORCH_WALL_* (33/34/35) is coincidental.
+/** Atlas tiles for the 3D flower model (drawn by TextureAtlas at these slots). */
+export const FLOWER_STEM_TILE = 33;
+export const FLOWER_PETALS_RED_TILE = 34;
+export const FLOWER_PETALS_YELLOW_TILE = 35;
+
+/** True for the 3D-model flower blocks (red + yellow). Tall grass is NOT a flower. */
+export function isFlowerBlock(id: number): boolean {
+  return id === BlockId.FLOWER_RED || id === BlockId.FLOWER_YELLOW;
+}
+
+/** Petal-tile index for a flower block id. */
+export function flowerPetalTile(id: BlockId): number {
+  return id === BlockId.FLOWER_YELLOW ? FLOWER_PETALS_YELLOW_TILE : FLOWER_PETALS_RED_TILE;
+}
+
+/** One quad of the static flower model: 4 cell-local corners [0,1]^3 (order: bottom-start,
+ *  bottom-end, top-end, top-start so UVs map (u0,v0),(u1,v0),(u1,v1),(u0,v1)) + which texture. */
+interface FlowerQuad { c: [number, number, number][]; tile: 'stem' | 'petal'; }
+
+/** Thin green stem box (x,z in [0.44,0.56], y 0->0.50) + flat petal head box
+ *  (x,z in [0.28,0.72], y 0.46->0.66), centered at the cell bottom-center. */
+export const FLOWER_MODEL_QUADS: ReadonlyArray<FlowerQuad> = [
+  // Stem box — 4 side faces (sx0=0.44 sx1=0.56 sz0=0.44 sz1=0.56 sy0=0 sy1=0.5)
+  { tile: 'stem', c: [[0.44,0,0.56],[0.56,0,0.56],[0.56,0.5,0.56],[0.44,0.5,0.56]] }, // +Z
+  { tile: 'stem', c: [[0.56,0,0.44],[0.44,0,0.44],[0.44,0.5,0.44],[0.56,0.5,0.44]] }, // -Z
+  { tile: 'stem', c: [[0.56,0,0.56],[0.56,0,0.44],[0.56,0.5,0.44],[0.56,0.5,0.56]] }, // +X
+  { tile: 'stem', c: [[0.44,0,0.44],[0.44,0,0.56],[0.44,0.5,0.56],[0.44,0.5,0.44]] }, // -X
+  // Petal head box — 4 sides + top (bx0=0.28 bx1=0.72 bz0=0.28 bz1=0.72 by0=0.46 by1=0.66)
+  { tile: 'petal', c: [[0.28,0.46,0.72],[0.72,0.46,0.72],[0.72,0.66,0.72],[0.28,0.66,0.72]] }, // +Z
+  { tile: 'petal', c: [[0.72,0.46,0.28],[0.28,0.46,0.28],[0.28,0.66,0.28],[0.72,0.66,0.28]] }, // -Z
+  { tile: 'petal', c: [[0.72,0.46,0.72],[0.72,0.46,0.28],[0.72,0.66,0.28],[0.72,0.66,0.72]] }, // +X
+  { tile: 'petal', c: [[0.28,0.46,0.28],[0.28,0.46,0.72],[0.28,0.66,0.72],[0.28,0.66,0.28]] }, // -X
+  { tile: 'petal', c: [[0.28,0.66,0.28],[0.72,0.66,0.28],[0.72,0.66,0.72],[0.28,0.66,0.72]] }, // +Y top
+];
+
+/**
+ * Emit the 3D flower model into the SOLID mesh arrays. Mirrors emitCrossGeometry's
+ * conventions: positions are absolute (cell-local + the wx,ly,wz min-corner), UVs map the
+ * full tile per quad, colors carry baked light (r=sky, g=block) — material is UNLIT.
+ * @param stemUV   atlas.getUV(FLOWER_STEM_TILE)
+ * @param petalUV  atlas.getUV(flowerPetalTile(id))
+ */
+export function emitFlowerGeometry(
+  out: CrossMeshArrays,
+  wx: number, ly: number, wz: number,
+  stemUV: [number, number, number, number],
+  petalUV: [number, number, number, number],
+  skyBrightness: number,
+  blockBrightness: number,
+): void {
+  const r = skyBrightness;
+  const g = blockBrightness;
+  for (const q of FLOWER_MODEL_QUADS) {
+    const uv = q.tile === 'stem' ? stemUV : petalUV;
+    const [u0, v0, u1, v1] = uv;
+    const sv = out.positions.length / 3;
+    for (let i = 0; i < 4; i++) {
+      const corner = q.c[i]!;
+      out.positions.push(wx + corner[0]!, ly + corner[1]!, wz + corner[2]!);
+      out.normals.push(0, 1, 0); // cosmetic — unlit material ignores normals
+      out.colors.push(r, g, 0);
+    }
+    out.uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+    out.indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);
+  }
+}
+
 /** Growable vertex arrays the mesher accumulates into (solid buffers). */
 export interface CrossMeshArrays {
   positions: number[];

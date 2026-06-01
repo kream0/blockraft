@@ -4,7 +4,7 @@ import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
 import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh, buildDiamondPickaxeMesh, buildDiamondAxeMesh, buildDiamondShovelMesh, buildDiamondSwordMesh, buildBowMesh, buildArrowItemMesh } from './ToolMeshes';
 import { TORCH_TILE } from '../world/Torch';
-import { isCrossBlock, crossBlockTile } from '../world/Foliage';
+import { isCrossBlock, crossBlockTile, isFlowerBlock, flowerPetalTile, FLOWER_STEM_TILE, FLOWER_MODEL_QUADS } from '../world/Foliage';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -17,6 +17,7 @@ import { isCrossBlock, crossBlockTile } from '../world/Foliage';
  */
 export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3D {
   if (item === BlockId.TORCH) return buildTorchItemMesh(atlas);
+  if (isFlowerBlock(item)) return buildFlowerItemMesh(item as BlockId, atlas);
   if (isCrossBlock(item)) return buildCrossItemMesh(item as BlockId, atlas);
 
   if (!isBlockItem(item)) {
@@ -98,6 +99,35 @@ function buildTorchItemMesh(atlas: ITextureAtlas): THREE.Object3D {
   }
   uv.needsUpdate = true;
   const mat = new THREE.MeshLambertMaterial({ map: atlas.texture });
+  return new THREE.Mesh(geo, mat);
+}
+
+/**
+ * 3D flower item mesh (held + inventory icon) — the same stem+petal-head model the world
+ * uses (Foliage.FLOWER_MODEL_QUADS), centered at the origin. Atlas-textured, lit.
+ */
+function buildFlowerItemMesh(item: BlockId, atlas: ITextureAtlas): THREE.Object3D {
+  const stemUV = atlas.getUV(FLOWER_STEM_TILE);
+  const petalUV = atlas.getUV(flowerPetalTile(item));
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (const q of FLOWER_MODEL_QUADS) {
+    const [u0, v0, u1, v1] = q.tile === 'stem' ? stemUV : petalUV;
+    const sv = positions.length / 3;
+    for (let i = 0; i < 4; i++) {
+      const c = q.c[i]!;
+      positions.push(c[0]! - 0.5, c[1]! - 0.33, c[2]! - 0.5);
+    }
+    uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
+    indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshLambertMaterial({ map: atlas.texture, side: THREE.DoubleSide });
   return new THREE.Mesh(geo, mat);
 }
 

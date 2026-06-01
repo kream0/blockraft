@@ -566,6 +566,29 @@ function drawBlank(ctx: CanvasRenderingContext2D, col: number, row: number): voi
   fillTile(ctx, col, row, '#000000');
 }
 
+// Slot 33 — flower stem: solid stem-green with a couple lighter vertical streaks.
+function drawFlowerStem(ctx: CanvasRenderingContext2D, col: number, row: number, _r: Rng): void {
+  fillTile(ctx, col, row, '#3E7D27');
+  for (let y = 0; y < 16; y++) {
+    pixel(ctx, col, row, 6, y, '#5DAD3A');
+    pixel(ctx, col, row, 10, y, '#357021');
+  }
+}
+
+// Slot 34 — red flower petals: red field with a yellow center cluster (reads as a bloom).
+function drawFlowerPetalsRed(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  fillTile(ctx, col, row, '#D9402F');
+  speckle(ctx, col, row, '#B83323', 10, rng); // darker petal separations
+  for (let y = 6; y <= 9; y++) for (let x = 6; x <= 9; x++) pixel(ctx, col, row, x, y, '#F2C84B'); // center
+}
+
+// Slot 35 — yellow flower petals: yellow field with an amber center cluster.
+function drawFlowerPetalsYellow(ctx: CanvasRenderingContext2D, col: number, row: number, rng: Rng): void {
+  fillTile(ctx, col, row, '#F2C84B');
+  speckle(ctx, col, row, '#D8AE38', 10, rng);
+  for (let y = 6; y <= 9; y++) for (let x = 6; x <= 9; x++) pixel(ctx, col, row, x, y, '#E08A1E');
+}
+
 // Slot 30 — tall grass tuft: 4 blades, transparent background.
 // Roots cluster at high canvas-y (14–15 = bottom of tile = root of cross-quad).
 // Tips taper to low canvas-y (2–5 = top of tile = tip of cross-quad).
@@ -712,6 +735,9 @@ export class TextureAtlas implements ITextureAtlas {
       drawTallGrass,     // tile 30 — tall grass tuft (transparent, cross-quad foliage)
       drawRedFlower,     // tile 31 — red flower (transparent, cross-quad foliage)
       drawYellowFlower,  // tile 32 — yellow flower (transparent, cross-quad foliage)
+      drawFlowerStem,          // tile 33 — flower stem (opaque green, 3D flower model)
+      drawFlowerPetalsRed,     // tile 34 — red flower petals (opaque, 3D flower model)
+      drawFlowerPetalsYellow,  // tile 35 — yellow flower petals (opaque, 3D flower model)
     ];
 
     for (let i = 0; i < this.tileCount; i++) {
