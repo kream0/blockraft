@@ -26,7 +26,7 @@ afterwards flips the quality label to **Custom**. Source of truth: `GRAPHICS_PRE
 | atlasTileSize    | 16      | 16       | 32        | 64          | P2    |
 | anisotropy       | 1       | 4        | 8         | max         | P2    |
 | waterQuality     | basic   | basic    | animated  | reflective  | P4    |
-| cloudDetail      | low     | medium   | high      | ultra       | P4    |
+| cloudDetail      | low     | medium   | high      | ultra       | P5    |
 
 ## Post-processing pipeline (P1)
 
@@ -69,6 +69,11 @@ the minimum work. Cost tiers, cheapest first:
   full remesh runs **only when the tangent requirement flips** (tangents are needed for
   tangent-space normal mapping but not for the analytic bevel), e.g. Medium→High. See
   "Normal/roughness maps & the MeshStandard chunk material" below.
+- **Live uniform flip _or_ water-only material swap** _(P4)_ — changing `waterQuality` between
+  `basic` and `animated` just flips the `uWaterAnim` uniform live (`setWaterAnimated`; no
+  recompile, no remesh). Crossing the **reflective** boundary toggles the `WATER_REFLECTIVE`
+  `#define`, so the water material is recreated and reassigned to every loaded water mesh via
+  `World.setWaterMaterial` (no remesh — water geometry is unchanged). See "Water realism" below.
 
 ### shadowSoftness — the one runtime-recompile knob
 
@@ -147,6 +152,47 @@ tangent-space normal mapping, so `includeTangents = normalMaps || edgeRounding =
 — Low/Medium skip the extra buffer. The worker emits it conditionally; the synchronous fallback
 always emits it (an unused tangent attribute is harmless). Because it changes geometry, flipping
 `includeTangents` is the one P3 setting change that forces a remesh.
+
+## Water realism (P4)
+
+Water keeps the same `onBeforeCompile`-patched `MeshStandardMaterial` as terrain — `patchChunkLighting`
+runs on it too, so water inherits the baked, leak-free voxel light, the day/night sky fade, and the
+directional-sun specular. P4 layers three water-only effects on top, all inside the same patch:
+
+- **Scrolling ripple** — when `uWaterAnim > 0.5`, a two-octave sine field driven by the `uWaterTime`
+  uniform (seconds) perturbs the surface **normal**. It is gated to **up-facing** water only: the patch
+  reconstructs the geometric world normal from `dFdx`/`dFdy(vWaterWorldPos)` and applies the ripple where
+  `abs(geomWorldN.y) > 0.5`, so vertical water faces stay flat. The world-space gradient is rotated into
+  view space with `mat3(viewMatrix)` (the fragment prefix has no `normalMatrix`) and added to `normal`
+  before lighting, so the sun glint shifts as the surface tilts.
+- **Fresnel opacity** — a Schlick term `pow(1 - dot(N, V), 5)` (with `V = normalize(vViewPosition)`) raises
+  `gl_FragColor.a` toward opaque at grazing angles, right after `#include <opaque_fragment>`. Also gated on
+  `uWaterAnim`, so the cheapest tier keeps flat 0.7 alpha.
+- **Reflective sky tint** — the `WATER_REFLECTIVE` `#define` variant mixes a fixed sky color, scaled by the
+  `uDayNight` uniform (so it darkens at night), into the fragment rgb and nudges alpha up. Compiled only
+  when the define is set.
+
+**Quality tiers** (`waterQuality`; presets Low/Medium = `basic`, High = `animated`, Ultra = `reflective`):
+
+| Tier         | Ripple | Fresnel | Sky tint | `uWaterAnim` | `WATER_REFLECTIVE` |
+|--------------|--------|---------|----------|--------------|--------------------|
+| `basic`      | —      | —       | —        | 0            | off                |
+| `animated`   | yes    | yes     | —        | 1            | off                |
+| `reflective` | yes    | yes     | yes      | 1            | on                 |
+
+`basic` is **intentionally plain** — flat translucency identical to the pre-P4 baseline, no Fresnel — so the
+cheapest tier costs nothing extra. (Fresnel/glint are part of the *animated* upgrade, not a view-dependent
+default applied to every tier.)
+
+**Wiring & cost.** Every tier compiles the **same** water GLSL (the ripple/Fresnel blocks are present but
+runtime-gated by `uWaterAnim`), so switching `basic`↔`animated` is a **live uniform flip**:
+`setWaterAnimated(waterMaterial, on)` toggles the `uWaterAnim` holder, no recompile, no remesh. Crossing the
+**reflective** boundary toggles a `#define`, which GLSL bakes at compile time, so the water material is
+**recreated** and reassigned to every loaded water mesh via `World.setWaterMaterial` (water geometry is
+unchanged — no remesh). `GameSession` advances `_waterTime` and calls `setWaterTime` **only** for non-`basic`
+tiers, so a `basic` world does zero per-frame ripple work. The `uWaterTime` / `uWaterAnim` uniforms are
+stashed in `material.userData` (keys `blockraftWaterTime` / `blockraftWaterAnim`) so the two setters can
+reach them without re-walking the shader.
 
 ## SSAO is deferred to P5
 
