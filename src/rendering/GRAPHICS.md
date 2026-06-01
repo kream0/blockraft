@@ -194,6 +194,40 @@ tiers, so a `basic` world does zero per-frame ripple work. The `uWaterTime` / `u
 stashed in `material.userData` (keys `blockraftWaterTime` / `blockraftWaterAnim`) so the two setters can
 reach them without re-walking the shader.
 
+## Atmosphere — gradient sky dome (P5)
+
+`SkyDome` (`src/rendering/SkyDome.ts`) is the first P5 atmosphere increment: a camera-following
+gradient skybox that replaces the flat single-colour sky. It mirrors the self-contained renderer
+pattern of `SkyBodies` / `Clouds` (`readonly object3D`, `update(state, camPos)`, `dispose()`) and
+`GameSession` creates / `scene.add`s / updates / disposes it alongside the sun & moon. It is
+**always-on** — not a graphics knob, no preset row, one extra draw call.
+
+**Geometry & draw order.** An inward-facing `SphereGeometry` (radius `SKY_DOME_RADIUS` = 500, < the
+1000 camera far) with `side: BackSide`. The mesh is recentred on the camera every frame
+(`object3D.position.copy(camPos)`), `frustumCulled = false`, and drawn as a skybox: `depthTest:false`,
+`depthWrite:false`, `renderOrder:-1000`. So it paints first (behind everything) and writes no depth —
+terrain (renderOrder 0) and the sun/moon billboards (`SkyBodies`, renderOrder -10) draw over it, and
+the flat clear colour is fully overdrawn wherever the dome covers (which is everywhere).
+
+**Shader.** A raw `ShaderMaterial` with `fog:false`. The fragment derives a vertical gradient from the
+normalized view direction's `y` (`smoothstep`-eased): **horizon = `state.skyColor`** (so it blends
+seamlessly with the flat clear colour + screen-space fog, which are the same colour) and **zenith =
+`skyColor × ZENITH_DARKEN` (0.55)** for atmospheric depth. A warm halo is added from the **toward-sun**
+direction (`-state.sunDirection`, since `sunDirection` is the direction light *travels*) as
+`pow(dot,8)·0.5 + pow(dot,220)·1.3`, tinted by `state.sunColor` and scaled by `state.daylight` so it
+fades to nothing at night. The whole gradient auto-scales across the day/night cycle because every
+input is the live `SkyState` (copied out each frame — never retained, since `SkyState` is reused).
+
+**Colour space (why no horizon seam).** The dome feeds `THREE.Color` values (`skyColor`, `sunColor`)
+straight into `vec3` uniforms and does linear math. That is consistent with the rest of the scene
+because `THREE.ColorManagement` is enabled (r0.160 default) and the `DayNightCycle` palette is built
+from hex `new THREE.Color(...)`, so the stored `.r/.g/.b` are already in the **linear** working space —
+the *same* values `renderer.setClearColor`, `scene.fog.color`, and `scene.background` consume. The P1
+`OutputPass` applies tone mapping + sRGB encode **once** at the end of the composer for the entire
+buffer (the dome included), so the raw-shader output never diverges from the fog it abuts. (Manually
+`pow(2.2)`-linearizing the uniforms would *double-convert* and *create* the seam.) The bright sun halo
+exceeds 1.0 and **blooms for free** through the existing `UnrealBloomPass` — no pipeline change.
+
 ## SSAO is deferred to P5
 
 The SSAO checkbox + samples slider exist and persist, but **SSAO is not wired into the P1
