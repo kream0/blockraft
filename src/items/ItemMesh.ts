@@ -117,7 +117,7 @@ function buildFlowerItemMesh(item: BlockId, atlas: ITextureAtlas): THREE.Object3
     const sv = positions.length / 3;
     for (let i = 0; i < 4; i++) {
       const c = q.c[i]!;
-      positions.push(c[0]! - 0.5, c[1]! - 0.33, c[2]! - 0.5);
+      positions.push(c[0]! - 0.5, c[1]! - 0.37, c[2]! - 0.5);
     }
     uvs.push(u0, v0, u1, v0, u1, v1, u0, v1);
     indices.push(sv, sv + 1, sv + 2, sv, sv + 2, sv + 3);

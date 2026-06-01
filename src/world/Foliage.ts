@@ -26,21 +26,48 @@ export function flowerPetalTile(id: BlockId): number {
  *  bottom-end, top-end, top-start so UVs map (u0,v0),(u1,v0),(u1,v1),(u0,v1)) + which texture. */
 interface FlowerQuad { c: [number, number, number][]; tile: 'stem' | 'petal'; }
 
-/** Thin green stem box (x,z in [0.44,0.56], y 0->0.50) + flat petal head box
- *  (x,z in [0.28,0.72], y 0.46->0.66), centered at the cell bottom-center. */
-export const FLOWER_MODEL_QUADS: ReadonlyArray<FlowerQuad> = [
-  // Stem box — 4 side faces (sx0=0.44 sx1=0.56 sz0=0.44 sz1=0.56 sy0=0 sy1=0.5)
-  { tile: 'stem', c: [[0.44,0,0.56],[0.56,0,0.56],[0.56,0.5,0.56],[0.44,0.5,0.56]] }, // +Z
-  { tile: 'stem', c: [[0.56,0,0.44],[0.44,0,0.44],[0.44,0.5,0.44],[0.56,0.5,0.44]] }, // -Z
-  { tile: 'stem', c: [[0.56,0,0.56],[0.56,0,0.44],[0.56,0.5,0.44],[0.56,0.5,0.56]] }, // +X
-  { tile: 'stem', c: [[0.44,0,0.44],[0.44,0,0.56],[0.44,0.5,0.56],[0.44,0.5,0.44]] }, // -X
-  // Petal head box — 4 sides + top (bx0=0.28 bx1=0.72 bz0=0.28 bz1=0.72 by0=0.46 by1=0.66)
-  { tile: 'petal', c: [[0.28,0.46,0.72],[0.72,0.46,0.72],[0.72,0.66,0.72],[0.28,0.66,0.72]] }, // +Z
-  { tile: 'petal', c: [[0.72,0.46,0.28],[0.28,0.46,0.28],[0.28,0.66,0.28],[0.72,0.66,0.28]] }, // -Z
-  { tile: 'petal', c: [[0.72,0.46,0.72],[0.72,0.46,0.28],[0.72,0.66,0.28],[0.72,0.66,0.72]] }, // +X
-  { tile: 'petal', c: [[0.28,0.46,0.28],[0.28,0.46,0.72],[0.28,0.66,0.72],[0.28,0.66,0.28]] }, // -X
-  { tile: 'petal', c: [[0.28,0.66,0.28],[0.72,0.66,0.28],[0.72,0.66,0.72],[0.28,0.66,0.72]] }, // +Y top
-];
+/** Thin green stem (x,z in [0.45,0.55], y 0->0.50, 4 side quads) + 6 radial petals that
+ *  radiate outward AND flare upward from the stem top (y 0.46->0.74), forming an open blossom.
+ *  All coords are cell-local in [0,1]^3, centered on the cell's vertical axis. */
+export const FLOWER_MODEL_QUADS: ReadonlyArray<FlowerQuad> = (() => {
+  // --- Stem: 4 vertical side quads (sx0=0.45, sx1=0.55, sz0=0.45, sz1=0.55, sy0=0, sy1=0.5) ---
+  const stemQuads: FlowerQuad[] = [
+    { tile: 'stem', c: [[0.45,0,0.55],[0.55,0,0.55],[0.55,0.5,0.55],[0.45,0.5,0.55]] }, // +Z
+    { tile: 'stem', c: [[0.55,0,0.45],[0.45,0,0.45],[0.45,0.5,0.45],[0.55,0.5,0.45]] }, // -Z
+    { tile: 'stem', c: [[0.55,0,0.55],[0.55,0,0.45],[0.55,0.5,0.45],[0.55,0.5,0.55]] }, // +X
+    { tile: 'stem', c: [[0.45,0,0.45],[0.45,0,0.55],[0.45,0.5,0.55],[0.45,0.5,0.45]] }, // -X
+  ];
+
+  // --- Petals: 6 trapezoid quads radiating outward, flaring UP from the stem top ---
+  const PETAL_COUNT = 6;
+  const CX = 0.5, CZ = 0.5;    // center axis
+  const Y_INNER = 0.46;         // petal base, just above the stem top
+  const Y_OUTER = 0.74;         // petal tip, raised (flares UP — open blossom shape)
+  const R_INNER = 0.06;         // inner-edge distance from center axis
+  const R_OUTER = 0.42;         // outer-edge distance from center axis
+  const W_INNER = 0.05;         // inner-edge half-width
+  const W_OUTER = 0.14;         // outer-edge half-width
+
+  const petalQuads: FlowerQuad[] = [];
+  for (let k = 0; k < PETAL_COUNT; k++) {
+    const a = (k * 2 * Math.PI) / PETAL_COUNT;
+    const dx = Math.cos(a), dz = Math.sin(a);    // outward direction (horizontal)
+    const px = -Math.sin(a), pz = Math.cos(a);   // perpendicular (horizontal), for width
+
+    const iX = CX + dx * R_INNER, iZ = CZ + dz * R_INNER; // inner edge center
+    const oX = CX + dx * R_OUTER, oZ = CZ + dz * R_OUTER; // outer edge center
+
+    // corner order: inner-start, inner-end, outer-end, outer-start
+    const c0: [number, number, number] = [iX - px * W_INNER, Y_INNER, iZ - pz * W_INNER];
+    const c1: [number, number, number] = [iX + px * W_INNER, Y_INNER, iZ + pz * W_INNER];
+    const c2: [number, number, number] = [oX + px * W_OUTER, Y_OUTER, oZ + pz * W_OUTER];
+    const c3: [number, number, number] = [oX - px * W_OUTER, Y_OUTER, oZ - pz * W_OUTER];
+
+    petalQuads.push({ tile: 'petal', c: [c0, c1, c2, c3] });
+  }
+
+  return [...stemQuads, ...petalQuads];
+})();
 
 /**
  * Emit the 3D flower model into the SOLID mesh arrays. Mirrors emitCrossGeometry's
