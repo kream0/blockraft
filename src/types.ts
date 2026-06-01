@@ -55,7 +55,7 @@ export const JUMP_VELOCITY = 9.2;
 /** Maximum raycast distance for break/place actions in blocks. */
 export const REACH = 5;
 /** Real-time seconds for one full day→night→day cycle. Tunable. */
-export const DAY_LENGTH_SECONDS = 180;
+export const DAY_LENGTH_SECONDS = 600;
 /** Normalized time-of-day a player wakes to after sleeping in a bed. Just past sunrise (0.25) so it reads as clearly daytime and hostiles stop spawning. */
 export const MORNING_TIME = 0.28;
 /** Player max health in half-heart points (20 = 10 hearts). */
@@ -788,7 +788,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fov: 75,
   mouseSensitivity: 1.0,
   masterVolume: 1.0,
-  musicVolume: 0.5,
+  musicVolume: 0,
   sfxVolume: 1.0,
   invertY: false,
   showFps: true,
