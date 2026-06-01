@@ -57,20 +57,23 @@ the minimum work. Cost tiers, cheapest first:
   changing `antiAlias` (off/fxaa/smaa) or toggling `bloom`. Cheap (a few GPU allocations),
   but not per-frame; only on a settings change.
 - **Material recompile** — sets `chunkMaterial.needsUpdate` / `waterMaterial.needsUpdate`
-  so the unlit chunk/water shaders re-link. Triggered by `applyGraphics` returning
+  so the chunk/water shaders re-link. Triggered by `applyGraphics` returning
   `shadowRecompileNeeded`: when `shadowMapSize` toggles shadows **on↔off**, or when
   `shadowSoftness` changes **while shadows are on**.
 - **Remesh all chunks** _(P2)_ — changing `atlasTileSize` rebuilds the atlas at the new
   tile resolution and remeshes every loaded chunk (the new UV gutters change the geometry's
   UVs). Driven by `GameSession.applySettings` → `World.rebuildForAtlas`; progress shows in a
   HUD banner. See "Tiered atlas resolution & anisotropy" below.
-- **Material recreate** _(P3)_ — `normalMaps` / `edgeRounding=normalmap` will swap the
-  unlit chunk material for a `MeshStandardMaterial`. Not yet wired.
+- **Material swap + conditional remesh** _(P3)_ — changing `normalMaps` or `edgeRounding`
+  recompiles both the chunk and water materials and reassigns them to every loaded chunk. A
+  full remesh runs **only when the tangent requirement flips** (tangents are needed for
+  tangent-space normal mapping but not for the analytic bevel), e.g. Medium→High. See
+  "Normal/roughness maps & the MeshStandard chunk material" below.
 
 ### shadowSoftness — the one runtime-recompile knob
 
 `shadowSoftness` is the only graphics setting that can force a shader recompile, because the
-unlit chunk material bakes the PCF filter type into a GLSL `#define` (`SHADOWMAP_TYPE_*`).
+chunk material bakes the PCF filter type into a GLSL `#define` (`SHADOWMAP_TYPE_*`).
 The recompile is gated on shadows being enabled: flipping softness with `shadowMapSize === 0`
 is inert (the define isn't present), so we skip the `needsUpdate` to avoid a pointless stutter.
 
@@ -102,13 +105,58 @@ and auto-hides at completion.
 texture's `anisotropy` and flags `needsUpdate`, a texture re-upload with **no** geometry
 remesh.
 
+## Normal/roughness maps & the MeshStandard chunk material (P3)
+
+P3 replaces the unlit chunk/water materials with `onBeforeCompile`-patched
+`MeshStandardMaterial`s, so terrain picks up PBR roughness, normal-mapped surface relief, and a
+sun specular highlight — **without** losing the baked, leak-free voxel lighting. The patch
+(`patchChunkLighting` in `Materials.ts`) keeps baked vertex light authoritative for diffuse:
+
+- The mesher packs two light terms into the vertex `color`: **`r` = sky**
+  (`faceShade · AO · skyLevel`) and **`g` = block/torch** (`faceShade · AO · blockLevel`).
+  `faceShade` is a fixed per-face directional shade (top 1.0, bottom 0.5, N/S 0.8, E/W 0.6) so
+  even flat ambient light keeps each face's 3D form.
+- In the fragment shader the patch **zeroes `reflectedLight.directDiffuse`**, writes the baked
+  term into **`indirectDiffuse`**, and **zeroes `indirectSpecular`** — but **keeps
+  `directSpecular`**, so the sun adds a roughness-shaped glint on top of the baked diffuse.
+- The `uDayNight` uniform fades the **sky** channel between a night floor (`NIGHT_SKY_FLOOR`
+  = 0.15) and full daylight; the directional-light **shadow** term darkens only the sky channel
+  and only in daylight (`SHADOW_MIN` = 0.35 · `uDayNight`), so torch-lit blocks and cave faces
+  are never shadowed. `getShadowMask()` is injected right after `<shadowmap_pars_fragment>`
+  because the `meshphysical` fragment preamble includes the shadow**map** chunk but not the
+  shadow**mask** chunk that defines it.
+
+**Two edge-relief modes** (the `edgeRounding` setting):
+
+- `analytic` (Medium) — a `#define ANALYTIC_BEVEL` variant perturbs the surface normal near
+  block edges from the fragment's **world-space** position (no texture, no tangents). The
+  world-space perturbation is rotated into view space with `mat3(viewMatrix)` (the fragment
+  prefix declares `viewMatrix` but not `normalMatrix`).
+- `normalmap` (High/Ultra) — samples the companion tangent-space **normal atlas** (`normalScale`
+  0.6); requires the per-vertex `tangent` attribute.
+
+**Companion atlases.** `TextureAtlas` generates two textures alongside the albedo atlas, sharing
+its tile grid and gutter. `paintNormal` bakes a uniform **chamfer bevel** into every tile — a
+`tileSize/8` edge band smoothstep-tilts the tangent-space normal outward, interior stays flat
+(RGB 128,128,255). `paintRoughness` writes greyscale roughness (read from `.g`) with a default
+of **0.85** (matte) and glossy per-tile-index overrides. The chunk material binds these as
+`normalMap` + `roughnessMap` with `roughness:1.0`, `metalness:0`, `envMapIntensity:0`.
+
+**Tangents.** The `tangent` attribute (4 floats: xyz + handedness) is only needed for
+tangent-space normal mapping, so `includeTangents = normalMaps || edgeRounding === 'normalmap'`
+— Low/Medium skip the extra buffer. The worker emits it conditionally; the synchronous fallback
+always emits it (an unused tangent attribute is harmless). Because it changes geometry, flipping
+`includeTangents` is the one P3 setting change that forces a remesh.
+
 ## SSAO is deferred to P5
 
 The SSAO checkbox + samples slider exist and persist, but **SSAO is not wired into the P1
 pipeline**. `three`'s `SSAOPass` renders a depth/normal prepass and a beauty pass that are
-incompatible with our custom **unlit** chunk/water materials (baked linear vertex colors via
-`onBeforeCompile`) — enabling it blacks out the scene. The presets therefore ship `ssao:false`
-across the board. P5 (#391) implements ambient occlusion correctly for these materials.
+incompatible with our chunk/water materials: P3 made them `MeshStandardMaterial`s, but the
+`onBeforeCompile` patch still drives diffuse from baked vertex colors (it zeroes the lit
+`directDiffuse` and writes the baked term into `indirectDiffuse`), so `SSAOPass`'s beauty pass
+blacks out the scene. The presets therefore ship `ssao:false` across the board. P5 (#391)
+implements ambient occlusion correctly for these materials.
 
 ## Adding a new block
 
@@ -116,6 +164,10 @@ Today: register the block in `BlockRegistry` with its atlas tile coordinates; `T
 draws the procedural tile. Roughness/normal surface detail is **not** part of the block
 definition yet.
 
-_(P3)_ will add optional `roughness` / `normalScale` fields to the block definition plus
-normal + roughness atlas tiles, consumed by the `MeshStandardMaterial` chunk shader. Document
-the exact fields here when that phase lands.
+P3 added the `MeshStandardMaterial` chunk shader plus procedural **normal** and
+**roughness/AO** atlases. Surface character is currently authored **per atlas tile**, not per
+block: `TextureAtlas.paintNormal` bakes a uniform chamfer bevel into every tile's edge band, and
+`TextureAtlas.paintRoughness` writes a default roughness of **0.85** (matte) with glossy
+per-tile-index overrides. The contract also reserves optional `BlockDef.roughness` /
+`BlockDef.normalStrength` fields for future per-block control; they are **not consumed yet** —
+wire them through the atlas/mesher when a block needs to override the tile defaults.
