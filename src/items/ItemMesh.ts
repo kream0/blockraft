@@ -4,6 +4,7 @@ import { isBlockItem, itemSwatchColor } from './ItemRegistry';
 import { blockRegistry } from '../world/BlockRegistry';
 import { buildStickMesh, buildPickaxeMesh, buildAxeMesh, buildShovelMesh, buildStonePickaxeMesh, buildStoneAxeMesh, buildStoneShovelMesh, buildIronPickaxeMesh, buildIronAxeMesh, buildIronShovelMesh, buildWoodenSwordMesh, buildStoneSwordMesh, buildIronSwordMesh, buildDiamondPickaxeMesh, buildDiamondAxeMesh, buildDiamondShovelMesh, buildDiamondSwordMesh, buildBowMesh, buildArrowItemMesh } from './ToolMeshes';
 import { TORCH_TILE } from '../world/Torch';
+import { isCrossBlock, crossBlockTile } from '../world/Foliage';
 
 /**
  * Builds a fresh THREE.Object3D for the given item using the provided texture atlas.
@@ -16,6 +17,7 @@ import { TORCH_TILE } from '../world/Torch';
  */
 export function buildItemMesh(item: ItemId, atlas: ITextureAtlas): THREE.Object3D {
   if (item === BlockId.TORCH) return buildTorchItemMesh(atlas);
+  if (isCrossBlock(item)) return buildCrossItemMesh(item as BlockId, atlas);
 
   if (!isBlockItem(item)) {
     // Non-block item — return the appropriate tool mesh.
@@ -96,6 +98,43 @@ function buildTorchItemMesh(atlas: ITextureAtlas): THREE.Object3D {
   }
   uv.needsUpdate = true;
   const mat = new THREE.MeshLambertMaterial({ map: atlas.texture });
+  return new THREE.Mesh(geo, mat);
+}
+
+/**
+ * Cross-quad item mesh for foliage blocks (tall grass + flowers): two crossed
+ * vertical quads textured with the plant's atlas tile, instead of a 6-faced cube,
+ * so the held model and inventory icon read as a 3D plant rising from the cell.
+ * Centered at the origin like other item meshes. Unlit + alpha-test cutout.
+ */
+function buildCrossItemMesh(item: BlockId, atlas: ITextureAtlas): THREE.Object3D {
+  const [u0, v0, u1, v1] = atlas.getUV(crossBlockTile(item));
+  const h = 0.5; // half-extent (unit cell, centered at origin)
+
+  // Two quads. Vertex order per quad matches Foliage.emitCrossGeometry:
+  //   bottom-start, bottom-end, top-end, top-start  →  uv (u0,v0),(u1,v0),(u1,v1),(u0,v1)
+  const positions = new Float32Array([
+    // Quad 1: diagonal (-h,-h) -> (+h,+h)
+    -h, -h, -h,   h, -h,  h,   h,  h,  h,   -h,  h, -h,
+    // Quad 2: diagonal (-h,+h) -> (+h,-h)
+    -h, -h,  h,   h, -h, -h,   h,  h, -h,   -h,  h,  h,
+  ]);
+  const uvs = new Float32Array([
+    u0, v0, u1, v0, u1, v1, u0, v1,
+    u0, v0, u1, v0, u1, v1, u0, v1,
+  ]);
+  const indices = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: atlas.texture,
+    alphaTest: 0.5,
+    side: THREE.DoubleSide,
+  });
   return new THREE.Mesh(geo, mat);
 }
 
