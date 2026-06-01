@@ -251,14 +251,14 @@ export const PARTICLE_POOL_MAX = 256;
 
 // === Weather (ambient precipitation) ===
 /** Real-time seconds bounds for a CLEAR spell before precipitation may begin. */
-export const WEATHER_CLEAR_MIN_S = 70;
-export const WEATHER_CLEAR_MAX_S = 200;
+export const WEATHER_CLEAR_MIN_S = 240;
+export const WEATHER_CLEAR_MAX_S = 540;
 /** Real-time seconds bounds for one precipitation spell. */
-export const WEATHER_PRECIP_MIN_S = 35;
-export const WEATHER_PRECIP_MAX_S = 95;
-/** Short randomized delay before the FIRST precipitation after a world loads, so weather visibly kicks in soon. */
-export const WEATHER_INITIAL_CLEAR_MIN_S = 8;
-export const WEATHER_INITIAL_CLEAR_MAX_S = 18;
+export const WEATHER_PRECIP_MIN_S = 30;
+export const WEATHER_PRECIP_MAX_S = 75;
+/** Randomized dry delay before the FIRST precipitation after a world loads, so a freshly-loaded world stays clear for a few minutes — rain is an occasional event, not the default. */
+export const WEATHER_INITIAL_CLEAR_MIN_S = 150;
+export const WEATHER_INITIAL_CLEAR_MAX_S = 360;
 /** Seconds for precipitation intensity to ease fully in or out (0..1), so onset/end is gradual. */
 export const WEATHER_FADE_S = 6;
 /** Number of precipitation particles in the camera-following volume. Separate pool from block-break particles. */
