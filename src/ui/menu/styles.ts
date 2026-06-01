@@ -301,6 +301,12 @@ export function ensureMenuStyles(): void {
 .mc-keybind-listening:hover:not(:disabled) {
   background: linear-gradient(#3a6a3a, #2a4a2a);
 }
+.mc-graphics-advanced summary {
+  cursor: pointer;
+  color: #aaa;
+  font-size: 13px;
+  padding: 4px 0;
+}
 `;
   document.head.appendChild(style);
 }

@@ -1,4 +1,12 @@
-import { type Settings, type Keybindings, type KeyBindableAction, DEFAULT_SETTINGS, DEFAULT_KEYBINDINGS, SETTINGS_RANGES, KEYBINDABLE_ACTIONS } from '../types';
+import {
+  type Settings, type Keybindings, type KeyBindableAction,
+  type GraphicsQuality, type AntiAlias, type WaterQuality, type EdgeRounding,
+  type ShadowSoftness, type ToneMapping, type FogType, type CloudDetail,
+  DEFAULT_SETTINGS, DEFAULT_KEYBINDINGS, SETTINGS_RANGES, KEYBINDABLE_ACTIONS,
+  GraphicsQuality as GQ, AntiAlias as AA, WaterQuality as WQ, EdgeRounding as ER,
+  ShadowSoftness as SS, ToneMapping as TM, FogType as FT, CloudDetail as CD,
+  SHADOW_MAP_SIZES, SSAO_SAMPLE_COUNTS, ATLAS_TILE_SIZES, ANISOTROPY_LEVELS,
+} from '../types';
 import { clamp } from '../utils/MathUtils';
 
 /** localStorage key used to persist user settings. */
@@ -20,9 +28,19 @@ export function validateSettings(input: unknown): Settings {
     return clamp(raw, range.min, range.max);
   };
 
-  const bool = (key: 'invertY' | 'showFps', fallback: boolean): boolean => {
+  const bool = (key: 'invertY' | 'showFps' | 'ssao' | 'normalMaps' | 'bloom', fallback: boolean): boolean => {
     const raw = obj[key];
     return typeof raw === 'boolean' ? raw : fallback;
+  };
+
+  const enumVal = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    const raw = obj[key];
+    return (typeof raw === 'string' && (allowed as readonly string[]).includes(raw)) ? (raw as T) : fallback;
+  };
+
+  const discreteNum = (key: string, allowed: readonly number[], fallback: number): number => {
+    const raw = obj[key];
+    return (typeof raw === 'number' && Number.isFinite(raw) && (allowed as readonly number[]).includes(raw)) ? raw : fallback;
   };
 
   // Validate keybindings: for each action, accept a non-empty string or fall back to default.
@@ -52,6 +70,25 @@ export function validateSettings(input: unknown): Settings {
     invertY: bool('invertY', DEFAULT_SETTINGS.invertY),
     showFps: bool('showFps', DEFAULT_SETTINGS.showFps),
     keybindings,
+    graphicsQuality: enumVal<GraphicsQuality>('graphicsQuality', Object.values(GQ), DEFAULT_SETTINGS.graphicsQuality!),
+    pixelRatioCap: num('pixelRatioCap', DEFAULT_SETTINGS.pixelRatioCap!),
+    antiAlias: enumVal<AntiAlias>('antiAlias', Object.values(AA), DEFAULT_SETTINGS.antiAlias!),
+    shadowMapSize: discreteNum('shadowMapSize', SHADOW_MAP_SIZES, DEFAULT_SETTINGS.shadowMapSize!),
+    shadowSoftness: enumVal<ShadowSoftness>('shadowSoftness', Object.values(SS), DEFAULT_SETTINGS.shadowSoftness!),
+    ssao: bool('ssao', DEFAULT_SETTINGS.ssao!),
+    ssaoIntensity: num('ssaoIntensity', DEFAULT_SETTINGS.ssaoIntensity!),
+    ssaoSamples: discreteNum('ssaoSamples', SSAO_SAMPLE_COUNTS, DEFAULT_SETTINGS.ssaoSamples!),
+    normalMaps: bool('normalMaps', DEFAULT_SETTINGS.normalMaps!),
+    edgeRounding: enumVal<EdgeRounding>('edgeRounding', Object.values(ER), DEFAULT_SETTINGS.edgeRounding!),
+    atlasTileSize: discreteNum('atlasTileSize', ATLAS_TILE_SIZES, DEFAULT_SETTINGS.atlasTileSize!),
+    anisotropy: discreteNum('anisotropy', ANISOTROPY_LEVELS, DEFAULT_SETTINGS.anisotropy!),
+    toneMapping: enumVal<ToneMapping>('toneMapping', Object.values(TM), DEFAULT_SETTINGS.toneMapping!),
+    fogType: enumVal<FogType>('fogType', Object.values(FT), DEFAULT_SETTINGS.fogType!),
+    bloom: bool('bloom', DEFAULT_SETTINGS.bloom!),
+    bloomIntensity: num('bloomIntensity', DEFAULT_SETTINGS.bloomIntensity!),
+    bloomThreshold: num('bloomThreshold', DEFAULT_SETTINGS.bloomThreshold!),
+    waterQuality: enumVal<WaterQuality>('waterQuality', Object.values(WQ), DEFAULT_SETTINGS.waterQuality!),
+    cloudDetail: enumVal<CloudDetail>('cloudDetail', Object.values(CD), DEFAULT_SETTINGS.cloudDetail!),
   };
 }
 
