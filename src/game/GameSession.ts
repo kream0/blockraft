@@ -486,7 +486,16 @@ export class GameSession {
 
     // Mouse input (only when pointer-locked). Left = hold-to-mine / melee; right = place.
     this.mouseDownHandler = (e: MouseEvent): void => {
-      if (!this.controls.isLocked) return;
+      if (!this.controls.isLocked) {
+        // A click after ESC closed a panel / resumed from pause re-grabs the pointer
+        // (a valid user gesture). The click is consumed by the re-lock — it does not
+        // also mine/place this frame.
+        if (this.wantRelock && this.started && !this.isDead
+            && !this.inventoryScreen.isOpen && !this.furnaceScreen.isOpen && !this.chestScreen.isOpen) {
+          this.requestPointerLock();
+        }
+        return;
+      }
       // A locked-canvas mousedown is a user gesture — safe to (idempotently) start audio.
       this.audio.resume();
       if (e.button === 0) {
@@ -599,36 +608,34 @@ export class GameSession {
       if (this.furnaceScreen.isOpen) {
         this.furnaceScreen.close();
         this.requestPointerLock();
-        this.wantRelock = true;
         return;
       }
       if (this.chestScreen.isOpen) {
         this.chestScreen.close();
         this.requestPointerLock();
-        this.wantRelock = true;
         return;
       }
       if (this.inventoryScreen.isOpen) {
         this.inventoryScreen.close();
         this.requestPointerLock();
-        this.wantRelock = true;
         return;
       }
       this.wantRelock = false;
       this.onPauseRequested();
     };
 
-    // One-shot: after ESC closed an overlay, Chrome refuses the immediate re-lock.
-    // Re-grab the pointer on the next movement keydown (a user gesture the browser accepts).
+    // After ESC closed an overlay (or resumed from the pause menu), Chrome refuses
+    // the immediate re-lock. Re-grab the pointer on the next keydown of ANY key
+    // except Escape itself (Escape is owned by escKeyHandler / App's pause toggle).
+    // wantRelock persists across failed attempts, so a press during the post-Escape
+    // cool-down simply retries on the following gesture.
     this.relockKeyHandler = (e: KeyboardEvent): void => {
+      if (e.code === 'Escape') return;
       if (!this.wantRelock) return;
       if (!this.started || this.isDead) return;
       if (this.controls.isLocked) { this.wantRelock = false; return; }
       if (this.inventoryScreen.isOpen || this.furnaceScreen.isOpen || this.chestScreen.isOpen) return;
-      const kb = this.controls.keybindings;
-      if (e.code === kb.forward || e.code === kb.back || e.code === kb.left || e.code === kb.right || e.code === kb.jump) {
-        this.requestPointerLock();
-      }
+      this.requestPointerLock();
     };
 
     // Game loop.
@@ -904,8 +911,18 @@ export class GameSession {
     return this.isDead;
   }
 
-  /** Re-acquire pointer lock (called from a user-gesture handler like Resume button). */
+  /**
+   * Re-acquire pointer lock (called from a user-gesture handler like the Resume
+   * button, or after a panel/menu closes). The immediate attempt fails when the
+   * triggering gesture was the reserved Escape key or Chrome's post-Escape
+   * cool-down is still active; in that case we arm `wantRelock` so the very next
+   * key or mouse-button press re-grabs the pointer (pointerlockchange clears the
+   * flag the instant the lock actually succeeds). Pure mouse movement can never
+   * re-lock — the browser requires a real user gesture.
+   */
   requestPointerLock(): void {
+    if (this.controls.isLocked) return;
+    this.wantRelock = true;
     this.controls.lock();
     this.audio.resume();
   }
