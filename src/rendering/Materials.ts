@@ -51,16 +51,18 @@ function patchChunkLighting(material: THREE.MeshBasicMaterial): void {
 
     // --- Fragment shader: add shadow machinery + apply to skyLit ---
     // 1. Inject packing + shadow pars immediately after <common> (common must precede them).
-    //    Also declare uDayNight and receiveShadow here instead of prepending to top.
+    //    uDayNight + receiveShadow are declared here (MeshBasic doesn't auto-declare receiveShadow).
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
       [
         '#include <common>',
         '#include <packing>',
-        '#include <shadowmap_pars_fragment>',
-        '#include <shadowmask_pars_fragment>',
+        // getShadowMask() (in shadowmask_pars_fragment) references receiveShadow; GLSL is
+        // single-pass, so both uniforms must be declared BEFORE that include or they're undeclared.
         'uniform float uDayNight;',
         'uniform bool receiveShadow;',
+        '#include <shadowmap_pars_fragment>',
+        '#include <shadowmask_pars_fragment>',
       ].join('\n'),
     );
     // 2. Replace <color_fragment> with shadow-aware sky/block lighting.
