@@ -106,6 +106,8 @@ export const ZOMBIE_ATTACK_COOLDOWN_S = 1.0;
 export const ZOMBIE_CHASE_SPEED = 2.4;
 /** Damage (half-heart points) the player deals per melee hit. */
 export const PLAYER_ATTACK_DAMAGE = 4;
+/** Melee damage multiplier when a hit lands mid-fall (airborne + descending). MC parity: +50% on a "critical" jump-attack. */
+export const CRITICAL_HIT_MULTIPLIER = 1.5;
 /** Max distance (blocks) from the eye at which a melee swing can reach a mob. Below REACH(5). */
 export const PLAYER_ATTACK_RANGE = 3.5;
 /** Minimum seconds between player melee swings. */

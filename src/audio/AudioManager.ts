@@ -242,6 +242,48 @@ export class AudioManager {
     source.stop(now + 0.08);
   }
 
+  /**
+   * One-shot "crit" blip for a critical (mid-fall) melee hit.
+   *
+   * A sawtooth oscillator sweeps upward from 520 Hz to 1040 Hz over ~80 ms,
+   * then a second short sine "ping" fires at 1400 Hz for 40 ms — producing a
+   * bright rising two-tone blip that is clearly distinct from the flat-noise
+   * swing of playAttack(). Both tones share the same sfxGain bus.
+   */
+  playCrit(): void {
+    const ctx = this.ctx;
+    if (ctx === null || ctx.state !== 'running' || this.sfxGain === null) return;
+
+    const now = ctx.currentTime;
+
+    // Rising sweep tone (sawtooth, 520→1040 Hz, 80 ms).
+    const sweep = ctx.createOscillator();
+    sweep.type = 'sawtooth';
+    sweep.frequency.setValueAtTime(520, now);
+    sweep.frequency.exponentialRampToValueAtTime(1040, now + 0.08);
+
+    const sweepEnv = this.envGain(ctx, now, 0.18, 0.004, 0.08);
+
+    sweep.connect(sweepEnv);
+    sweepEnv.connect(this.sfxGain);
+
+    sweep.start(now);
+    sweep.stop(now + 0.08);
+
+    // High "ping" sine that follows immediately (1400 Hz, 40 ms).
+    const ping = ctx.createOscillator();
+    ping.type = 'sine';
+    ping.frequency.value = 1400;
+
+    const pingEnv = this.envGain(ctx, now + 0.06, 0.22, 0.004, 0.06);
+
+    ping.connect(pingEnv);
+    pingEnv.connect(this.sfxGain);
+
+    ping.start(now + 0.06);
+    ping.stop(now + 0.14);
+  }
+
   /** Close the AudioContext and release all node references. */
   dispose(): void {
     this.stopMusic();

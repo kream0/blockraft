@@ -47,6 +47,7 @@ import {
   PLAYER_MAX_HEALTH,
   PLAYER_RESPAWN_INVULN_S,
   PLAYER_ATTACK_DAMAGE,
+  CRITICAL_HIT_MULTIPLIER,
   PLAYER_ATTACK_RANGE,
   PLAYER_ATTACK_COOLDOWN_S,
   PLAYER_EYE,
@@ -1687,7 +1688,11 @@ export class GameSession {
     const p = this.player.state.position;
     const heldItem = this.player.inventory.getSlot(this.player.state.selectedSlot)?.item ?? BlockId.AIR;
     const weapon = itemWeaponDef(heldItem);
-    const damage = weapon !== null ? weapon.damage : PLAYER_ATTACK_DAMAGE;
+    const baseDamage = weapon !== null ? weapon.damage : PLAYER_ATTACK_DAMAGE;
+    const st = this.player.state;
+    const isCrit = !st.onGround && st.velocity.y < 0;
+    const damage = isCrit ? Math.round(baseDamage * CRITICAL_HIT_MULTIPLIER) : baseDamage;
+    if (isCrit) this.audio.playCrit();
     const killed = target.takeDamage(damage, p.x, p.z);
     if (killed) this.killMob(target);
     return true;
