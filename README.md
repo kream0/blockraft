@@ -120,6 +120,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
   - Invert Y axis
   - Show FPS
   - **Rebindable controls**: remap move / jump / sprint / inventory keys — click a binding then press the new key; conflicts **swap** so no key is ever doubled or left empty, and pressing a reserved key (hotbar digits) or **Esc** cancels. Bindings persist per the usual settings store and live-apply instantly
+  - **Graphics quality**: a one-click preset selector (**Low / Medium / High / Ultra**) backed by an expandable **Advanced** panel of 18 knobs — anti-aliasing, shadow-map size + softness, SSAO (+ samples + intensity), normal maps, edge rounding, atlas tile size, anisotropic filtering, tone mapping, fog type, bloom (+ intensity + threshold), pixel-ratio cap, water quality, and cloud detail. Picking a preset fills every knob at once; tweaking any single knob flips the selector to **Custom** (and auto-opens the panel). The controls, validation, and per-setting persistence ship now as the foundation for the **visual-realism overhaul** — each knob is wired into the renderer progressively across that work (in progress)
 
 ### Persistence
 - Worlds saved to **IndexedDB** (metadata + sparse chunk overrides)
@@ -150,7 +151,7 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Long term / nice-to-haves
 - **Custom resource packs**: swap the procedural texture atlas for user-supplied PNGs
-- **Shaders**: ambient occlusion, screen-space fog, post-processing
+- **Visual-realism overhaul** (in progress): a **graphics-settings foundation now ships** — quality presets + an 18-knob advanced panel (anti-aliasing, shadows, SSAO, bloom, tone mapping, anisotropy, water, clouds…), validated and persisted (see Menus & UX above). The remaining work wires each knob into a post-processing pipeline (EffectComposer + tone mapping + runtime AA), tiered atlas resolution + anisotropic filtering, normal/roughness mapping with bevelled edges, and richer water + atmosphere. Vertex ambient occlusion, baked sky/block light, and screen-space fog already ship (see World above)
 - **Mobile / touch controls**
 - **WebGPU renderer path** when Three.js's WebGPU backend stabilizes
 
