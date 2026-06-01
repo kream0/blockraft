@@ -57,9 +57,9 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 
 ### Survival
 - Health bar with damage from zombie bites, fall damage, and drowning (Survival mode only)
-- **Hunger bar** (Survival only): a 10-icon drumstick meter beside the hearts, drained by an *exhaustion* model — walking, sprinting, jumping, and healing all cost hunger. Eat to refill by holding right-click with food selected. Not persisted (resets full each load)
+- **Hunger bar** (Survival only): a 10-icon drumstick meter beside the hearts, drained by an *exhaustion* model — walking, sprinting, jumping, and healing all cost hunger. Eat to refill by holding right-click with food selected. A **hidden saturation buffer** sits on top: eating fills it (capped to your current hunger), and exhaustion drains *it* before the visible bar — so a hearty, well-cooked meal keeps the drumsticks full far longer than its raw hunger points suggest, since **cooked food grants far more saturation than raw**. Not persisted (resets each load)
 - Air/breath meter with an underwater screen overlay; drowning damage once air runs out
-- Passive health regeneration after a short no-damage delay, now gated on a near-full hunger bar; at zero hunger you starve for half a heart at a time (but never below 1 HP)
+- Passive health regeneration after a short no-damage delay, now gated on a near-full hunger bar; while hunger is **full and saturation remains** it speeds up into a brisk "well-fed" heal; at zero hunger you starve for half a heart at a time (but never below 1 HP)
 - Death overlay with respawn at your **bed spawn anchor** if you've slept in one, otherwise a fresh dry spawn (brief post-respawn invulnerability)
 - Creative mode is damage-free
 
@@ -128,7 +128,6 @@ A 3D Minecraft-style voxel game built with **Bun + Three.js + TypeScript (strict
 ## Upcoming features
 
 ### Short term
-- **Hunger polish**: a hidden saturation layer and cooked-food items — the core hunger bar (exhaustion drain, health-regen gating, starvation, raw-food drops, hold-to-eat) already ships (see Survival above)
 - **Mob AI improvements**: pathfinding and smarter target tracking — 1-block step-climbing and cliff/edge avoidance already ship (see Mobs & combat above)
 - **A wider recipe book**: more crafting + smelting recipes — the crafting grid, **wooden / stone / iron / diamond tools and swords**, **iron + diamond armor** (helmet / chestplate / leggings / boots), and **smelting via the furnace** (ore→ingot, sand→glass, cobble→stone, raw→cooked food) already ship (see Items & inventory above)
 
