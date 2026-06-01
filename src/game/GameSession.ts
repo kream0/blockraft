@@ -356,6 +356,13 @@ export class GameSession {
     this.player = new Player(0, CHUNK_HEIGHT - 1, 0, settings.fov, this.gameMode);
     this.renderer.scene.add(this.player.camera);
 
+    // Build the post-processing pipeline + apply all graphics-quality settings now that the
+    // camera exists. First call always returns {shadowRecompileNeeded:false} (materials compile fresh).
+    this.renderer.applyGraphics(settings, this.player.camera);
+    // Re-lock the drawing-buffer size so the pixel-ratio cap from settings takes effect immediately
+    // (the earlier setSize ran before applyGraphics established the cap).
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+
     // First-person hand, parented to the camera so it always tracks the view.
     this.viewModel = new ViewModel();
     this.player.camera.add(this.viewModel.object3D);
@@ -912,6 +919,15 @@ export class GameSession {
     this.controls.setKeybindings(settings.keybindings);
     this.audio.setVolumes(settings.masterVolume, settings.musicVolume, settings.sfxVolume);
     this.hud.setShowFps(settings.showFps);
+    // Graphics quality: pixel-ratio cap, AA, tone mapping, fog type, bloom, SSAO, shadow tiers.
+    // (setFogFar above already updated fog DISTANCE; applyGraphics handles fog TYPE + everything else.)
+    const { shadowRecompileNeeded } = this.renderer.applyGraphics(settings, this.player.camera);
+    if (shadowRecompileNeeded) {
+      // Shadow enabled-state or PCF softness type changed → the unlit chunk/water shaders gate their
+      // shadow GLSL on USE_SHADOWMAP / SHADOWMAP_TYPE_* defines, so force a recompile to pick it up.
+      this.chunkMaterial.needsUpdate = true;
+      this.waterMaterial.needsUpdate = true;
+    }
   }
 
   /** True iff pointer-locked (in active gameplay). */
