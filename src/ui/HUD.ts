@@ -55,6 +55,7 @@ function ensureStyle(): void {
 export class HUD {
   private fpsEl: HTMLElement;
   private posEl: HTMLElement;
+  private dayEl: HTMLElement;
   private timeEl: HTMLElement;
   private weatherEl: HTMLElement;
   private clickHintEl: HTMLElement;
@@ -81,6 +82,7 @@ export class HUD {
   // Dirty-flag caches — sentinel values ensure first call always writes.
   private _lastFpsStr: string = '';
   private _lastPosStr: string = '';
+  private _lastDayStr: string = '';
   private _lastTimeStr: string = '';
   private _lastWeatherStr: string = '';
   private _lastUnderwater: boolean | null = null;
@@ -114,6 +116,9 @@ export class HUD {
     pos.textContent = 'Pos: 0.0, 0.0, 0.0';
     readout.appendChild(fps);
     readout.appendChild(pos);
+    const day = document.createElement('div');
+    day.textContent = 'Day 1';
+    readout.appendChild(day);
     const time = document.createElement('div');
     time.textContent = 'Time: --:--';
     readout.appendChild(time);
@@ -124,6 +129,7 @@ export class HUD {
     this.readoutEl = readout;
     this.fpsEl = fps;
     this.posEl = pos;
+    this.dayEl = day;
     this.timeEl = time;
     this.weatherEl = weather;
 
@@ -289,6 +295,15 @@ export class HUD {
     }
   }
 
+  /** Update the session day counter readout (Day 1, Day 2, ...). */
+  setDay(day: number): void {
+    const s = 'Day ' + day;
+    if (s !== this._lastDayStr) {
+      this._lastDayStr = s;
+      this.dayEl.textContent = s;
+    }
+  }
+
   setHealth(hp: number, max: number): void {
     if (hp === this._lastHealthVal && max === this._lastHealthMax) return;
     this._lastHealthVal = hp;
@@ -390,7 +405,7 @@ export class HUD {
   dispose(): void {
     this.hotbar.dispose();
     this.minimap.dispose();
-    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl]) {
+    for (const el of [this.crosshairEl, this.breakEl, this.readoutEl, this.clickHintEl, this.healthEl, this.airEl, this.hungerEl, this.armorEl, this.underwaterEl, this.damageVignetteEl, this.weatherEl, this.dayEl]) {
       if (el.parentNode !== null) {
         el.parentNode.removeChild(el);
       }

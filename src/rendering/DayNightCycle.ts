@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DAY_LENGTH_SECONDS, type SkyState } from '../types';
+import { DAY_LENGTH_SECONDS, MORNING_TIME, type SkyState } from '../types';
 
 // Palette (sRGB hex).
 const NIGHT_SKY = 0x0a0e1a;
@@ -25,6 +25,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
  */
 export class DayNightCycle {
   private t: number;
+  private _dayCount: number = 1;
   private readonly state: SkyState;
 
   // Palette scratch instances (constructed once).
@@ -57,15 +58,34 @@ export class DayNightCycle {
     return this.t < 0.23 || this.t > 0.77;
   }
 
+  /** Session day counter, starts at 1. Increments each dawn and on sleep. Not persisted. */
+  get dayCount(): number {
+    return this._dayCount;
+  }
+
   /** Jump to a specific time (used for testing / future commands). */
   setNormalizedTime(t: number): void {
     this.t = ((t % 1) + 1) % 1;
     this.recompute();
   }
 
+  /** Sleeping skips to dawn of the next day: jump to morning and advance the day counter.
+   *  t lands exactly on MORNING_TIME, so the next update's prev === MORNING_TIME (not < it) and won't double-count. */
+  sleepToMorning(): void {
+    this.t = MORNING_TIME;
+    this._dayCount++;
+    this.recompute();
+  }
+
   /** Advance time by dt real seconds and recompute the sky state. */
   update(dt: number): void {
+    const prev = this.t;
     this.t = (((this.t + dt / DAY_LENGTH_SECONDS) % 1) + 1) % 1;
+    // A new day begins when time sweeps upward past dawn (MORNING_TIME). The midnight
+    // wrap (t falls from ~1 to ~0) does not satisfy prev < MORNING_TIME <= t, so it won't false-trigger.
+    if (prev < MORNING_TIME && this.t >= MORNING_TIME) {
+      this._dayCount++;
+    }
     this.recompute();
   }
 

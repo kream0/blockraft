@@ -43,7 +43,6 @@ import {
   CHUNK_HEIGHT,
   CHUNK_SIZE,
   GameMode,
-  MORNING_TIME,
   PLAYER_MAX_HEALTH,
   PLAYER_RESPAWN_INVULN_S,
   PLAYER_ATTACK_DAMAGE,
@@ -424,6 +423,7 @@ export class GameSession {
     // Reflect the persisted hotbar selection visually.
     this.hud.hotbar.setSelectedSlot(this.player.state.selectedSlot);
     this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+    this.hud.setDay(this.dayNight.dayCount);
     this.hud.setShowFps(settings.showFps);
     if (this.gameMode === GameMode.SURVIVAL) {
       this.hud.setHealth(this.player.state.health, PLAYER_MAX_HEALTH);
@@ -681,6 +681,7 @@ export class GameSession {
         this.dayNight.update(this.skyAcc);
         this.applySkyWithWeather();
         this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+        this.hud.setDay(this.dayNight.dayCount);
         this.hud.setWeather(this.weather.label);
         this.skyAcc = 0;
       }
@@ -1727,9 +1728,10 @@ export class GameSession {
   private trySleep(bx: number, by: number, bz: number): void {
     this.spawnPoint = { x: bx + 0.5, y: by + 1, z: bz + 0.5 };
     if (this.dayNight.isNight) {
-      this.dayNight.setNormalizedTime(MORNING_TIME);
+      this.dayNight.sleepToMorning();
       this.applySkyWithWeather();
       this.hud.setTimeOfDay(this.dayNight.normalizedTime);
+      this.hud.setDay(this.dayNight.dayCount);
       this.wasNight = false;
       this.onToast('You slept through the night. Spawn point set.');
     } else {
